@@ -1,0 +1,20 @@
+# Sample LINAC Log Data for HALog Testing
+# Format: YYYY-MM-DD HH:MM:SS SN#123 ParameterName: count=X, max=Y, min=Z, avg=A
+
+2024-08-01 10:00:00 SN#001 cooling pump high statistics: count=60, max=210.5, min=190.2, avg=198.3
+2024-08-01 10:00:05 SN#001 magnetron flow: count=60, max=12.1, min=10.8, avg=11.5
+2024-08-01 10:00:10 SN#001 target and circulator flow: count=60, max=9.2, min=7.8, avg=8.3
+2024-08-01 10:00:15 SN#001 cooling city water flow statistics: count=60, max=23.5, min=20.8, avg=22.1
+2024-08-01 10:00:20 SN#001 cooling pump high statistics: count=60, max=205.2, min=185.1, avg=195.8
+2024-08-01 10:00:25 SN#001 magnetron flow: count=60, max=12.8, min=11.2, avg=11.8
+2024-08-01 10:00:30 SN#001 target and circulator flow: count=60, max=9.5, min=8.2, avg=8.5
+2024-08-01 10:00:35 SN#001 cooling city water flow statistics: count=60, max=22.9, min=20.5, avg=21.9
+2024-08-01 10:00:40 SN#001 cooling pump high statistics: count=60, max=215.3, min=195.8, avg=203.2
+2024-08-01 10:00:45 SN#001 magnetron flow: count=60, max=11.8, min=10.5, avg=11.2
+2024-08-01 10:00:50 SN#001 target and circulator flow: count=60, max=8.9, min=7.5, avg=8.1
+2024-08-01 10:00:55 SN#001 cooling city water flow statistics: count=60, max=24.1, min=21.2, avg=22.3
+
+2024-08-01 10:01:00 SN#002 cooling pump high statistics: count=60, max=208.7, min=188.4, avg=199.1
+2024-08-01 10:01:05 SN#002 magnetron flow: count=60, max=11.9, min=10.7, avg=11.3
+2024-08-01 10:01:10 SN#002 target and circulator flow: count=60, max=8.8, min=7.9, avg=8.2
+2024-08-01 10:01:15 SN#002 cooling city water flow statistics: count=60, max=22.8, min=20.9, avg=21.8

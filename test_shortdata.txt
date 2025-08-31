@@ -1,0 +1,11 @@
+2024-08-01	10:00:00	TB	SN# 001	cooling pump high statistics: count=60, max=210.5, min=190.2, avg=198.3	TB	TB	TB
+2024-08-01	10:00:05	TB	SN# 001	magnetronFlow: count=60, max=12.1, min=10.8, avg=11.5	TB	TB	TB
+2024-08-01	10:00:10	TB	SN# 001	target and circulator flow: count=60, max=9.2, min=7.8, avg=8.3	TB	TB	TB
+2024-08-01	10:00:15	TB	SN# 001	cooling city water flow statistics: count=60, max=23.5, min=20.8, avg=22.1	TB	TB	TB
+2024-08-01	10:00:20	TB	SN# 001	FanremoteTempStatistics: count=60, max=24.5, min=22.1, avg=23.2	TB	TB	TB
+2024-08-01	10:00:25	TB	SN# 001	magnetronTemp: count=60, max=68.2, min=65.1, avg=66.8	TB	TB	TB
+2024-08-01	10:00:30	TB	SN# 001	FanfanSpeed1Statistics: count=60, max=2850, min=2750, avg=2800	TB	TB	TB
+2024-08-01	10:00:35	TB	SN# 001	FanfanSpeed2Statistics: count=60, max=2820, min=2720, avg=2770	TB	TB	TB
+2024-08-01	10:00:40	TB	SN# 001	MLC_ADC_CHAN_TEMP_BANKA_STAT: count=60, max=24.2, min=23.8, avg=24.0	TB	TB	TB
+2024-08-01	10:00:45	TB	SN# 001	MLC_ADC_CHAN_TEMP_BANKB_STAT: count=60, max=24.1, min=23.9, avg=24.0	TB	TB	TB
+2024-08-01	10:00:50	TB	SN# 001	FanhumidityStatistics: count=60, max=46.2, min=44.8, avg=45.5	TB	TB	TB
