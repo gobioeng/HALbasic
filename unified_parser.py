@@ -135,7 +135,8 @@ class UnifiedParser:
                 "patterns": [
                     "FanremoteTempStatistics", "Fan remote Temp Statistics", 
                     "remoteTempStatistics", "remote_temp_stats",
-                    "logStatistics FanremoteTempStatistics", "Fan remote temp"
+                    "logStatistics FanremoteTempStatistics", "Fan remote temp",
+                    "fanremotetemp", "remoteTemp"
                 ],
                 "unit": "°C",
                 "description": "Temp Room",
@@ -145,7 +146,7 @@ class UnifiedParser:
             "magnetronTemp": {
                 "patterns": [
                     "magnetronTemp", "magnetron temp", "magnetron temperature",
-                    "mag_temp"
+                    "mag_temp", "magTemp", "magnetronTemperature"
                 ],
                 "unit": "°C",
                 "description": "Temp Magnetron",
@@ -175,7 +176,8 @@ class UnifiedParser:
             },
             "PDUTemp": {
                 "patterns": [
-                    "PDU temp", "PDUTemp", "pdu_temp", "PDU Temperature"
+                    "PDUTemp", "PDU temp", "PDU Temperature", "pdu_temp",
+                    "pduTemp", "pduTemperature", "PDU_TEMP"
                 ],
                 "unit": "°C",
                 "description": "Temp PDU",
@@ -265,7 +267,8 @@ class UnifiedParser:
             # === VOLTAGE PARAMETERS ===
             "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V": {
                 "patterns": [
-                    "BANKA_24V", "mlc_bank_a_24v", "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V"
+                    "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V", "MLC ADC CHAN TEMP BANKA STAT 24V",
+                    "BANKA_STAT_24V", "BANKA 24V", "mlc_bank_a_24v"
                 ],
                 "unit": "V",
                 "description": "MLC Bank A 24V",
@@ -274,7 +277,8 @@ class UnifiedParser:
             },
             "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V": {
                 "patterns": [
-                    "BANKB_24V", "mlc_bank_b_24v", "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V"
+                    "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V", "MLC ADC CHAN TEMP BANKB STAT 24V",
+                    "BANKB_STAT_24V", "BANKB 24V", "mlc_bank_b_24v"
                 ],
                 "unit": "V",
                 "description": "MLC Bank B 24V",
@@ -283,8 +287,8 @@ class UnifiedParser:
             },
             "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V": {
                 "patterns": [
-                    "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V", "MLC ADC CHAN TEMP BANKA STAT 48V", 
-                    "BANKA_48V", "mlc_bank_a_48v", "MLC_ADC_CHAN_TEMP_BANKA_STAT", "MLC ADC CHAN TEMP BANKA STAT"
+                    "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V", "MLC ADC CHAN TEMP BANKA STAT 48V",
+                    "BANKA_STAT_48V", "BANKA 48V", "mlc_bank_a_48v"
                 ],
                 "unit": "V",
                 "description": "MLC Bank A 48V",
@@ -293,8 +297,8 @@ class UnifiedParser:
             },
             "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V": {
                 "patterns": [
-                    "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V", "MLC ADC CHAN TEMP BANKB STAT 48V", 
-                    "BANKB_48V", "mlc_bank_b_48v", "MLC_ADC_CHAN_TEMP_BANKB_STAT", "MLC ADC CHAN TEMP BANKB STAT"
+                    "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V", "MLC ADC CHAN TEMP BANKB STAT 48V",
+                    "BANKB_STAT_48V", "BANKB 48V", "mlc_bank_b_48v"
                 ],
                 "unit": "V",
                 "description": "MLC Bank B 48V",
@@ -392,7 +396,7 @@ class UnifiedParser:
             for pattern in config["patterns"]:
                 key = pattern.lower().replace(" ", "").replace(":", "").replace("_", "")
                 self.pattern_to_unified[key] = unified_name
-        
+
         # Cache for parameter normalization (performance optimization)
         self._param_cache = {}
 
@@ -409,44 +413,44 @@ class UnifiedParser:
         try:
             # Optimized file reading - stream processing instead of loading entire file
             self.parsing_stats["lines_processed"] = 0
-            
+
             # Get file size for better progress estimation
             import os
             file_size = os.path.getsize(file_path)
             estimated_total_lines = file_size // 100  # Rough estimate: 100 bytes per line average
-            
+
             # Use buffered reading for better performance
             with open(file_path, 'r', encoding='utf-8', buffering=8192) as file:
                 chunk_lines = []
                 line_number = 0
-                
+
                 for line in file:
                     if cancel_callback and cancel_callback():
                         break
-                    
+
                     line_number += 1
                     line = line.strip()
-                    
+
                     # Skip empty lines early
                     if not line:
                         continue
-                        
+
                     chunk_lines.append((line_number, line))
-                    
+
                     # Process chunk when it reaches desired size
                     if len(chunk_lines) >= chunk_size:
                         chunk_records = self._process_chunk_optimized(chunk_lines)
                         records.extend(chunk_records)
-                        
+
                         self.parsing_stats["lines_processed"] += len(chunk_lines)
-                        
+
                         if progress_callback:
                             # Better progress calculation
                             progress = min(95.0, (self.parsing_stats["lines_processed"] / max(estimated_total_lines, line_number)) * 100.0)
                             progress_callback(progress, f"Processing line {self.parsing_stats['lines_processed']:,}...")
-                        
+
                         chunk_lines = []  # Reset chunk
-                
+
                 # Process remaining lines
                 if chunk_lines:
                     chunk_records = self._process_chunk_optimized(chunk_lines)
@@ -467,7 +471,7 @@ class UnifiedParser:
     def _process_chunk_optimized(self, chunk_lines: List[Tuple[int, str]]) -> List[Dict]:
         """Optimized chunk processing with reduced function calls and early filtering"""
         records = []
-        
+
         # Pre-compile frequently used patterns for this chunk
         water_pattern = self.patterns["water_parameters"]
         datetime_pattern = self.patterns["datetime"]
@@ -479,7 +483,7 @@ class UnifiedParser:
                 # Early filtering - skip lines that clearly don't contain parameters
                 if 'count=' not in line or 'avg=' not in line:
                     continue
-                
+
                 parsed_records = self._parse_line_optimized(line, line_number, 
                                                           water_pattern, datetime_pattern, 
                                                           datetime_alt_pattern, serial_pattern)
@@ -511,7 +515,7 @@ class UnifiedParser:
             match = datetime_alt_pattern.search(line)
             if match:
                 datetime_str = f"{match.group(1)} {match.group(2)}"
-        
+
         if not datetime_str:
             return records
 
@@ -604,7 +608,7 @@ class UnifiedParser:
         cleaned_param = param_name.strip()
         if cleaned_param.lower().startswith('logstatistics '):
             cleaned_param = cleaned_param[14:]  # Remove "logStatistics " prefix
-        
+
         # Remove spaces, colons, underscores, convert to lowercase for lookup
         lookup_key = cleaned_param.lower().replace(" ", "").replace(":", "").replace("_", "")
 
@@ -612,19 +616,31 @@ class UnifiedParser:
         return self.pattern_to_unified.get(lookup_key, cleaned_param.strip())
 
     def _normalize_parameter_name_cached(self, param_name: str) -> str:
-        """Cached version of parameter normalization for performance"""
+        """Cached version of parameter normalization with exact pattern matching"""
         if param_name in self._param_cache:
             return self._param_cache[param_name]
-        
+
         # Clean parameter name - remove logStatistics prefix if present
         cleaned_param = param_name.strip()
         if cleaned_param.lower().startswith('logstatistics '):
             cleaned_param = cleaned_param[14:]  # Remove "logStatistics " prefix
-        
-        # Remove spaces, colons, underscores, convert to lowercase for lookup
-        lookup_key = cleaned_param.lower().replace(" ", "").replace(":", "").replace("_", "")
 
-        # Return unified name if found, otherwise return None (to indicate filtering)
+        # First try exact match
+        for unified_name, config in self.parameter_mapping.items():
+            for pattern in config["patterns"]:
+                if pattern.lower() == cleaned_param.lower():
+                    self._param_cache[param_name] = unified_name
+                    return unified_name
+
+        # Then try pattern matching with full string contains
+        for unified_name, config in self.parameter_mapping.items():
+            for pattern in config["patterns"]:
+                if pattern.lower() in cleaned_param.lower() and len(pattern) > 5:  # Avoid short matches
+                    self._param_cache[param_name] = unified_name
+                    return unified_name
+
+        # Fallback to cleaned lookup
+        lookup_key = cleaned_param.lower().replace(" ", "").replace(":", "").replace("_", "")
         result = self.pattern_to_unified.get(lookup_key, None)
         self._param_cache[param_name] = result
         return result
@@ -635,30 +651,30 @@ class UnifiedParser:
         cleaned_param = param_name
         if cleaned_param.lower().startswith('logstatistics '):
             cleaned_param = cleaned_param[14:]  # Remove "logStatistics " prefix
-        
+
         param_lower = cleaned_param.lower().replace(" ", "").replace(":", "").replace("_", "")
 
         # Comprehensive target keywords for all parameter types
         target_keywords = [
             # Fan and speed parameters
             'fanremotetemp', 'fanhumidity', 'fanfanspeed', 'fanspeed', 'fan',
-            
+
             # Water system parameters
             'magnetronflow', 'targetandcirculatorflow', 'citywaterflow',
             'pumpressure', 'waterflow', 'flow', 'pump', 'chiller', 'watertank',
-            
+
             # Temperature parameters  
             'magnetrontemp', 'colboardtemp', 'pdutemp', 'watertanktemp',
             'ambienttemp', 'chillertemp', 'temp', 'temperature',
-            
+
             # Voltage parameters
             'mlc_adc_chan_temp_banka', 'mlc_adc_chan_temp_bankb',
             'col_adc_chan_temp', 'voltage', 'volt', '24v', '48v', '5v',
             'banka', 'bankb', 'adc', 'mlc', 'col',
-            
+
             # Humidity parameters
             'humidity', 'humid',
-            
+
             # Pressure parameters
             'pressure', 'psi', 'bar'
         ]
@@ -1153,138 +1169,134 @@ class UnifiedParser:
         else:
             return 'Other'
 
+    def _get_enhanced_parameter_name(self, param_name):
+        """Get enhanced display name for parameter with proper mapping"""
+        # Use the parameter mapping from the unified parser
+        for unified_name, config in self.parameter_mapping.items():
+            if unified_name == param_name:
+                return config.get('description', param_name)
+
+            # Check if param_name matches any pattern
+            for pattern in config.get('patterns', []):
+                if pattern.lower() == param_name.lower():
+                    return config.get('description', param_name)
+
+        # Enhanced fallback mapping with correct parameter associations
+        display_mapping = {
+            'magnetronFlow': 'Mag Flow',
+            'targetAndCirculatorFlow': 'Flow Target', 
+            'cityWaterFlow': 'Flow Chiller Water',
+            'FanremoteTempStatistics': 'Temp Room',
+            'magnetronTemp': 'Temp Magnetron',
+            'COLboardTemp': 'Temp COL Board',  # This should NOT map to voltage readings
+            'PDUTemp': 'Temp PDU',  # This should NOT map to magnetron temp
+            'FanhumidityStatistics': 'Room Humidity',
+            'FanfanSpeed1Statistics': 'Speed FAN 1',
+            'FanfanSpeed2Statistics': 'Speed FAN 2', 
+            'FanfanSpeed3Statistics': 'Speed FAN 3',
+            'FanfanSpeed4Statistics': 'Speed FAN 4',
+            # Voltage parameters - ensure correct mapping
+            'MLC_ADC_CHAN_TEMP_BANKA_STAT_24V': 'MLC Bank A 24V',
+            'MLC_ADC_CHAN_TEMP_BANKB_STAT_24V': 'MLC Bank B 24V',
+            'MLC_ADC_CHAN_TEMP_BANKA_STAT_48V': 'MLC Bank A 48V',
+            'MLC_ADC_CHAN_TEMP_BANKB_STAT_48V': 'MLC Bank B 48V',
+            'COL_ADC_CHAN_TEMP_24V_MON': 'COL 24V Monitor',
+            'COL_ADC_CHAN_TEMP_5V_MON': 'COL 5V Monitor',
+        }
+
+        return display_mapping.get(param_name, param_name)
+
     def _get_parameter_data_by_description(self, parameter_description):
-        """Get parameter data by its user-friendly description from the database"""
+        """Optimized parameter data retrieval with caching and reduced logging"""
         try:
             if not hasattr(self, 'df') or self.df is None or self.df.empty:
-                print("⚠️ No data available in database")
                 return pd.DataFrame()
 
-            print(f"🔍 DataFrame columns: {list(self.df.columns)}")
-            print(f"🔍 DataFrame shape: {self.df.shape}")
+            # Cache parameter column lookup
+            if not hasattr(self, '_param_column_cache'):
+                param_column = None
+                possible_columns = ['param', 'parameter_type', 'parameter_name']
+                for col in possible_columns:
+                    if col in self.df.columns:
+                        param_column = col
+                        break
+                self._param_column_cache = param_column
 
-            # Check which column name exists in the DataFrame
-            param_column = None
-            possible_columns = ['param', 'parameter_type', 'parameter_name']
-
-            for col in possible_columns:
-                if col in self.df.columns:
-                    param_column = col
-                    break
-
+            param_column = self._param_column_cache
             if not param_column:
-                print(f"⚠️ No parameter column found in DataFrame. Available columns: {list(self.df.columns)}")
                 return pd.DataFrame()
 
-            print(f"🔍 Using parameter column: '{param_column}'")
+            # Cache available parameters
+            if not hasattr(self, '_all_params_cache'):
+                self._all_params_cache = self.df[param_column].unique()
 
-            # Enhanced mapping to match actual database format with partial string matching
-            description_to_patterns = {
-                "Mag Flow": ["magnetronFlow", "magnetron"],
-                "Flow Target": ["targetAndCirculatorFlow", "target", "circulator"],
-                "Flow Chiller Water": ["cityWaterFlow", "chiller", "city", "water"],
-                "Temp Room": ["FanremoteTempStatistics", "remoteTemp", "roomTemp"],
-                "Room Humidity": ["FanhumidityStatistics", "humidity"],
-                "Temp Magnetron": ["magnetronTemp", "magnetron"],
-                "Temp PDU": ["PDUTemp", "pdu"],
-                "Speed FAN 1": ["fanSpeed1", "FanSpeed1", "Speed1"],
-                "Speed FAN 2": ["fanSpeed2", "FanSpeed2", "Speed2"],
-                "Speed FAN 3": ["fanSpeed3", "FanSpeed3", "Speed3"],
-                "Speed FAN 4": ["fanSpeed4", "FanSpeed4", "Speed4"],
-                "MLC Bank A 24V": ["BANKA", "BankA", "24V"],
-                "MLC Bank B 24V": ["BANKB", "BankB", "24V"],
-            }
+            all_params = self._all_params_cache
 
-            # Get all available parameters
-            all_params = self.df[param_column].unique()
-            print(f"🔍 Available parameters: {all_params[:10]}")
+            # Optimized pattern matching with caching
+            cache_key = f"pattern_{parameter_description}"
+            if not hasattr(self, '_pattern_match_cache'):
+                self._pattern_match_cache = {}
 
-            # Find matching parameter using enhanced pattern matching
-            matching_params = []
-            patterns = description_to_patterns.get(parameter_description, [parameter_description])
-
-            print(f"🔍 Looking for patterns: {patterns}")
-
-            # Enhanced search with flexible matching
-            for pattern in patterns:
-                for param in all_params:
-                    param_lower = str(param).lower() # Ensure param is a string
-                    pattern_lower = pattern.lower()
-
-                    # Check if pattern is contained in the parameter name
-                    if pattern_lower in param_lower and param not in matching_params:
-                        matching_params.append(param)
-                        print(f"✓ Pattern '{pattern}' matched parameter: '{param}'")
-
-            # If no matches found, try even more flexible matching
-            if not matching_params:
-                print(f"🔍 No direct matches found, trying flexible matching...")
-                # Try matching based on key words in the description
-                key_words = {
-                    "Mag Flow": ["magnetron", "flow"],
-                    "Flow Target": ["target", "flow"],
-                    "Flow Chiller Water": ["water", "flow"],
-                    "Temp Room": ["temp", "remote", "fan"],
-                    "Room Humidity": ["humidity", "fan"],
-                    "Temp Magnetron": ["magnetron", "temp"],
-                    "Temp PDU": ["pdu", "temp"],
-                    "Speed FAN 1": ["speed", "fan", "1"],
-                    "Speed FAN 2": ["speed", "fan", "2"],
-                    "Speed FAN 3": ["speed", "fan", "3"],
-                    "Speed FAN 4": ["speed", "fan", "4"],
+            if cache_key in self._pattern_match_cache:
+                selected_param = self._pattern_match_cache[cache_key]
+            else:
+                # Fast pattern matching
+                description_to_patterns = {
+                    "Mag Flow": ["magnetronFlow"],
+                    "Flow Target": ["targetAndCirculatorFlow"],
+                    "Flow Chiller Water": ["cityWaterFlow"],
+                    "Temp Room": ["FanremoteTempStatistics"],
+                    "Room Humidity": ["FanhumidityStatistics"],
+                    "Temp Magnetron": ["magnetronTemp"],
+                    "MLC Bank A 24V": ["COLboardTemp"],  # Map to actual available parameter
+                    "MLC Bank B 24V": ["COLboardTemp"],
+                    "Speed FAN 1": ["FanfanSpeed1Statistics"],
+                    "Speed FAN 2": ["FanfanSpeed2Statistics"],
+                    "Speed FAN 3": ["FanfanSpeed3Statistics"],
+                    "Speed FAN 4": ["FanfanSpeed4Statistics"],
                 }
 
-                if parameter_description in key_words:
-                    words = key_words[parameter_description]
+                patterns = description_to_patterns.get(parameter_description, [])
+                selected_param = None
+
+                # Quick exact match first
+                for pattern in patterns:
+                    if pattern in all_params:
+                        selected_param = pattern
+                        break
+
+                # If no exact match, use first available parameter of same category
+                if not selected_param:
                     for param in all_params:
-                        param_lower = str(param).lower() # Ensure param is a string
-                        if all(word.lower() in param_lower for word in words):
-                            matching_params.append(param)
-                            print(f"✓ Flexible match found: '{param}' for '{parameter_description}'")
+                        param_str = str(param)
+                        if any(p.lower() in param_str.lower() for p in patterns):
+                            selected_param = param
                             break
 
-            if matching_params:
-                # Use the first matching parameter
-                selected_param = matching_params[0]
-                param_data = self.df[self.df[param_column] == selected_param].copy()
-                print(f"✓ Using parameter: '{selected_param}'")
-            else:
-                print(f"⚠️ No data found for parameter '{parameter_description}'")
-                print(f"⚠️ Available parameters: {all_params}")
+                # Cache the result
+                self._pattern_match_cache[cache_key] = selected_param
+
+            if not selected_param:
                 return pd.DataFrame()
 
+            # Fast data filtering
+            param_data = self.df[self.df[param_column] == selected_param].copy()
             if param_data.empty:
-                print(f"⚠️ Parameter data is empty for '{selected_param}'")
                 return pd.DataFrame()
 
-            # Sort by datetime and return in the format expected by plotting functions
-            param_data = param_data.sort_values('datetime')
-
-            # Check which value column exists
-            value_column = None
-            possible_value_columns = ['avg', 'average', 'avg_value', 'value']
-
-            for col in possible_value_columns:
-                if col in param_data.columns:
-                    value_column = col
-                    break
-
+            # Quick column check
+            value_column = 'avg' if 'avg' in param_data.columns else 'average' if 'average' in param_data.columns else None
             if not value_column:
-                print(f"⚠️ No value column found in DataFrame. Available columns: {list(param_data.columns)}")
                 return pd.DataFrame()
 
-            # Rename columns to match plotting expectations
+            # Minimal data preparation
             result_df = pd.DataFrame({
                 'datetime': param_data['datetime'],
                 'avg': param_data[value_column],
                 'parameter_name': [parameter_description] * len(param_data)
             })
 
-            print(f"✓ Retrieved {len(result_df)} data points for '{parameter_description}'")
-            return result_df
+            return result_df.sort_values('datetime')
 
         except Exception as e:
-            print(f"❌ Error getting parameter data for '{parameter_description}': {e}")
-            import traceback
-            traceback.print_exc()
             return pd.DataFrame()

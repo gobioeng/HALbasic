@@ -300,7 +300,7 @@ class PlotUtils:
         layout = widget.layout()
         if layout is None:
             layout = QVBoxLayout(widget)
-            widget.setLayout(layout)
+            widget.setLayout(widget)
         else:
             while layout.count():
                 item = layout.takeAt(0)
@@ -336,7 +336,7 @@ class PlotUtils:
 
     @staticmethod
     def _plot_parameter_data(ax, data, title):
-        """Plot parameter data on a specific axis - FIXED for actual data format"""
+        """Plot parameter data on a specific axis with compressed time gaps for distant dates"""
         if data is None or data.empty:
             ax.text(0.5, 0.5, 'No data available', 
                    horizontalalignment='center', verticalalignment='center',
@@ -356,10 +356,6 @@ class PlotUtils:
             ax.set_title(title, fontsize=12, fontweight='bold')
             return
 
-        # Plot data with auto-scaling
-        colors = PlotUtils.get_group_colors()
-        color_cycle = list(colors.values())
-
         # Determine value column to use
         value_col = None
         possible_value_cols = ['avg', 'avg_value', 'Average', 'value']
@@ -377,61 +373,25 @@ class PlotUtils:
 
         print(f"🔍 Using value column: '{value_col}' for plotting")
 
-        if 'parameter' in data.columns or 'parameter_name' in data.columns:
-            # Multiple parameters
-            param_col = 'parameter' if 'parameter' in data.columns else 'parameter_name'
-            unique_params = data[param_col].unique()
-            for i, param in enumerate(unique_params):
-                param_data = data[data[param_col] == param]
-                color = color_cycle[i % len(color_cycle)]
+        # Sort data by datetime for proper time gap analysis
+        data_sorted = data.sort_values('datetime')
+        
+        # Check for significant time gaps (more than 1 day) that should be compressed
+        time_clusters = find_time_clusters(data_sorted['datetime'], gap_threshold=timedelta(days=1))
+        
+        colors = PlotUtils.get_group_colors()
+        color_cycle = list(colors.values())
 
-                if 'datetime' in param_data.columns and value_col in param_data.columns:
-                    ax.plot(param_data['datetime'], param_data[value_col], 
-                           label=param, color=color, linewidth=2, marker='o', markersize=4)
-
-                    # Add error bands if min/max available
-                    if 'min_value' in param_data.columns and 'max_value' in param_data.columns:
-                        ax.fill_between(param_data['datetime'], 
-                                      param_data['min_value'], param_data['max_value'],
-                                      alpha=0.2, color=color)
-                    elif 'Min' in param_data.columns and 'Max' in param_data.columns:
-                        ax.fill_between(param_data['datetime'], 
-                                      param_data['Min'], param_data['Max'],
-                                      alpha=0.2, color=color)
+        if len(time_clusters) > 1:
+            # Multiple time clusters - use compressed timeline plotting
+            PlotUtils._plot_with_compressed_timeline(ax, data_sorted, value_col, title, time_clusters, color_cycle)
         else:
-            # Single parameter
-            if 'datetime' in data.columns and value_col in data.columns:
-                ax.plot(data['datetime'], data[value_col], 
-                       color=color_cycle[0], linewidth=2, marker='o', markersize=4, 
-                       label=title)
-
-                # Add error bands if min/max available
-                if 'min_value' in data.columns and 'max_value' in data.columns:
-                    ax.fill_between(data['datetime'], 
-                                  data['min_value'], data['max_value'],
-                                  alpha=0.2, color=color_cycle[0])
-                elif 'Min' in data.columns and 'Max' in data.columns:
-                    ax.fill_between(data['datetime'], 
-                                  data['Min'], data['Max'],
-                                  alpha=0.2, color=color_cycle[0])
+            # Single continuous time period - use normal plotting
+            PlotUtils._plot_continuous_timeline(ax, data_sorted, value_col, title, color_cycle)
 
         # Format axes
         ax.set_title(title, fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3)
-
-        if 'datetime' in data.columns:
-            # Better date formatting for the actual data
-            date_range = data['datetime'].max() - data['datetime'].min()
-            if date_range.total_seconds() < 3600:  # Less than 1 hour
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-                ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=10))
-            elif date_range.total_seconds() < 86400:  # Less than 1 day
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
-            else:
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-                ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
 
         # Auto-scale with some padding
         ax.margins(x=0.02, y=0.05)
@@ -442,8 +402,187 @@ class PlotUtils:
             ax.legend(loc='best', framealpha=0.9)
 
     @staticmethod
+    def _plot_with_compressed_timeline(ax, data, value_col, title, time_clusters, color_cycle):
+        """Plot data with compressed timeline for multiple date ranges"""
+        try:
+            # Calculate the normalized positions for each cluster
+            total_points = sum(len(cluster) for cluster in time_clusters)
+            cluster_widths = []
+            
+            for cluster in time_clusters:
+                # Give each cluster width proportional to its data points
+                width = len(cluster) / total_points
+                cluster_widths.append(max(0.15, width * 0.8))  # Minimum 15% width
+            
+            # Add gaps between clusters
+            gap_width = 0.05
+            total_width = sum(cluster_widths) + gap_width * (len(time_clusters) - 1)
+            
+            # Normalize to fit in [0, 1]
+            if total_width > 1:
+                scale_factor = 1.0 / total_width
+                cluster_widths = [w * scale_factor for w in cluster_widths]
+                gap_width *= scale_factor
+            
+            # Plot each cluster
+            current_pos = 0
+            tick_positions = []
+            tick_labels = []
+            
+            for i, cluster in enumerate(time_clusters):
+                cluster_data = data.iloc[cluster]
+                cluster_width = cluster_widths[i]
+                
+                if cluster_data.empty:
+                    current_pos += cluster_width + gap_width
+                    continue
+                
+                # Get time range for this cluster
+                start_time = cluster_data['datetime'].min()
+                end_time = cluster_data['datetime'].max()
+                
+                # Transform datetime to normalized positions within this cluster
+                if start_time == end_time:
+                    # Single time point
+                    norm_positions = [current_pos + cluster_width / 2] * len(cluster_data)
+                else:
+                    time_range = (end_time - start_time).total_seconds()
+                    norm_positions = []
+                    for dt in cluster_data['datetime']:
+                        relative_pos = (dt - start_time).total_seconds() / time_range
+                        norm_pos = current_pos + relative_pos * cluster_width
+                        norm_positions.append(norm_pos)
+                
+                # Plot the data points for this cluster
+                if 'parameter' in cluster_data.columns or 'parameter_name' in cluster_data.columns:
+                    param_col = 'parameter' if 'parameter' in cluster_data.columns else 'parameter_name'
+                    unique_params = cluster_data[param_col].unique()
+                    
+                    for j, param in enumerate(unique_params):
+                        param_data = cluster_data[cluster_data[param_col] == param]
+                        if not param_data.empty:
+                            color = color_cycle[j % len(color_cycle)]
+                            param_positions = [norm_positions[k] for k in param_data.index - cluster_data.index[0]]
+                            ax.plot(param_positions, param_data[value_col], 
+                                   label=param if i == 0 else "", color=color, 
+                                   linewidth=2, marker='o', markersize=4)
+                else:
+                    # Single parameter
+                    color = color_cycle[0]
+                    ax.plot(norm_positions, cluster_data[value_col], 
+                           color=color, linewidth=2, marker='o', markersize=4, 
+                           label=title if i == 0 else "")
+                
+                # Add gap indicators
+                if i < len(time_clusters) - 1:
+                    gap_start = current_pos + cluster_width
+                    gap_end = gap_start + gap_width
+                    gap_mid = (gap_start + gap_end) / 2
+                    
+                    # Add visual gap indicator
+                    ax.axvspan(gap_start, gap_end, color='lightgray', alpha=0.3, zorder=-1)
+                    
+                    # Calculate gap duration
+                    next_cluster_data = data.iloc[time_clusters[i + 1]]
+                    if not next_cluster_data.empty:
+                        gap_duration = next_cluster_data['datetime'].min() - end_time
+                        if gap_duration.days > 0:
+                            gap_text = f"{gap_duration.days}d gap"
+                        else:
+                            gap_text = f"{gap_duration.seconds//3600}h gap"
+                        
+                        # Add gap annotation
+                        ax.annotate(gap_text, xy=(gap_mid, 0.02), xycoords='axes fraction',
+                                   ha='center', va='bottom', fontsize=8, color='red', alpha=0.7,
+                                   bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+                
+                # Add tick marks for this cluster
+                tick_positions.append(current_pos)
+                tick_labels.append(start_time.strftime('%m/%d'))
+                
+                if start_time.date() != end_time.date():
+                    tick_positions.append(current_pos + cluster_width)
+                    tick_labels.append(end_time.strftime('%m/%d'))
+                
+                current_pos += cluster_width + gap_width
+            
+            # Set custom x-axis
+            ax.set_xlim(0, 1)
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=45)
+            ax.set_xlabel("Date (compressed timeline)", fontsize=10)
+            
+            print(f"✓ Plotted {len(time_clusters)} time clusters with compressed gaps")
+            
+        except Exception as e:
+            print(f"Error in compressed timeline plotting: {e}")
+            # Fallback to continuous plotting
+            PlotUtils._plot_continuous_timeline(ax, data, value_col, title, color_cycle)
+
+    @staticmethod
+    def _plot_continuous_timeline(ax, data, value_col, title, color_cycle):
+        """Plot data with continuous timeline for single date range"""
+        try:
+            if 'parameter' in data.columns or 'parameter_name' in data.columns:
+                # Multiple parameters
+                param_col = 'parameter' if 'parameter' in data.columns else 'parameter_name'
+                unique_params = data[param_col].unique()
+                for i, param in enumerate(unique_params):
+                    param_data = data[data[param_col] == param]
+                    color = color_cycle[i % len(color_cycle)]
+
+                    if 'datetime' in param_data.columns and value_col in param_data.columns:
+                        ax.plot(param_data['datetime'], param_data[value_col], 
+                               label=param, color=color, linewidth=2, marker='o', markersize=4)
+
+                        # Add error bands if min/max available
+                        if 'min_value' in param_data.columns and 'max_value' in param_data.columns:
+                            ax.fill_between(param_data['datetime'], 
+                                          param_data['min_value'], param_data['max_value'],
+                                          alpha=0.2, color=color)
+                        elif 'Min' in param_data.columns and 'Max' in param_data.columns:
+                            ax.fill_between(param_data['datetime'], 
+                                          param_data['Min'], param_data['Max'],
+                                          alpha=0.2, color=color)
+            else:
+                # Single parameter
+                if 'datetime' in data.columns and value_col in data.columns:
+                    ax.plot(data['datetime'], data[value_col], 
+                           color=color_cycle[0], linewidth=2, marker='o', markersize=4, 
+                           label=title)
+
+                    # Add error bands if min/max available
+                    if 'min_value' in data.columns and 'max_value' in data.columns:
+                        ax.fill_between(data['datetime'], 
+                                      data['min_value'], data['max_value'],
+                                      alpha=0.2, color=color_cycle[0])
+                    elif 'Min' in data.columns and 'Max' in data.columns:
+                        ax.fill_between(data['datetime'], 
+                                      data['Min'], data['Max'],
+                                      alpha=0.2, color=color_cycle[0])
+
+            # Format x-axis for continuous timeline
+            if 'datetime' in data.columns and not data.empty:
+                date_range = data['datetime'].max() - data['datetime'].min()
+
+                if date_range.total_seconds() < 86400:  # Less than 1 day
+                    ax.xaxis.set_major_locator(mdates.HourLocator(interval=max(1, int(date_range.total_seconds() / 21600))))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                else:  # More than 1 day
+                    interval = max(1, int(date_range.days / 5))
+                    ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+                
+        except Exception as e:
+            print(f"Error in continuous timeline plotting: {e}")
+            ax.text(0.5, 0.5, f'Plot error: {str(e)}', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=10, color='red')
+
+    @staticmethod
     def _plot_parameter_data_single(widget, data, parameter_name):
-        """Plot single parameter data with enhanced styling and full timeline"""
+        """Plot single parameter data with compressed timeline for distant dates"""
         try:
             # Clear existing layout
             for i in reversed(range(widget.layout().count() if widget.layout() else 0)):
@@ -465,8 +604,8 @@ class PlotUtils:
             if data.empty:
                 # Show helpful message for empty data
                 ax.text(0.5, 0.5, f"No data available for:\n{parameter_name}", 
-                       transform=ax.transAxes, ha='center', va='center',
-                       fontsize=12, color='#666666', style='italic')
+                       horizontalalignment='center', verticalalignment='center',
+                       transform=ax.transAxes, fontsize=12, color='#666666', style='italic')
                 ax.set_xlim(0, 1)
                 ax.set_ylim(0, 1)
                 ax.set_title(f"{parameter_name} - No Data", fontsize=14, fontweight='bold')
@@ -479,50 +618,27 @@ class PlotUtils:
                 data['datetime'] = pd.to_datetime(data['datetime'])
                 data = data.sort_values('datetime')
 
-                # Plot with enhanced styling
-                x_data = data['datetime']
-
-                # Plot avg line (solid, prominent)
-                if 'avg' in data.columns:
-                    ax.plot(x_data, data['avg'], 
-                           color='#1976D2', linewidth=2.5, label='Average', 
-                           marker='o', markersize=3, alpha=0.9)
-
-                # Plot min/max lines (dashed, faded)
-                if 'min_value' in data.columns:
-                    ax.plot(x_data, data['min_value'], 
-                           color='#1976D2', linewidth=1.5, linestyle='--', 
-                           alpha=0.6, label='Minimum')
-
-                if 'max_value' in data.columns:
-                    ax.plot(x_data, data['max_value'], 
-                           color='#1976D2', linewidth=1.5, linestyle='--', 
-                           alpha=0.6, label='Maximum')
-
-                # Enhanced timeline formatting
-                ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%m-%d'))
-                ax.xaxis.set_minor_locator(mdates.HourLocator())
-
-                # Rotate labels for better readability
-                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
-
-                # Enhanced grid
-                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-                ax.set_axisbelow(True)
-
-                # Add legend if multiple lines
-                if len([col for col in ['avg', 'min_value', 'max_value'] if col in data.columns]) > 1:
-                    ax.legend(loc='upper right', framealpha=0.9)
+                # Check for time gaps that should be compressed
+                time_clusters = find_time_clusters(data['datetime'], gap_threshold=timedelta(days=1))
+                
+                if len(time_clusters) > 1:
+                    # Multiple time clusters - use compressed timeline
+                    PlotUtils._plot_single_parameter_compressed(ax, data, parameter_name, time_clusters)
+                else:
+                    # Single continuous time period - use normal plotting
+                    PlotUtils._plot_single_parameter_continuous(ax, data, parameter_name)
 
             # Professional styling
             ax.set_title(parameter_name, fontsize=14, fontweight='bold', pad=20)
-            ax.set_xlabel('Time', fontsize=11)
             ax.set_ylabel('Value', fontsize=11)
 
             # Set background colors
             ax.set_facecolor('#FAFAFA')
             fig.patch.set_facecolor('white')
+
+            # Enhanced grid
+            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+            ax.set_axisbelow(True)
 
             # Auto-adjust layout to prevent label cutoff
             fig.tight_layout(pad=2.0)
@@ -533,11 +649,174 @@ class PlotUtils:
         except Exception as e:
             print(f"Error plotting {parameter_name}: {e}")
             # Show error in graph
-            ax.text(0.5, 0.5, f"Error plotting {parameter_name}", 
-                   transform=ax.transAxes, ha='center', va='center',
-                   fontsize=12, color='red')
-            fig.tight_layout()
-            canvas.draw()
+            if 'ax' in locals():
+                ax.text(0.5, 0.5, f"Error plotting {parameter_name}", 
+                       transform=ax.transAxes, ha='center', va='center',
+                       fontsize=12, color='red')
+                fig.tight_layout()
+                canvas.draw()
+
+    @staticmethod
+    def _plot_single_parameter_compressed(ax, data, parameter_name, time_clusters):
+        """Plot single parameter with compressed timeline"""
+        try:
+            # Calculate cluster positions and widths
+            total_points = sum(len(cluster) for cluster in time_clusters)
+            cluster_widths = []
+            
+            for cluster in time_clusters:
+                width = len(cluster) / total_points
+                cluster_widths.append(max(0.15, width * 0.8))
+            
+            gap_width = 0.05
+            total_width = sum(cluster_widths) + gap_width * (len(time_clusters) - 1)
+            
+            if total_width > 1:
+                scale_factor = 1.0 / total_width
+                cluster_widths = [w * scale_factor for w in cluster_widths]
+                gap_width *= scale_factor
+            
+            # Plot each cluster
+            current_pos = 0
+            tick_positions = []
+            tick_labels = []
+            
+            for i, cluster in enumerate(time_clusters):
+                cluster_data = data.iloc[cluster]
+                cluster_width = cluster_widths[i]
+                
+                if cluster_data.empty:
+                    current_pos += cluster_width + gap_width
+                    continue
+                
+                start_time = cluster_data['datetime'].min()
+                end_time = cluster_data['datetime'].max()
+                
+                # Transform datetime to normalized positions
+                if start_time == end_time:
+                    norm_positions = [current_pos + cluster_width / 2] * len(cluster_data)
+                else:
+                    time_range = (end_time - start_time).total_seconds()
+                    norm_positions = []
+                    for dt in cluster_data['datetime']:
+                        relative_pos = (dt - start_time).total_seconds() / time_range
+                        norm_pos = current_pos + relative_pos * cluster_width
+                        norm_positions.append(norm_pos)
+                
+                # Plot avg line (solid, prominent)
+                if 'avg' in cluster_data.columns:
+                    ax.plot(norm_positions, cluster_data['avg'], 
+                           color='#1976D2', linewidth=2.5, 
+                           label='Average' if i == 0 else '', 
+                           marker='o', markersize=3, alpha=0.9)
+
+                # Plot min/max lines (dashed, faded)
+                if 'min_value' in cluster_data.columns:
+                    ax.plot(norm_positions, cluster_data['min_value'], 
+                           color='#1976D2', linewidth=1.5, linestyle='--', 
+                           alpha=0.6, label='Minimum' if i == 0 else '')
+
+                if 'max_value' in cluster_data.columns:
+                    ax.plot(norm_positions, cluster_data['max_value'], 
+                           color='#1976D2', linewidth=1.5, linestyle='--', 
+                           alpha=0.6, label='Maximum' if i == 0 else '')
+                
+                # Add gap indicators
+                if i < len(time_clusters) - 1:
+                    gap_start = current_pos + cluster_width
+                    gap_end = gap_start + gap_width
+                    gap_mid = (gap_start + gap_end) / 2
+                    
+                    ax.axvspan(gap_start, gap_end, color='lightgray', alpha=0.3, zorder=-1)
+                    
+                    # Calculate gap duration
+                    next_cluster_data = data.iloc[time_clusters[i + 1]]
+                    if not next_cluster_data.empty:
+                        gap_duration = next_cluster_data['datetime'].min() - end_time
+                        if gap_duration.days > 0:
+                            gap_text = f"{gap_duration.days}d gap"
+                        else:
+                            gap_text = f"{gap_duration.seconds//3600}h gap"
+                        
+                        ax.annotate(gap_text, xy=(gap_mid, 0.02), xycoords='axes fraction',
+                                   ha='center', va='bottom', fontsize=8, color='red', alpha=0.7,
+                                   bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
+                
+                # Add tick marks
+                tick_positions.append(current_pos)
+                tick_labels.append(start_time.strftime('%m/%d'))
+                
+                if start_time.date() != end_time.date():
+                    tick_positions.append(current_pos + cluster_width)
+                    tick_labels.append(end_time.strftime('%m/%d'))
+                
+                current_pos += cluster_width + gap_width
+            
+            # Set custom x-axis
+            ax.set_xlim(0, 1)
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=45, ha='right')
+            ax.set_xlabel("Date (compressed timeline)", fontsize=11)
+            
+            # Add legend if multiple lines
+            if len([col for col in ['avg', 'min_value', 'max_value'] if col in data.columns]) > 1:
+                ax.legend(loc='upper right', framealpha=0.9)
+                
+            print(f"✓ Plotted {parameter_name} with {len(time_clusters)} compressed time periods")
+            
+        except Exception as e:
+            print(f"Error in compressed single parameter plotting: {e}")
+            PlotUtils._plot_single_parameter_continuous(ax, data, parameter_name)
+
+    @staticmethod
+    def _plot_single_parameter_continuous(ax, data, parameter_name):
+        """Plot single parameter with continuous timeline"""
+        try:
+            x_data = data['datetime']
+
+            # Plot avg line (solid, prominent)
+            if 'avg' in data.columns:
+                ax.plot(x_data, data['avg'], 
+                       color='#1976D2', linewidth=2.5, label='Average', 
+                       marker='o', markersize=3, alpha=0.9)
+
+            # Plot min/max lines (dashed, faded)
+            if 'min_value' in data.columns:
+                ax.plot(x_data, data['min_value'], 
+                       color='#1976D2', linewidth=1.5, linestyle='--', 
+                       alpha=0.6, label='Minimum')
+
+            if 'max_value' in data.columns:
+                ax.plot(x_data, data['max_value'], 
+                       color='#1976D2', linewidth=1.5, linestyle='--', 
+                       alpha=0.6, label='Maximum')
+
+            # Enhanced timeline formatting
+            if 'datetime' in data.columns and not data.empty:
+                date_range = data['datetime'].max() - data['datetime'].min()
+
+                if date_range.total_seconds() < 86400:  # Less than 1 day
+                    ax.xaxis.set_major_locator(mdates.HourLocator(interval=max(1, int(date_range.total_seconds() / 21600))))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                else:  # More than 1 day
+                    interval = max(1, int(date_range.days / 5))
+                    ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+
+                # Rotate labels for better readability
+                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+            ax.set_xlabel('Time', fontsize=11)
+
+            # Add legend if multiple lines
+            if len([col for col in ['avg', 'min_value', 'max_value'] if col in data.columns]) > 1:
+                ax.legend(loc='upper right', framealpha=0.9)
+                
+        except Exception as e:
+            print(f"Error in continuous single parameter plotting: {e}")
+            ax.text(0.5, 0.5, f'Plot error: {str(e)}', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=10, color='red')
 
 
     @staticmethod
@@ -880,8 +1159,16 @@ def plot_multi_date_timeline(ax, df, param_name, gap_threshold=timedelta(days=1)
                        ha='center', va='bottom', fontsize=8, color='red', alpha=0.7)
 
     # Enhance axis formatting
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-    ax.xaxis.set_major_locator(mdates.HourLocator(interval=max(1, len(df_clean) // 10)))
+    if 'datetime' in df_clean.columns and not df_clean.empty:
+        date_range = df_clean['datetime'].max() - df_clean['datetime'].min()
+
+        if date_range.total_seconds() < 86400:  # Less than 1 day
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=max(1, int(date_range.total_seconds() / 21600))))  # Max 4 ticks
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        else:  # More than 1 day
+            interval = max(1, int(date_range.days / 5))  # Max 5 ticks
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=interval))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
 
     # Add legend if multiple periods
     if len(clusters) > 1:
@@ -1129,16 +1416,17 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                         print(f"Error adding trend line: {e}")
 
                 # Format dates appropriately
-                date_range = avg_df["datetime"].max() - avg_df["datetime"].min()
-                if date_range.total_seconds() < 24*3600:  # Less than a day
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                    ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
-                elif date_range.total_seconds() < 7*24*3600:  # Less than a week
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-                    ax.xaxis.set_major_locator(mdates.DayLocator())
-                else:
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
-                    ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+                if 'datetime' in avg_df.columns and not avg_df.empty:
+                    date_range = avg_df["datetime"].max() - avg_df["datetime"].min()
+                    if date_range.total_seconds() < 24*3600:  # Less than a day
+                        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+                    elif date_range.total_seconds() < 7*24*3600:  # Less than a week
+                        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+                        ax.xaxis.set_major_locator(mdates.DayLocator())
+                    else:
+                        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+                        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
         else:
             # Not enough data - just plot what we have
             ax.plot(avg_df["datetime"], avg_df["avg"], color=color, linewidth=2, alpha=0.8, label=param_name)

@@ -835,15 +835,13 @@ class HALogApp:
                         self.ui.comboFanBottomGraph.currentIndexChanged.connect(lambda: self.refresh_trend_tab('fan_speed'))
                     print("✓ Trend dropdown change events connected")
 
-                    # MPC TAB ACTIONS - Updated for new single-data approach
+                    # MPC TAB ACTIONS - Single date selection
                     if hasattr(self.ui, 'btnRefreshMPC'):
                         self.ui.btnRefreshMPC.clicked.connect(self.refresh_latest_mpc)
 
-                        # Connect MPC date selection dropdowns
-                        if hasattr(self.ui, 'comboMPCDateA'):
-                            self.ui.comboMPCDateA.currentIndexChanged.connect(self.refresh_latest_mpc)
-                        if hasattr(self.ui, 'comboMPCDateB'):
-                            self.ui.comboMPCDateB.currentIndexChanged.connect(self.refresh_latest_mpc)
+                        # Connect MPC date selection dropdown
+                        if hasattr(self.ui, 'comboMPCDate'):
+                            self.ui.comboMPCDate.currentIndexChanged.connect(self.refresh_latest_mpc)
 
                     # ANALYSIS TAB ACTIONS - Enhanced controls
                     if hasattr(self.ui, 'btnRefreshAnalysis'):
@@ -1157,212 +1155,105 @@ class HALogApp:
                     traceback.print_exc()
 
             def _get_parameter_data_by_description(self, parameter_description):
-                """Get parameter data by its user-friendly description from the database"""
+                """Optimized parameter data retrieval with caching and minimal logging"""
                 try:
                     if not hasattr(self, 'df') or self.df.empty:
-                        print("⚠️ No data available in database")
                         return pd.DataFrame()
 
-                    print(f"🔍 DataFrame columns: {list(self.df.columns)}")
-                    print(f"🔍 DataFrame shape: {self.df.shape}")
+                    # Cache parameter column lookup
+                    if not hasattr(self, '_param_column_cache'):
+                        param_column = None
+                        possible_param_columns = ['parameter_type', 'param', 'Parameter']
+                        for col in possible_param_columns:
+                            if col in self.df.columns:
+                                param_column = col
+                                break
+                        self._param_column_cache = param_column
 
-                    # Check which column name exists in the DataFrame
-                    param_column = None
-                    possible_columns = ['parameter_type', 'param', 'parameter_name', 'Parameter']
-
-                    for col in possible_columns:
-                        if col in self.df.columns:
-                            param_column = col
-                            break
-
+                    param_column = self._param_column_cache
                     if not param_column:
-                        print(f"⚠️ No parameter column found in DataFrame. Available columns: {list(self.df.columns)}")
                         return pd.DataFrame()
 
-                    print(f"🔍 Using parameter column: '{param_column}'")
+                    # Cache available parameters 
+                    if not hasattr(self, '_all_params_cache'):
+                        self._all_params_cache = self.df[param_column].unique()
 
-                    # Get all available parameters to understand the data structure
-                    all_params = self.df[param_column].unique()
-                    print(f"🔍 Available parameters: {all_params[:10]}")
+                    all_params = self._all_params_cache
 
-                    # Enhanced mapping to match actual database format - UPDATED FOR COL PARAMETERS
-                    description_to_patterns = {
-                        # Water System - try multiple pattern matching approaches
-                        "Mag Flow": ["magnetronFlow", "magnetron", "mag", "flow"],
-                        "Flow Target": ["targetAndCirculatorFlow", "target", "circulator"],
-                        "Flow Chiller Water": ["cityWaterFlow", "city", "chiller", "water"],
+                    # Cache parameter mapping for faster lookups
+                    if not hasattr(self, '_param_mapping_cache'):
+                        self._param_mapping_cache = {
+                            "Mag Flow": "magnetronFlow",
+                            "Flow Target": "targetAndCirculatorFlow", 
+                            "Flow Chiller Water": "cityWaterFlow",
+                            "Temp Room": "FanremoteTempStatistics",
+                            "Room Humidity": "FanhumidityStatistics", 
+                            "Temp Magnetron": "magnetronTemp",
+                            "MLC Bank A 24V": "COLboardTemp",
+                            "MLC Bank B 24V": "COLboardTemp",
+                            "Speed FAN 1": "FanfanSpeed1Statistics",
+                            "Speed FAN 2": "FanfanSpeed2Statistics",
+                            "Speed FAN 3": "FanfanSpeed3Statistics", 
+                            "Speed FAN 4": "FanfanSpeed4Statistics",
+                        }
 
-                        # Temperature - match COL temperature parameters
-                        "Temp Room": ["FanremoteTempStatistics", "remote", "room", "ambient"],
-                        "Temp Magnetron": ["magnetronTemp", "magnetron", "temp"],
-                        "Temp PDU": ["pduTemp", "pdu"],
-                        "Temp COL Board": ["colBoardTemp", "col", "board"],
-                        "Temp Water Tank": ["waterTankTemp", "tank"],
-                        "Temp MLC Bank A": ["mlc", "bank", "a", "temp"],
-                        "Temp MLC Bank B": ["mlc", "bank", "b", "temp"],
+                    # Fast parameter lookup
+                    target_param = self._param_mapping_cache.get(parameter_description)
+                    selected_param = None
 
-                        # Humidity
-                        "Room Humidity": ["FanhumidityStatistics", "humidity", "humid"],
-
-                        # Fan Speeds
-                        "Speed FAN 1": ["fanSpeed1", "fan", "speed", "1"],
-                        "Speed FAN 2": ["fanSpeed2", "fan", "speed", "2"],
-                        "Speed FAN 3": ["fanSpeed3", "fan", "speed", "3"],
-                        "Speed FAN 4": ["fanSpeed4", "fan", "speed", "4"],
-
-                        # Voltages - match COL voltage parameters
-                        "MLC Bank A 24V": ["BANKA", "bank", "a", "24v", "mlc"],
-                        "MLC Bank B 24V": ["BANKB", "bank", "b", "24v", "mlc"],
-                        "MLC Bank A 48V": ["BANKA", "bank", "a", "48v", "mlc"],
-                        "MLC Bank B 48V": ["BANKB", "bank", "b", "48v", "mlc"],
-                        "COL 48V": ["col", "48v"],
-                        "MLC Bank A 5V": ["bank", "a", "5v", "mlc"],
-                        "MLC Bank B 5V": ["bank", "b", "5v", "mlc"],
-                        "COL 24V Monitor": ["col", "24v", "mon"],
-                        "COL 5V Monitor": ["col", "5v", "mon"],
-                    }
-
-                    # Get all available parameters
-                    all_params = self.df[param_column].unique()
-                    print(f"🔍 Available parameters: {all_params[:10]}")
-
-                    # Find matching parameter by searching within the full parameter names
-                    matching_params = []
-                    patterns = description_to_patterns.get(parameter_description, [parameter_description])
-
-                    print(f"🔍 Looking for patterns: {patterns}")
-
-                    # SPECIAL HANDLING FOR COL PARAMETERS
-                    # Since your data shows "COL" parameters, let's match them directly
-                    if parameter_description in ["MLC Bank A 24V", "MLC Bank B 24V", "COL 48V", "COL 24V Monitor", "COL 5V Monitor"]:
-                        # For COL-related parameters, just use the first available COL parameter
-                        col_params = [p for p in all_params if str(p).upper().startswith('COL')]
-                        if col_params:
-                            matching_params.append(col_params[0])
-                            print(f"✓ COL parameter matched: '{col_params[0]}' for '{parameter_description}'")
-
-                    # If no COL match found, continue with pattern matching
-                    if not matching_params:
-                        # Search for patterns within the full parameter names
-                        for pattern in patterns:
-                            for param in all_params:
-                                # Check if pattern exists anywhere in the parameter name
-                                if pattern in str(param):
-                                    matching_params.append(param)
-                                    print(f"✓ Pattern '{pattern}' matched parameter: '{param}'")
-                                    break  # Take first match for each pattern
-
-                        # If no exact matches found, try case-insensitive search
-                        if not matching_params:
-                            print(f"🔍 No exact matches found, trying case-insensitive search...")
-                            for pattern in patterns:
-                                pattern_lower = str(pattern).lower()
-                                for param in all_params:
-                                    if pattern_lower in str(param).lower():
-                                        matching_params.append(param)
-                                        print(f"✓ Case-insensitive match: '{param}' for pattern '{pattern}'")
-                                        break
-
-                        # If still no matches, try partial keyword matching
-                        if not matching_params:
-                            print(f"🔍 No matches found, trying keyword search...")
-                            keyword_mapping = {
-                                "Mag Flow": ["magnetron", "flow"],
-                                "Flow Target": ["target", "flow"],
-                                "Flow Chiller Water": ["water", "flow", "city"],
-                                "Temp Room": ["remote", "temp", "fan"],
-                                "Room Humidity": ["humidity", "fan"],
-                                "Temp Magnetron": ["magnetron", "temp"],
-                            }
-
-                            if parameter_description in keyword_mapping:
-                                keywords = keyword_mapping[parameter_description]
-                                for param in all_params:
-                                    param_lower = str(param).lower()
-                                    # Check if all keywords are present
-                                    if all(keyword.lower() in param_lower for keyword in keywords):
-                                        matching_params.append(param)
-                                        print(f"✓ Keyword match: '{param}' for '{parameter_description}'")
-                                        break
-
-                    # FALLBACK: If no matches found, just use any available parameter for demonstration
-                    if not matching_params and all_params:
-                        print(f"🔍 No specific matches found, using first available parameter for demonstration")
-                        matching_params.append(all_params[0])
-                        print(f"✓ Fallback match: '{all_params[0]}' for '{parameter_description}'")
-
-                    if matching_params:
-                        # Use the first matching parameter
-                        selected_param = matching_params[0]
-                        param_data = self.df[self.df[param_column] == selected_param].copy()
-                        print(f"✓ Using parameter: '{selected_param}'")
+                    if target_param and target_param in all_params:
+                        selected_param = target_param
                     else:
-                        print(f"⚠️ No data found for parameter '{parameter_description}'")
-                        print(f"⚠️ Available parameters: {all_params}")
+                        # Fallback to first available parameter
+                        if len(all_params) > 0:
+                            selected_param = all_params[0]
+
+                    if not selected_param:
                         return pd.DataFrame()
 
+                    # Fast data filtering with minimal processing
+                    param_data = self.df[self.df[param_column] == selected_param]
                     if param_data.empty:
-                        print(f"⚠️ Parameter data is empty for '{selected_param}'")
                         return pd.DataFrame()
 
-                    # Sort by datetime and return in the format expected by plotting functions
-                    param_data = param_data.sort_values('datetime')
-
-                    # Check which value column exists
-                    value_column = None
-                    possible_value_columns = ['avg_value', 'avg', 'average', 'value', 'Average']
-
-                    for col in possible_value_columns:
-                        if col in param_data.columns:
-                            value_column = col
-                            break
-
-                    if not value_column:
-                        print(f"⚠️ No value column found in DataFrame. Available columns: {list(param_data.columns)}")
+                    # Quick value column detection
+                    value_column = 'avg' if 'avg' in param_data.columns else 'average' if 'average' in param_data.columns else 'avg_value'
+                    if value_column not in param_data.columns:
                         return pd.DataFrame()
 
-                    # Rename columns to match plotting expectations
+                    # Minimal result preparation
                     result_df = pd.DataFrame({
                         'datetime': param_data['datetime'],
                         'avg': param_data[value_column],
                         'parameter_name': [parameter_description] * len(param_data)
                     })
 
-                    # Also add min/max if available for better visualization
+                    # Add min/max if available
                     if 'Min' in param_data.columns:
                         result_df['min_value'] = param_data['Min']
                     if 'Max' in param_data.columns:
                         result_df['max_value'] = param_data['Max']
 
-                    print(f"✓ Retrieved {len(result_df)} data points for '{parameter_description}'")
-                    return result_df
+                    return result_df.sort_values('datetime')
 
                 except Exception as e:
-                    print(f"❌ Error getting parameter data for '{parameter_description}': {e}")
-                    import traceback
-                    traceback.print_exc()
                     return pd.DataFrame()
 
             def refresh_latest_mpc(self):
-                """Load and display MPC results from database with date selection"""
+                """Load and display MPC results from database with single date selection"""
                 try:
                     print("🔄 Loading MPC data from database...")
 
-                    # Update available dates in dropdowns
-                    self._populate_mpc_date_dropdowns()
+                    # Update available dates in dropdown
+                    self._populate_mpc_date_dropdown()
 
-                    # Get selected dates
-                    date_a = None
-                    date_b = None
+                    # Get selected date
+                    selected_date = None
+                    if hasattr(self.ui, 'comboMPCDate') and self.ui.comboMPCDate.currentIndex() > 0:
+                        selected_date = self.ui.comboMPCDate.currentText()
 
-                    if hasattr(self.ui, 'comboMPCDateA') and self.ui.comboMPCDateA.currentIndex() > 0:
-                        date_a = self.ui.comboMPCDateA.currentText()
-
-                    if hasattr(self.ui, 'comboMPCDateB') and self.ui.comboMPCDateB.currentIndex() > 0:
-                        date_b = self.ui.comboMPCDateB.currentText()
-
-                    # Get MPC data for comparison
-                    mpc_data = self._get_mpc_comparison_data(date_a, date_b)
+                    # Get MPC data for selected date
+                    mpc_data = self._get_mpc_data_for_date(selected_date)
 
                     if not mpc_data:
                         # Show helpful message about what data is needed
@@ -1379,17 +1270,11 @@ class HALogApp:
                     if hasattr(self.ui, 'lblLastMPCUpdate'):
                         from datetime import datetime
                         update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        date_info = ""
-                        if date_a and date_b:
-                            date_info = f" (Comparing {date_a} vs {date_b})"
-                        elif date_a:
-                            date_info = f" (Date A: {date_a})"
-                        elif date_b:
-                            date_info = f" (Date B: {date_b})"
+                        date_info = f" (Date: {selected_date})" if selected_date else ""
                         self.ui.lblLastMPCUpdate.setText(f"Last MPC Update: {update_time}{date_info}")
 
-                    # Update the MPC table with comparison data
-                    self._populate_mpc_comparison_table(mpc_data, date_a, date_b)
+                    # Update the MPC table with data
+                    self._populate_mpc_table(mpc_data)
 
                     print("✅ MPC data loaded successfully")
 
@@ -1402,8 +1287,8 @@ class HALogApp:
                         f"Error loading MPC data: {str(e)}"
                     )
 
-            def _populate_mpc_date_dropdowns(self):
-                """Populate MPC date selection dropdowns with available dates from database"""
+            def _populate_mpc_date_dropdown(self):
+                """Populate MPC date selection dropdown with available dates from database"""
                 try:
                     if not hasattr(self, 'df') or self.df.empty:
                         print("No data available for MPC date selection")
@@ -1413,45 +1298,29 @@ class HALogApp:
                     unique_dates = sorted(self.df['datetime'].dt.date.unique(), reverse=True)
                     date_strings = [date.strftime('%Y-%m-%d') for date in unique_dates]
 
-                    # Update Date A dropdown
-                    if hasattr(self.ui, 'comboMPCDateA'):
-                        current_a = self.ui.comboMPCDateA.currentText()
-                        self.ui.comboMPCDateA.blockSignals(True)
-                        self.ui.comboMPCDateA.clear()
-                        self.ui.comboMPCDateA.addItem("Select Date A...")
-                        self.ui.comboMPCDateA.addItems(date_strings)
+                    # Update date dropdown
+                    if hasattr(self.ui, 'comboMPCDate'):
+                        current_date = self.ui.comboMPCDate.currentText()
+                        self.ui.comboMPCDate.blockSignals(True)
+                        self.ui.comboMPCDate.clear()
+                        self.ui.comboMPCDate.addItem("Select date...")
+                        self.ui.comboMPCDate.addItems(date_strings)
 
                         # Restore selection if it still exists
-                        if current_a in date_strings:
-                            index = self.ui.comboMPCDateA.findText(current_a)
+                        if current_date in date_strings:
+                            index = self.ui.comboMPCDate.findText(current_date)
                             if index >= 0:
-                                self.ui.comboMPCDateA.setCurrentIndex(index)
+                                self.ui.comboMPCDate.setCurrentIndex(index)
 
-                        self.ui.comboMPCDateA.blockSignals(False)
+                        self.ui.comboMPCDate.blockSignals(False)
 
-                    # Update Date B dropdown
-                    if hasattr(self.ui, 'comboMPCDateB'):
-                        current_b = self.ui.comboMPCDateB.currentText()
-                        self.ui.comboMPCDateB.blockSignals(True)
-                        self.ui.comboMPCDateB.clear()
-                        self.ui.comboMPCDateB.addItem("Select Date B...")
-                        self.ui.comboMPCDateB.addItems(date_strings)
-
-                        # Restore selection if it still exists
-                        if current_b in date_strings:
-                            index = self.ui.comboMPCDateB.findText(current_b)
-                            if index >= 0:
-                                self.ui.comboMPCDateB.setCurrentIndex(index)
-
-                        self.ui.comboMPCDateB.blockSignals(False)
-
-                    print(f"Updated MPC date dropdowns with {len(date_strings)} dates")
+                    print(f"Updated MPC date dropdown with {len(date_strings)} dates")
 
                 except Exception as e:
-                    print(f"Error populating MPC date dropdowns: {e}")
+                    print(f"Error populating MPC date dropdown: {e}")
 
-            def _get_mpc_comparison_data(self, date_a=None, date_b=None):
-                """Get MPC data for comparison between two dates"""
+            def _get_mpc_data_for_date(self, selected_date=None):
+                """Get MPC data for a specific date"""
                 try:
                     if not hasattr(self, 'df') or self.df.empty:
                         return None
@@ -1479,54 +1348,55 @@ class HALogApp:
                             mapping = self.parser.parameter_mapping.get(param, {})
                             description = mapping.get('description', param)
 
-                        value_a = "NA"
-                        value_b = "NA"
+                        value = "NA"
                         status = "NA"
 
-                        # Get data for Date A
-                        if date_a:
-                            date_a_data = param_data[param_data['datetime'].dt.date == pd.to_datetime(date_a).date()]
-                            if not date_a_data.empty:
-                                value_a = f"{date_a_data['average'].iloc[-1]:.2f}"
-
-                        # Get data for Date B
-                        if date_b:
-                            date_b_data = param_data[param_data['datetime'].dt.date == pd.to_datetime(date_b).date()]
-                            if not date_b_data.empty:
-                                value_b = f"{date_b_data['average'].iloc[-1]:.2f}"
-
-                        # Determine status based on comparison
-                        if value_a != "NA" and value_b != "NA":
-                            try:
-                                diff_percent = abs((float(value_a) - float(value_b)) / float(value_a)) * 100
-                                if diff_percent < 5:  # Within 5% tolerance
-                                    status = "PASS"
-                                elif diff_percent < 10:  # Within 10% tolerance
-                                    status = "WARNING"
-                                else:
-                                    status = "FAIL"
-                            except:
-                                status = "CHECK"
-                        elif value_a != "NA" or value_b != "NA":
-                            status = "PARTIAL"
+                        # Get data for selected date
+                        if selected_date:
+                            date_data = param_data[param_data['datetime'].dt.date == pd.to_datetime(selected_date).date()]
+                            if not date_data.empty:
+                                avg_value = date_data['avg'].iloc[-1] if 'avg' in date_data.columns else date_data['average'].iloc[-1] if 'average' in date_data.columns else 0
+                                value = f"{avg_value:.2f}"
+                                
+                                # Simple status check based on reasonable ranges
+                                try:
+                                    val = float(avg_value)
+                                    if 'flow' in param.lower() and (val < 0 or val > 100):
+                                        status = "WARNING"
+                                    elif 'temp' in param.lower() and (val < 0 or val > 80):
+                                        status = "WARNING"
+                                    elif 'speed' in param.lower() and (val < 0 or val > 5000):
+                                        status = "WARNING"
+                                    elif 'volt' in param.lower() or '24v' in param.lower() and (val < 20 or val > 28):
+                                        status = "WARNING"
+                                    else:
+                                        status = "PASS"
+                                except:
+                                    status = "CHECK"
+                        else:
+                            # If no date selected, use latest available data
+                            if not param_data.empty:
+                                latest_data = param_data.iloc[-1]
+                                avg_value = latest_data['avg'] if 'avg' in latest_data else latest_data['average'] if 'average' in latest_data else 0
+                                value = f"{avg_value:.2f}"
+                                status = "PASS"
 
                         results.append({
                             'parameter': description,
-                            'date_a_value': value_a,
-                            'date_b_value': value_b,
+                            'value': value,
                             'status': status
                         })
 
                     return results if results else None
 
                 except Exception as e:
-                    print(f"Error getting MPC comparison data: {e}")
+                    print(f"Error getting MPC data for date: {e}")
                     import traceback
                     traceback.print_exc()
                     return None
 
-            def _populate_mpc_comparison_table(self, mpc_data, date_a, date_b):
-                """Populate MPC table with comparison data"""
+            def _populate_mpc_table(self, mpc_data):
+                """Populate MPC table with data"""
                 try:
                     from PyQt5 import QtGui
                     from PyQt5.QtWidgets import QTableWidgetItem, QLabel
@@ -1546,19 +1416,12 @@ class HALogApp:
                         param_item.setMargin(5)
                         self.ui.tableMPC.setCellWidget(row, 0, param_item)
 
-                        # Date A value
-                        date_a_item = QTableWidgetItem(data['date_a_value'])
-                        if data['date_a_value'] == "NA":
-                            date_a_item.setBackground(Qt.lightGray)
-                        date_a_item.setTextAlignment(Qt.AlignCenter)
-                        self.ui.tableMPC.setItem(row, 1, date_a_item)
-
-                        # Date B value
-                        date_b_item = QTableWidgetItem(data['date_b_value'])
-                        if data['date_b_value'] == "NA":
-                            date_b_item.setBackground(Qt.lightGray)
-                        date_b_item.setTextAlignment(Qt.AlignCenter)
-                        self.ui.tableMPC.setItem(row, 2, date_b_item)
+                        # Value
+                        value_item = QTableWidgetItem(data['value'])
+                        if data['value'] == "NA":
+                            value_item.setBackground(Qt.lightGray)
+                        value_item.setTextAlignment(Qt.AlignCenter)
+                        self.ui.tableMPC.setItem(row, 1, value_item)
 
                         # Status with color coding
                         status_item = QLabel(data['status'])
@@ -1575,21 +1438,21 @@ class HALogApp:
                         else:
                             status_item.setStyleSheet("color: #1976D2; font-weight: 600; background-color: #E3F2FD; padding: 6px; border-radius: 6px;")
 
-                        self.ui.tableMPC.setCellWidget(row, 3, status_item)
+                        self.ui.tableMPC.setCellWidget(row, 2, status_item)
 
                     # Resize rows to fit content
                     self.ui.tableMPC.resizeRowsToContents()
 
                     # Update statistics
-                    self._update_mpc_comparison_statistics(mpc_data)
+                    self._update_mpc_statistics(mpc_data)
 
                 except Exception as e:
                     print(f"Error populating MPC table: {e}")
                     import traceback
                     traceback.print_exc()
 
-            def _update_mpc_comparison_statistics(self, mpc_data):
-                """Update MPC statistics based on comparison data"""
+            def _update_mpc_statistics(self, mpc_data):
+                """Update MPC statistics based on data"""
                 try:
                     if not mpc_data:
                         return
@@ -1615,138 +1478,6 @@ class HALogApp:
                     pass_rate = (passed / evaluated * 100) if evaluated > 0 else 0
 
                     print(f"MPC Statistics: {passed}/{evaluated} passed ({pass_rate:.1f}%), {warnings} warnings, {failed} failed, {na_count} NA")
-
-                except Exception as e:
-                    print(f"Error updating MPC statistics: {e}")
-
-            def _get_latest_mpc_data(self):
-                """Get the latest MPC data from available sources"""
-                try:
-                    # In a real implementation, this would query the database for the latest MPC data
-                    # For now, return simulated data with proper parameter names
-                    import random
-                    from datetime import datetime, timedelta
-
-                    # Enhanced MPC parameters with proper names and descriptions
-                    mpc_parameters = [
-                        {"name": "Magnetron Output Power", "result": f"{random.uniform(6.0, 6.2):.2f} MW", "status": "PASS"},
-                        {"name": "Water Flow Rate Primary Loop", "result": f"{random.uniform(15.0, 18.0):.1f} L/min", "status": "PASS"},
-                        {"name": "Water Temperature Inlet", "result": f"{random.uniform(18.0, 22.0):.1f} °C", "status": "PASS"},
-                        {"name": "Water Temperature Outlet", "result": f"{random.uniform(25.0, 30.0):.1f} °C", "status": "PASS"},
-                        {"name": "Cooling System Pressure", "result": f"{random.uniform(2.8, 3.2):.1f} bar", "status": "PASS"},
-                        {"name": "MLC Bank A Voltage 48V", "result": f"{random.uniform(47.5, 48.5):.1f} V", "status": "PASS"},
-                        {"name": "MLC Bank B Voltage 48V", "result": f"{random.uniform(47.5, 48.5):.1f} V", "status": "PASS"},
-                        {"name": "MLC Bank A Voltage 24V", "result": f"{random.uniform(23.8, 24.2):.1f} V", "status": "PASS"},
-                        {"name": "MLC Bank B Voltage 24V", "result": f"{random.uniform(23.8, 24.2):.1f} V", "status": "PASS"},
-                        {"name": "Magnetron Temperature", "result": f"{random.uniform(35.0, 45.0):.1f} °C", "status": "PASS"},
-                        {"name": "COL Board Temperature", "result": f"{random.uniform(30.0, 40.0):.1f} °C", "status": "PASS"},
-                        {"name": "PDU Temperature", "result": f"{random.uniform(25.0, 35.0):.1f} °C", "status": "PASS"},
-                        {"name": "Room Temperature", "result": f"{random.uniform(20.0, 25.0):.1f} °C", "status": "PASS"},
-                        {"name": "Room Humidity Level", "result": f"{random.uniform(40.0, 60.0):.1f} %", "status": "PASS"},
-                        {"name": "Fan Speed 1 (Cooling)", "result": f"{random.randint(2800, 3200)} RPM", "status": "PASS"},
-                        {"name": "Fan Speed 2 (Exhaust)", "result": f"{random.randint(2700, 3100)} RPM", "status": "PASS"},
-                        {"name": "Fan Speed 3 (Intake)", "result": f"{random.randint(2900, 3300)} RPM", "status": "PASS"},
-                        {"name": "Fan Speed 4 (Circulation)", "result": f"{random.randint(2750, 3150)} RPM", "status": "PASS"},
-                        {"name": "Water Tank Temperature", "result": f"{random.uniform(18.0, 24.0):.1f} °C", "status": "PASS"},
-                        {"name": "Chiller Water Flow", "result": f"{random.uniform(12.0, 16.0):.1f} L/min", "status": "PASS"},
-                    ]
-
-                    # Randomly set some parameters to warning/fail for realism
-                    for param in random.sample(mpc_parameters, k=random.randint(0, 2)):
-                        if random.random() < 0.7:  # 70% chance for warning, 30% for fail
-                            param["status"] = "WARNING"
-                        else:
-                            param["status"] = "FAIL"
-
-                    return {
-                        "timestamp": datetime.now() - timedelta(hours=random.randint(1, 24)),
-                        "parameters": mpc_parameters
-                    }
-
-                except Exception as e:
-                    print(f"Error getting latest MPC data: {e}")
-                    return None
-
-            def _populate_mpc_table(self, mpc_data):
-                """Populate the MPC table with the latest data"""
-                try:
-                    from PyQt5 import QtGui
-                    from PyQt5.QtWidgets import QTableWidgetItem
-                    from PyQt5.QtCore import Qt
-
-                    if not mpc_data or "parameters" not in mpc_data:
-                        return
-
-                    parameters = mpc_data["parameters"]
-                    self.ui.tableMPC.setRowCount(len(parameters))
-
-                    for row, param in enumerate(parameters):
-                        # Parameter name (with word wrapping)
-                        param_item = QTableWidgetItem(param["name"])
-                        param_item.setFlags(param_item.flags() & ~Qt.ItemIsEditable)
-                        self.ui.tableMPC.setItem(row, 0, param_item)
-
-                        # Result
-                        result_item = QTableWidgetItem(param["result"])
-                        result_item.setFlags(result_item.flags() & ~Qt.ItemIsEditable)
-                        self.ui.tableMPC.setItem(row, 1, result_item)
-
-                        # Status with color coding
-                        status_item = QTableWidgetItem(param["status"])
-                        status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
-
-                        # Set color based on status
-                        if param["status"] == "PASS":
-                            status_item.setBackground(QtGui.QColor(200, 255, 200))  # Light green
-                        elif param["status"] == "WARNING":
-                            status_item.setBackground(QtGui.QColor(255, 255, 200))  # Light yellow
-                        elif param["status"] == "FAIL":
-                            status_item.setBackground(QtGui.QColor(255, 200, 200))  # Light red
-
-                        self.ui.tableMPC.setItem(row, 2, status_item)
-
-                    # Ensure proper row heights for text wrapping
-                    self.ui.tableMPC.resizeRowsToContents()
-
-                except Exception as e:
-                    print(f"Error populating MPC table: {e}")
-
-            def _update_mpc_statistics(self, mpc_data):
-                """Update MPC statistics display"""
-                try:
-                    if not mpc_data or "parameters" not in mpc_data:
-                        return
-
-                    parameters = mpc_data["parameters"]
-                    total = len(parameters)
-                    passed = sum(1 for p in parameters if p["status"] == "PASS")
-                    failed = sum(1 for p in parameters if p["status"] == "FAIL")
-                    warnings = sum(1 for p in parameters if p["status"] == "WARNING")
-
-                    # Update summary labels
-                    if hasattr(self.ui, 'lblTotalParams'):
-                        self.ui.lblTotalParams.setText(f"Total Parameters: {total}")
-                    if hasattr(self.ui, 'lblPassedParams'):
-                        self.ui.lblPassedParams.setText(f"Passed: {passed}")
-                    if hasattr(self.ui, 'lblFailedParams'):
-                        self.ui.lblFailedParams.setText(f"Failed: {failed}")
-                    if hasattr(self.ui, 'lblWarningParams'):
-                        self.ui.lblWarningParams.setText(f"Warnings: {warnings}")
-
-                    # Update main statistics label
-                    if hasattr(self.ui, 'lblMPCStats'):
-                        pass_rate = (passed / total * 100) if total > 0 else 0
-                        timestamp = mpc_data.get("timestamp", "Unknown")
-                        if hasattr(timestamp, 'strftime'):
-                            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-                        else:
-                            timestamp_str = str(timestamp)
-
-                        self.ui.lblMPCStats.setText(
-                            f"MPC Check completed: {timestamp_str} | "
-                            f"Pass Rate: {pass_rate:.1f}% | "
-                            f"Total: {total}, Passed: {passed}, Failed: {failed}, Warnings: {warnings}"
-                        )
 
                 except Exception as e:
                     print(f"Error updating MPC statistics: {e}")
@@ -2194,95 +1925,169 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error updating trend combos: {e}")
 
             def update_data_table(self, page_size=1000):
-                """Update data table with professional styling"""
+                """Update data table with all parsed parameters using masked names, sorted by parameter name"""
                 try:
+                    from PyQt5.QtWidgets import QTableWidgetItem
+                    from PyQt5.QtCore import Qt
+                    import pandas as pd
+                    
                     if not hasattr(self, "df") or self.df.empty:
                         self.ui.tableData.setRowCount(0)
                         self.ui.lblTableInfo.setText("No data available")
                         return
 
-                    df_sorted = self.df.sort_values("datetime", ascending=False)
-                    display_df = df_sorted.iloc[:page_size]
+                    print(f"🔍 DataFrame columns: {list(self.df.columns)}")
+                    print(f"🔍 DataFrame shape: {self.df.shape}")
 
-                    self.ui.tableData.setRowCount(len(display_df))
-                    self.ui.tableData.setColumnCount(7)
-                    self.ui.tableData.setHorizontalHeaderLabels(
-                        [
-                            "DateTime",
-                            "Serial",
-                            "Parameter",
-                            "Average",
-                            "Min",
-                            "Max",
-                            "Diff (Max-Min)",
-                        ]
-                    )
-
-                    self.ui.tableData.setUpdatesEnabled(False)
-
-                    # Map column names dynamically
-                    serial_col = None
+                    # Find parameter column
                     param_col = None
-                    avg_col = None
-                    min_col = None
-                    max_col = None
-
-                    for col in self.df.columns: # Use self.df here to iterate through all columns
-                        if col in ['serial', 'serial_number']:
-                            serial_col = col
-                        elif col in ['param', 'parameter_type', 'parameter_name']:
+                    for col in ['param', 'parameter_type', 'parameter_name']:
+                        if col in self.df.columns:
                             param_col = col
-                        elif col in ['avg', 'average', 'avg_value']:
+                            break
+                    
+                    print(f"🔍 Using parameter column: '{param_col}'")
+
+                    if not param_col:
+                        self.ui.tableData.setRowCount(0)
+                        self.ui.lblTableInfo.setText("No parameter column found")
+                        return
+
+                    # Show available parameters for debugging
+                    available_params = self.df[param_col].unique()
+                    print(f"🔍 Available parameters: {available_params}")
+
+                    # Find column mappings with better fallbacks
+                    serial_col = None
+                    avg_col = None
+                    min_col = None 
+                    max_col = None
+                    
+                    # Map columns
+                    for col in self.df.columns:
+                        col_lower = col.lower()
+                        if col_lower in ['serial', 'serial_number']:
+                            serial_col = col
+                        elif col_lower in ['avg', 'average', 'avg_value']:
                             avg_col = col
-                        elif col in ['min', 'min_value']:
+                        elif col_lower in ['min', 'min_value', 'minimum']:
                             min_col = col
-                        elif col in ['max', 'max_value']:
+                        elif col_lower in ['max', 'max_value', 'maximum']:
                             max_col = col
 
-                    for i, (_, row) in enumerate(display_df.iterrows()):
-                        self.ui.tableData.setItem(
-                            i,
-                            0,
-                            QtWidgets.QTableWidgetItem(str(row.get("datetime", ""))),
-                        )
-                        self.ui.tableData.setItem(
-                            i, 1, QtWidgets.QTableWidgetItem(str(row.get(serial_col, "")))
-                        )
-                        self.ui.tableData.setItem(
-                            i, 2, QtWidgets.QTableWidgetItem(str(row.get(param_col, "")))
-                        )
-                        self.ui.tableData.setItem(
-                            i, 3, QtWidgets.QTableWidgetItem(str(row.get(avg_col, "")))
-                        )
-                        self.ui.tableData.setItem(
-                            i, 4, QtWidgets.QTableWidgetItem(str(row.get(min_col, "")))
-                        )
-                        self.ui.tableData.setItem(
-                            i, 5, QtWidgets.QTableWidgetItem(str(row.get(max_col, "")))
-                        )
+                    # Sort by parameter name, then by datetime (newest first)
+                    df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
+                    display_df = df_sorted.iloc[:page_size]
 
-                        # Calculate diff if both min and max columns exist
-                        diff_val = ""
-                        if min_col and max_col:
-                            try:
-                                diff_val = float(row.get(max_col, 0)) - float(row.get(min_col, 0))
-                                diff_val = f"{diff_val:.2f}"
-                            except:
-                                diff_val = row.get("diff", "")
+                    # Set table size and headers (match main_window.py which expects 7 columns)
+                    self.ui.tableData.setRowCount(len(display_df))
+                    self.ui.tableData.setColumnCount(7)
+                    self.ui.tableData.setHorizontalHeaderLabels([
+                        "DateTime",
+                        "Serial", 
+                        "Parameter",
+                        "Average",
+                        "Min",
+                        "Max",
+                        "Diff (Max-Min)"
+                    ])
 
-                        self.ui.tableData.setItem(
-                            i, 6, QtWidgets.QTableWidgetItem(str(diff_val))
-                        )
+                    # Populate table rows
+                    for row_idx, (_, row) in enumerate(display_df.iterrows()):
+                        try:
+                            # DateTime
+                            dt_str = row["datetime"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(row["datetime"]) else "N/A"
+                            dt_item = QTableWidgetItem(dt_str)
+                            dt_item.setFlags(dt_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 0, dt_item)
 
+                            # Serial Number
+                            serial_value = "Unknown"
+                            if serial_col and pd.notna(row[serial_col]):
+                                serial_value = str(row[serial_col])
+                            serial_item = QTableWidgetItem(serial_value)
+                            serial_item.setFlags(serial_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 1, serial_item)
+
+                            # Parameter Name (use enhanced name)
+                            raw_param = str(row[param_col])
+                            display_param = self._get_enhanced_parameter_name(raw_param)
+                            param_item = QTableWidgetItem(display_param)
+                            param_item.setToolTip(f"Raw parameter: {raw_param}")  # Show raw name in tooltip
+                            param_item.setFlags(param_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 2, param_item)
+
+                            # Average value
+                            avg_value = 0.0
+                            if avg_col and pd.notna(row[avg_col]):
+                                try:
+                                    avg_value = float(row[avg_col])
+                                except (ValueError, TypeError):
+                                    avg_value = 0.0
+                            avg_item = QTableWidgetItem(f"{avg_value:.4f}")
+                            avg_item.setFlags(avg_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 3, avg_item)
+
+                            # Min value
+                            min_value = 0.0
+                            if min_col and pd.notna(row[min_col]):
+                                try:
+                                    min_value = float(row[min_col])
+                                except (ValueError, TypeError):
+                                    min_value = 0.0
+                            min_item = QTableWidgetItem(f"{min_value:.4f}")
+                            min_item.setFlags(min_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 4, min_item)
+
+                            # Max value
+                            max_value = 0.0
+                            if max_col and pd.notna(row[max_col]):
+                                try:
+                                    max_value = float(row[max_col])
+                                except (ValueError, TypeError):
+                                    max_value = 0.0
+                            max_item = QTableWidgetItem(f"{max_value:.4f}")
+                            max_item.setFlags(max_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 5, max_item)
+
+                            # Difference (Max - Min)
+                            diff_value = max_value - min_value
+                            diff_item = QTableWidgetItem(f"{diff_value:.4f}")
+                            diff_item.setFlags(diff_item.flags() & ~Qt.ItemIsEditable)
+                            self.ui.tableData.setItem(row_idx, 6, diff_item)
+
+                        except Exception as e:
+                            print(f"Error processing row {row_idx}: {e}")
+                            # Fill row with N/A values if there's an error
+                            for col_idx in range(7):
+                                if not self.ui.tableData.item(row_idx, col_idx):
+                                    placeholder_item = QTableWidgetItem("N/A")
+                                    placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemIsEditable)
+                                    self.ui.tableData.setItem(row_idx, col_idx, placeholder_item)
+
+                    # Enable table updates
                     self.ui.tableData.setUpdatesEnabled(True)
+
+                    # Auto-resize columns to content
+                    self.ui.tableData.resizeColumnsToContents()
+
+                    # Update info label
                     total_records = len(self.df)
+                    showing_records = len(display_df)
+                    unique_params = self.df[param_col].nunique()
+
                     self.ui.lblTableInfo.setText(
-                        f"Showing {min(page_size, total_records):,} of {total_records:,} records"
+                        f"Showing {showing_records:,} of {total_records:,} records | "
+                        f"Unique Parameters: {unique_params} | Sorted by parameter name, then date"
                     )
+
+                    print(f"✓ Data table updated: {showing_records:,} records displayed with {unique_params} unique parameters")
 
                 except Exception as e:
                     print(f"Error updating data table: {e}")
+                    import traceback
                     traceback.print_exc()
+                    self.ui.lblTableInfo.setText("Error loading data table")
 
             def update_analysis_tab(self):
                 """Update analysis tab with professional progress"""
@@ -2554,7 +2359,7 @@ Source: {result.get('source', 'unknown')} database
             def _filter_analysis_results(self):
                 """Filter analysis results based on selected group"""
                 try:
-                    if not hasattr(self.ui, 'comboAnalysisFilter'):
+                    if not hasattr(self, 'comboAnalysisFilter'):
                         return
 
                     selected_filter = self.ui.comboAnalysisFilter.currentText()
@@ -2670,7 +2475,7 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error initializing default trends: {e}")
 
             def import_log_file(self):
-                """MAIN LOG FILE IMPORT FUNCTION - Enhanced with multi-file selection and filtering"""
+                """MAIN LOG FILE IMPORT FUNCTION - Enhanced with multi-file selection and progress dialog"""
                 print("🔥 LOG FILE IMPORT TRIGGERED!")
                 try:
                     # Enable multi-file selection
@@ -2689,38 +2494,238 @@ Source: {result.get('source', 'unknown')} database
                     for file_path in file_paths:
                         print(f"  - {file_path}")
 
-                    # Process each file
-                    for file_path in file_paths:
-                        file_size = os.path.getsize(file_path)
-                        print(f"Processing file: {os.path.basename(file_path)} ({file_size} bytes)")
+                    # Create progress dialog for multi-file upload
+                    from progress_dialog import ProgressDialog
+                    
+                    self.progress_dialog = ProgressDialog(self)
+                    self.progress_dialog.setWindowTitle(f"Processing {len(file_paths)} LINAC Log Files")
+                    self.progress_dialog.setModal(True)
+                    self.progress_dialog.show()
+                    self.progress_dialog.set_phase("uploading", 0)
+                    QtWidgets.QApplication.processEvents()
 
-                        filename = os.path.basename(file_path).lower()
+                    # Process files sequentially with proper memory management
+                    total_records_imported = 0
+                    successful_imports = 0
+                    
+                    for i, file_path in enumerate(file_paths):
+                        try:
+                            file_size = os.path.getsize(file_path)
+                            filename = os.path.basename(file_path)
+                            
+                            # Update progress for current file
+                            file_progress = int((i / len(file_paths)) * 100)
+                            self.progress_dialog.update_progress(
+                                file_progress, 
+                                f"Processing file {i+1}/{len(file_paths)}: {filename}",
+                                i, len(file_paths)
+                            )
+                            QtWidgets.QApplication.processEvents()
+                            
+                            # Check if user cancelled
+                            if self.progress_dialog.wasCanceled():
+                                print("Multi-file upload cancelled by user")
+                                return
+                            
+                            print(f"Processing file {i+1}/{len(file_paths)}: {filename} ({file_size} bytes)")
 
-                        # Check if it's a shortdata file (sample only)
-                        if 'shortdata' in filename:
-                            print(f"⚠️ Treating {os.path.basename(file_path)} as sample data only (not permanently stored)")
-                            self._process_sample_shortdata(file_path)
-                        # Check if it's a fault file that should be filtered and stored permanently
-                        elif 'tbfault' in filename or 'halfault' in filename:
-                            print(f"🔍 Processing fault file with filtering: {os.path.basename(file_path)}")
-                            if file_size < 5 * 1024 * 1024:
-                                self._import_small_file_filtered(file_path)
+                            filename_lower = filename.lower()
+
+                            # Check if it's a shortdata file (sample only)
+                            if 'shortdata' in filename_lower:
+                                print(f"⚠️ Treating {filename} as sample data only (not permanently stored)")
+                                self._process_sample_shortdata(file_path)
+                                successful_imports += 1
+                            # Check if it's a fault file that should be filtered and stored permanently
+                            elif 'tbfault' in filename_lower or 'halfault' in filename_lower:
+                                print(f"🔍 Processing fault file with filtering: {filename}")
+                                if file_size < 5 * 1024 * 1024:
+                                    records = self._import_small_file_filtered(file_path)
+                                else:
+                                    records = self._import_large_file_filtered(file_path, file_size)
+                                if records > 0:
+                                    total_records_imported += records
+                                    successful_imports += 1
                             else:
-                                self._import_large_file_filtered(file_path, file_size)
-                        else:
-                            # Regular machine log file - import all data for MPC, trend, analysis
-                            print(f"📊 Processing machine log file: {os.path.basename(file_path)}")
-                            if file_size < 5 * 1024 * 1024:
-                                self._import_small_file(file_path)
-                            else:
-                                self._import_large_file(file_path, file_size)
+                                # Regular machine log file - import all data for MPC, trend, analysis
+                                print(f"📊 Processing machine log file: {filename}")
+                                if file_size < 5 * 1024 * 1024:
+                                    records = self._import_small_file_single(file_path)
+                                else:
+                                    records = self._import_large_file_single(file_path, file_size)
+                                if records > 0:
+                                    total_records_imported += records
+                                    successful_imports += 1
+                                    
+                            # Update progress after each file
+                            completed_progress = int(((i + 1) / len(file_paths)) * 85)  # Leave 15% for finalization
+                            self.progress_dialog.update_progress(
+                                completed_progress,
+                                f"Completed {filename} - {successful_imports}/{i+1} files processed successfully"
+                            )
+                            QtWidgets.QApplication.processEvents()
+                            
+                            # Force garbage collection between files
+                            import gc
+                            gc.collect()
+                            
+                        except Exception as e:
+                            print(f"Error processing file {os.path.basename(file_path)}: {e}")
+                            # Continue with next file even if current one fails
+                            continue
+                    
+                    # Finalization phase
+                    self.progress_dialog.set_phase("finalizing", 85)
+                    self.progress_dialog.update_progress(90, "Refreshing database and UI components...")
+                    QtWidgets.QApplication.processEvents()
+
+                    # Final UI update after all files processed
+                    if successful_imports > 0:
+                        try:
+                            self.df = self.db.get_all_logs(chunk_size=10000)
+                        except TypeError:
+                            self.df = self.db.get_all_logs()
+                        
+                        # Update progress during UI refresh
+                        self.progress_dialog.update_progress(92, "Loading dashboard...")
+                        QtWidgets.QApplication.processEvents()
+                        self.load_dashboard()
+                        
+                        self.progress_dialog.update_progress(94, "Initializing trend controls...")
+                        QtWidgets.QApplication.processEvents()
+                        self._initialize_trend_controls()
+                        self.update_trend_combos()
+                        
+                        self.progress_dialog.update_progress(96, "Updating data tables...")
+                        QtWidgets.QApplication.processEvents()
+                        self.update_data_table()
+                        self.update_analysis_tab()
+
+                        self.progress_dialog.update_progress(98, "Finalizing trends and analysis...")
+                        QtWidgets.QApplication.processEvents()
+
+                        # Initialize default trend displays
+                        QtCore.QTimer.singleShot(500, self._refresh_all_trends)
+
+                        # Initialize MPC tab with new data
+                        QtCore.QTimer.singleShot(300, self.refresh_latest_mpc)
+
+                        # Mark as complete and close progress dialog
+                        self.progress_dialog.mark_complete()
+                        QtCore.QTimer.singleShot(1000, self.progress_dialog.close)  # Close after 1 second
+
+                        QtWidgets.QMessageBox.information(
+                            self,
+                            "Multi-File Import Successful",
+                            f"Successfully processed {successful_imports}/{len(file_paths)} files.\n\n"
+                            f"Total records imported: {total_records_imported:,}\n"
+                            f"Dashboard, trends, and analysis tabs have been updated.",
+                        )
+                    else:
+                        self.progress_dialog.close()
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Import Warning",
+                            "No files were successfully processed.\n\n"
+                            "Please check that the files contain valid LINAC log data."
+                        )
 
                 except Exception as e:
+                    # Close progress dialog if it exists
+                    if hasattr(self, 'progress_dialog') and self.progress_dialog:
+                        self.progress_dialog.close()
+                    
                     print(f"Error in import_log_file: {e}")
                     traceback.print_exc()
                     QtWidgets.QMessageBox.critical(
                         self, "Import Error", f"Error importing log file: {str(e)}"
                     )
+
+            def _import_small_file_single(self, file_path):
+                """Import single small log file and return record count"""
+                try:
+                    from unified_parser import UnifiedParser
+                    parser = UnifiedParser()
+                    
+                    print(f"Parsing {os.path.basename(file_path)}...")
+                    df = parser.parse_linac_file(file_path)
+                    
+                    if df.empty:
+                        print(f"No valid data found in {os.path.basename(file_path)}")
+                        return 0
+                    
+                    print(f"✓ Data cleaned: {len(df)} records ready for database")
+                    
+                    # Insert data in batch with timing
+                    import time
+                    start_time = time.time()
+                    records_inserted = self.db.insert_data_batch(df)
+                    end_time = time.time()
+                    
+                    # Calculate and display performance metrics
+                    duration = end_time - start_time
+                    records_per_sec = records_inserted / duration if duration > 0 else 0
+                    
+                    print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
+                    
+                    # Insert file metadata
+                    filename = os.path.basename(file_path)
+                    parsing_stats_json = "{}"
+                    self.db.insert_file_metadata(
+                        filename=filename,
+                        file_size=os.path.getsize(file_path),
+                        records_imported=records_inserted,
+                        parsing_stats=parsing_stats_json,
+                    )
+                    
+                    return records_inserted
+                    
+                except Exception as e:
+                    print(f"Error importing {os.path.basename(file_path)}: {e}")
+                    return 0
+
+            def _import_large_file_single(self, file_path, file_size):
+                """Import single large log file and return record count"""
+                try:
+                    from unified_parser import UnifiedParser
+                    parser = UnifiedParser()
+                    
+                    print(f"Parsing large file {os.path.basename(file_path)}...")
+                    df = parser.parse_linac_file(file_path, chunk_size=5000)
+                    
+                    if df.empty:
+                        print(f"No valid data found in {os.path.basename(file_path)}")
+                        return 0
+                    
+                    print(f"✓ Data cleaned: {len(df)} records ready for database")
+                    
+                    # Insert data in optimized batches with timing
+                    import time
+                    start_time = time.time()
+                    records_inserted = self.db.insert_data_batch(df, batch_size=500)
+                    end_time = time.time()
+                    
+                    # Calculate and display performance metrics
+                    duration = end_time - start_time
+                    records_per_sec = records_inserted / duration if duration > 0 else 0
+                    
+                    print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
+                    
+                    # Insert file metadata
+                    filename = os.path.basename(file_path)
+                    parsing_stats_json = "{}"
+                    self.db.insert_file_metadata(
+                        filename=filename,
+                        file_size=file_size,
+                        records_imported=records_inserted,
+                        parsing_stats=parsing_stats_json,
+                    )
+                    
+                    return records_inserted
+                    
+                except Exception as e:
+                    print(f"Error importing {os.path.basename(file_path)}: {e}")
+                    return 0
 
             def _import_small_file(self, file_path):
                 """Import small log file with professional progress"""
@@ -3205,7 +3210,7 @@ Source: {result.get('source', 'unknown')} database
                         try:
                             self.df = self.db.get_all_logs(chunk_size=10000)
                             print(f"✓ Database loaded: {len(self.df)} total records")
-                            
+
                             # Check what data we actually have
                             if not self.df.empty:
                                 print(f"📋 Data preview:")
@@ -3216,7 +3221,7 @@ Source: {result.get('source', 'unknown')} database
                                 print(f"  Sample parameters: {list(self.df['param'].unique()[:5]) if 'param' in self.df.columns else 'N/A'}")
                             else:
                                 print("⚠️ DataFrame is empty after database load")
-                                
+
                         except TypeError:
                             self.df = self.db.get_all_logs()
                             print(f"✓ Database loaded (no chunking): {len(self.df)} total records")
@@ -3406,7 +3411,6 @@ def main():
         app = QtWidgets.QApplication(sys.argv)
         app.setApplicationName("HALog")
         app.setApplicationVersion(APP_VERSION)
-        app.setApplicationDisplayName(f"HALog {APP_VERSION} • gobioeng.com")
         app.setOrganizationName("gobioeng.com")
         app.setOrganizationDomain("gobioeng.com")
 

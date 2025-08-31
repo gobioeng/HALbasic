@@ -844,7 +844,7 @@ class Ui_MainWindow(object):
                 "DateTime",
                 "Serial",
                 "Parameter",
-                "Average",
+                "Average", 
                 "Min",
                 "Max",
                 "Diff (Max-Min)",
@@ -1013,61 +1013,47 @@ class Ui_MainWindow(object):
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        header_label = QLabel("<h2>Latest Machine Performance Check Results</h2>")
+        header_label = QLabel("<h2>Machine Performance Check Results</h2>")
         header_label.setAlignment(Qt.AlignCenter)
         header_label.setWordWrap(True)
         layout.addWidget(header_label)
 
-        
-        # Date selection controls for MPC comparison
-        date_group = QGroupBox("Date Selection for Comparison")
-        date_layout = QHBoxLayout(date_group)
-        date_layout.setSpacing(16)
-        date_layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Date A selection
-        date_a_label = QLabel("Date A:")
-        date_a_label.setMinimumWidth(80)
-        date_layout.addWidget(date_a_label)
-        
-        self.comboMPCDateA = QComboBox()
-        self.comboMPCDateA.setMinimumWidth(200)
-        self.comboMPCDateA.addItem("Select Date A...")
-        date_layout.addWidget(self.comboMPCDateA)
-        
-        date_layout.addSpacing(20)
-        
-        # Date B selection  
-        date_b_label = QLabel("Date B:")
-        date_b_label.setMinimumWidth(80)
-        date_layout.addWidget(date_b_label)
-        
-        self.comboMPCDateB = QComboBox()
-        self.comboMPCDateB.setMinimumWidth(200)
-        self.comboMPCDateB.addItem("Select Date B...")
-        date_layout.addWidget(self.comboMPCDateB)
-        
-        date_layout.addStretch()
-        layout.addWidget(date_group)
-
-        # Data info and refresh controls
-        info_group = QGroupBox("MPC Data Status")
-        info_layout = QHBoxLayout(info_group)
+        # MPC data controls
+        info_group = QGroupBox("MPC Data Controls")
+        info_layout = QVBoxLayout(info_group)
         info_layout.setSpacing(12)
         info_layout.setContentsMargins(16, 16, 16, 16)
         
-        # Last update info
-        self.lblLastMPCUpdate = QLabel("Last MPC Data: Loading...")
-        self.lblLastMPCUpdate.setWordWrap(True)
-        info_layout.addWidget(self.lblLastMPCUpdate)
+        # Date selection row
+        date_row = QHBoxLayout()
+        
+        date_label = QLabel("Select Date:")
+        date_label.setMinimumWidth(80)
+        date_row.addWidget(date_label)
+        
+        self.comboMPCDate = QComboBox()
+        self.comboMPCDate.setMinimumWidth(150)
+        self.comboMPCDate.addItem("Select date...")
+        date_row.addWidget(self.comboMPCDate)
+        
+        date_row.addStretch()
         
         # Refresh button
-        self.btnRefreshMPC = QPushButton("Refresh Latest Data")
+        self.btnRefreshMPC = QPushButton("Load MPC Data")
         self.btnRefreshMPC.setObjectName("primaryButton")
-        self.btnRefreshMPC.setMaximumWidth(200)
-        info_layout.addWidget(self.btnRefreshMPC)
+        self.btnRefreshMPC.setMaximumWidth(150)
+        date_row.addWidget(self.btnRefreshMPC)
         
-        info_layout.addStretch()
+        info_layout.addLayout(date_row)
+        
+        # Status info row
+        status_row = QHBoxLayout()
+        self.lblLastMPCUpdate = QLabel("Select a date to view MPC data")
+        self.lblLastMPCUpdate.setWordWrap(True)
+        status_row.addWidget(self.lblLastMPCUpdate)
+        status_row.addStretch()
+        info_layout.addLayout(status_row)
+        
         layout.addWidget(info_group)
 
         # Results table with responsive design
@@ -1078,20 +1064,18 @@ class Ui_MainWindow(object):
         self.tableMPC = QTableWidget()
         self.tableMPC.setAlternatingRowColors(True)
         self.tableMPC.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.tableMPC.setColumnCount(4)  # Updated for comparison: Parameter, Date A, Date B, Status
+        self.tableMPC.setColumnCount(3)  # Simplified: Parameter, Value, Status
         self.tableMPC.setHorizontalHeaderLabels([
             "Parameter",
-            "Date A Result", 
-            "Date B Result",
+            "Value", 
             "Status"
         ])
         
         # Set responsive column widths with better text handling
         header = self.tableMPC.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Interactive)  # Parameter - allow resize
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)     # Date A - fit content
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)     # Date B - fit content
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Status - fit content
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)     # Value - fit content
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Status - fit content
         
         # Set minimum column widths for parameter names
         header.setMinimumSectionSize(200)  # Minimum width for parameter column
@@ -1198,120 +1182,9 @@ class Ui_MainWindow(object):
         stats_layout.addStretch()
         layout.addWidget(stats_group)
 
-        # Load sample MPC data AFTER creating all UI elements
-        self._populate_sample_mpc_data()
+        # MPC data will be loaded from actual log files when available
 
-    def _populate_sample_mpc_data(self):
-        """Populate sample MPC data for demonstration with NA handling"""
-        # Sample MPC check categories and parameters
-        mpc_data = [
-            # Geometric Checks
-            ("Geometry", "Isocenter Radius (mm)", "0.8", "0.9", "PASS"),
-            ("Geometry", "Gantry Accuracy (°)", "0.1", "0.2", "PASS"), 
-            ("Geometry", "Collimator Accuracy (°)", "0.1", "0.1", "PASS"),
-            ("Geometry", "Couch Accuracy (°)", "0.3", "0.4", "PASS"),
-            ("Geometry", "Laser Alignment (mm)", "0.5", "0.8", "PASS"),
-            
-            # Dosimetric Checks
-            ("Dosimetry", "Beam Output Constancy (%)", "0.2", "0.3", "PASS"),
-            ("Dosimetry", "Beam Uniformity (%)", "1.2", "1.5", "PASS"),
-            ("Dosimetry", "Center Shift (mm)", "0.3", "0.4", "PASS"),
-            ("Dosimetry", "Energy Constancy (%)", "0.5", "0.8", "PASS"),
-            ("Dosimetry", "Dose Rate Constancy (%)", "0.8", "1.0", "PASS"),
-            
-            # MLC Checks
-            ("MLC", "Leaf Position Accuracy (mm)", "0.5", "0.7", "PASS"),
-            ("MLC", "Leaf Speed Constancy (%)", "1.0", "1.2", "PASS"),
-            ("MLC", "Leaf Gap Width (mm)", "0.1", "0.1", "PASS"),
-            
-            # Imaging Checks  
-            ("Imaging", "Image Quality Score", "95", "93", "PASS"),
-            ("Imaging", "Contrast Resolution (%)", "2.1", "2.3", "PASS"),
-            ("Imaging", "Spatial Resolution (lp/mm)", "0.8", "0.8", "PASS"),
-            
-            # Example with missing data
-            ("Geometry", "Long Parameter Name That Needs Wrapping to Show Full Text", "NA", "0.5", "NA"),
-            ("Dosimetry", "Missing Data Example", "NA", "NA", "NA"),
-        ]
-
-        self.tableMPC.setRowCount(len(mpc_data))
-        
-        for row, (category, param, date_a, date_b, status) in enumerate(mpc_data):
-            # Parameter name with category - improved text wrapping
-            param_item = QLabel(f"<b>[{category}]</b><br>{param}")
-            param_item.setWordWrap(True)
-            param_item.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-            param_item.setMargin(5)
-            self.tableMPC.setCellWidget(row, 0, param_item)
-            
-            # Date A result - handle NA values
-            date_a_display = "NA" if date_a == "NA" or not date_a else date_a
-            date_a_item = QTableWidgetItem(date_a_display)
-            if date_a_display == "NA":
-                date_a_item.setBackground(Qt.lightGray)
-            self.tableMPC.setItem(row, 1, date_a_item)
-            
-            # Date B result - handle NA values 
-            date_b_display = "NA" if date_b == "NA" or not date_b else date_b
-            date_b_item = QTableWidgetItem(date_b_display)
-            if date_b_display == "NA":
-                date_b_item.setBackground(Qt.lightGray)
-            self.tableMPC.setItem(row, 2, date_b_item)
-            
-            # Status with enhanced color coding and styling - handle NA values
-            status_display = "NA" if status == "NA" or not status else status
-            status_item = QLabel(status_display)
-            if status_display == "PASS":
-                status_item.setStyleSheet("""
-                    color: white; 
-                    font-weight: bold; 
-                    background-color: #4CAF50; 
-                    border-radius: 4px; 
-                    padding: 6px 12px;
-                """)
-            elif status_display == "FAIL":
-                status_item.setStyleSheet("""
-                    color: white; 
-                    font-weight: bold; 
-                    background-color: #F44336; 
-                    border-radius: 4px; 
-                    padding: 6px 12px;
-                """)
-            elif status_display == "NA":
-                status_item.setStyleSheet("""
-                    color: #666666; 
-                    font-weight: bold; 
-                    background-color: #E0E0E0; 
-                    border-radius: 4px; 
-                    padding: 6px 12px;
-                """)
-            else:
-                status_item.setStyleSheet("""
-                    color: white; 
-                    font-weight: bold; 
-                    background-color: #FF9800; 
-                    border-radius: 4px; 
-                    padding: 6px 12px;
-                """)
-            status_item.setAlignment(Qt.AlignCenter)
-            self.tableMPC.setCellWidget(row, 3, status_item)
-
-        # Update statistics with NA handling
-        total_checks = len(mpc_data)
-        passed_checks = sum(1 for _, _, _, _, status in mpc_data if status == "PASS")
-        na_checks = sum(1 for _, _, _, _, status in mpc_data if status == "NA")
-        
-        if total_checks > 0:
-            pass_rate = (passed_checks / (total_checks - na_checks)) * 100 if (total_checks - na_checks) > 0 else 0
-            self.lblMPCStats.setText(
-                f"Total Checks: {total_checks} | Passed: {passed_checks} | NA: {na_checks} | "
-                f"Pass Rate: {pass_rate:.1f}% (excluding NA)"
-            )
-        else:
-            self.lblMPCStats.setText("No MPC data available")
-        
-        # Resize rows to fit content after populating
-        self.tableMPC.resizeRowsToContents()
+    
 
     def setup_fault_code_tab(self):
         self.tabFaultCode = QWidget()
