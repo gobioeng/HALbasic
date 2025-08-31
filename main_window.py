@@ -16,12 +16,11 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QAbstractItemView,
     QSizePolicy,
-    QMenu,
     QLineEdit,
     QTextEdit,
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QKeySequence
+from PyQt5.QtGui import QKeySequence
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):

@@ -393,13 +393,11 @@ class HALogApp:
 
         # Set numpy thread control
         try:
-            import numpy as np
-
             os.environ["OMP_NUM_THREADS"] = str(min(8, os.cpu_count() or 4))
             os.environ["MKL_NUM_THREADS"] = str(min(8, os.cpu_count() or 4))
             os.environ["NUMEXPR_NUM_THREADS"] = str(min(8, os.cpu_count() or 4))
         except Exception as e:
-            print(f"Warning: Could not configure numpy: {e}")
+            print(f"Warning: Could not configure threading: {e}")
 
         self.update_splash_progress(50, "Preparing interface components...")
 
