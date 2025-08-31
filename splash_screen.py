@@ -6,7 +6,7 @@ Developer: Tanmay Pandey
 Company: gobioeng.com
 """
 
-from PyQt5.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QProgressBar, QWidget, QHBoxLayout
+from PyQt5.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QProgressBar, QWidget
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRect  # Explicitly import QRect
 from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QLinearGradient, QBrush
 from resource_helper import resource_path, generate_icon
@@ -35,14 +35,33 @@ class BootstrapSplashWidget(QWidget):
         self.logo_label = QLabel()
         logo_pix = QPixmap(resource_path("linac_logo.ico"))
         if not logo_pix.isNull():
-            self.logo_label.setPixmap(
-                logo_pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            )
+            # Process logo to remove white background
+            processed_logo = self._remove_white_background(logo_pix, 80)
+            self.logo_label.setPixmap(processed_logo)
         else:
             self.logo_label.setText("🏥")
             self.logo_label.setStyleSheet("font-size: 64px; color: gold;")
         self.logo_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.logo_label)
+
+    def _remove_white_background(self, pixmap: QPixmap, size: int) -> QPixmap:
+        """Remove white background from logo and scale it"""
+        # Scale first
+        scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        
+        # Convert to image for pixel manipulation
+        image = scaled_pixmap.toImage()
+        
+        # Make white/light pixels transparent
+        for x in range(image.width()):
+            for y in range(image.height()):
+                pixel = image.pixel(x, y)
+                color = QColor(pixel)
+                # Make white and very light gray pixels transparent
+                if color.lightness() > 240:  # Very light colors
+                    image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())  # Transparent
+        
+        return QPixmap.fromImage(image)
 
         # App name
         app_name = QLabel("Gobioeng HALog")
@@ -126,11 +145,34 @@ class SplashScreen(QSplashScreen):
         logo_path = resource_path("linac_logo.ico")
         if os.path.exists(logo_path):
             logo_pixmap = QPixmap(logo_path)
-            painter.drawPixmap(
-                logo_x,
-                logo_y,
-                logo_pixmap.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
-            )
+            
+            # Create a version with transparent white background
+            transparent_logo = QPixmap(logo_size, logo_size)
+            transparent_logo.fill(Qt.transparent)
+            
+            logo_painter = QPainter(transparent_logo)
+            logo_painter.setRenderHint(QPainter.Antialiasing)
+            
+            # Scale the original logo
+            scaled_logo = logo_pixmap.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            
+            # Convert white/light pixels to transparent
+            image = scaled_logo.toImage()
+            for x in range(image.width()):
+                for y in range(image.height()):
+                    pixel = image.pixel(x, y)
+                    color = QColor(pixel)
+                    # Make white and very light gray pixels transparent
+                    if color.lightness() > 240:  # Very light colors
+                        image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())  # Transparent
+            
+            # Convert back to pixmap and draw
+            processed_logo = QPixmap.fromImage(image)
+            logo_painter.drawPixmap(0, 0, processed_logo)
+            logo_painter.end()
+            
+            # Draw the processed logo onto the splash screen
+            painter.drawPixmap(logo_x, logo_y, transparent_logo)
         else:
             # Generate modern icon as fallback
             fallback_icon = generate_icon(logo_size)
