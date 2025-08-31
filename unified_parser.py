@@ -29,7 +29,6 @@ class UnifiedParser:
 
     def __init__(self):
         self._compile_patterns()
-        self._init_parameter_mapping()
         self.parsing_stats = {
             "lines_processed": 0,
             "records_extracted": 0,
@@ -37,8 +36,9 @@ class UnifiedParser:
             "processing_time": 0,
         }
         self.fault_codes: Dict[str, Dict[str, str]] = {}
-        self.parameter_mapping = {}
+        self.parameter_mapping = {}  # Initialize before calling _init_parameter_mapping
         self.df: Optional[pd.DataFrame] = None # Initialize df to None
+        self._init_parameter_mapping()  # Call after other initializations
 
     def get_fault_descriptions_by_database(self, fault_code):
         """Get fault descriptions from both HAL and TB databases"""
@@ -146,7 +146,7 @@ class UnifiedParser:
             "magnetronTemp": {
                 "patterns": [
                     "magnetronTemp", "magnetron temp", "magnetron temperature",
-                    "mag_temp", "Magnetron Temperature"
+                    "mag_temp"
                 ],
                 "unit": "°C",
                 "description": "Temp Magnetron",
@@ -159,10 +159,10 @@ class UnifiedParser:
                     "Cooling target Temp Statistics", "targetTempStatistics",
                     "target_temp", "cooling_target_temp"
                 ],
-                "unit": "°C",
-                "description": "Temp Target Cooling",
-                "expected_range": (15, 25),
-                "critical_range": (10, 30),
+                "unit": "L/min",
+                "description": "Flow Target",
+                "expected_range": (6, 12),
+                "critical_range": (4, 15),
             },
             "COLboardTemp": {
                 "patterns": [
@@ -266,7 +266,6 @@ class UnifiedParser:
             # === VOLTAGE PARAMETERS ===
             "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V": {
                 "patterns": [
-                    "MLC_ADC_CHAN_TEMP_BANKA_STAT", "MLC ADC CHAN TEMP BANKA STAT", 
                     "BANKA_24V", "mlc_bank_a_24v", "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V"
                 ],
                 "unit": "V",
@@ -276,7 +275,6 @@ class UnifiedParser:
             },
             "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V": {
                 "patterns": [
-                    "MLC_ADC_CHAN_TEMP_BANKB_STAT", "MLC ADC CHAN TEMP BANKB STAT", 
                     "BANKB_24V", "mlc_bank_b_24v", "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V"
                 ],
                 "unit": "V",
@@ -287,7 +285,7 @@ class UnifiedParser:
             "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V": {
                 "patterns": [
                     "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V", "MLC ADC CHAN TEMP BANKA STAT 48V", 
-                    "BANKA_48V", "mlc_bank_a_48v"
+                    "BANKA_48V", "mlc_bank_a_48v", "MLC_ADC_CHAN_TEMP_BANKA_STAT", "MLC ADC CHAN TEMP BANKA STAT"
                 ],
                 "unit": "V",
                 "description": "MLC Bank A 48V",
@@ -297,7 +295,7 @@ class UnifiedParser:
             "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V": {
                 "patterns": [
                     "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V", "MLC ADC CHAN TEMP BANKB STAT 48V", 
-                    "BANKB_48V", "mlc_bank_b_48v"
+                    "BANKB_48V", "mlc_bank_b_48v", "MLC_ADC_CHAN_TEMP_BANKB_STAT", "MLC ADC CHAN TEMP BANKB STAT"
                 ],
                 "unit": "V",
                 "description": "MLC Bank B 48V",
@@ -328,8 +326,7 @@ class UnifiedParser:
             # === ADDITIONAL WATER PARAMETERS ===
             "waterTankLevel": {
                 "patterns": [
-                    "water tank level", "waterTankLevel", "tank_level",
-                    "Water Tank Level"
+                    "water tank level", "waterTankLevel", "tank_level"
                 ],
                 "unit": "%",
                 "description": "Water Tank Level",
@@ -372,8 +369,7 @@ class UnifiedParser:
             # === PRESSURE PARAMETERS ===
             "systemPressure": {
                 "patterns": [
-                    "system pressure", "systemPressure", "system_pressure",
-                    "System Pressure"
+                    "system pressure", "systemPressure", "system_pressure"
                 ],
                 "unit": "PSI",
                 "description": "System Pressure",
@@ -382,8 +378,7 @@ class UnifiedParser:
             },
             "waterPressure": {
                 "patterns": [
-                    "water pressure", "waterPressure", "water_pressure",
-                    "Water Pressure"
+                    "water pressure", "waterPressure", "water_pressure"
                 ],
                 "unit": "PSI",
                 "description": "Water Pressure",
@@ -1111,6 +1106,7 @@ class UnifiedParser:
                 "Temp Room": ["FanremoteTempStatistics", "remoteTemp", "roomTemp"],
                 "Room Humidity": ["FanhumidityStatistics", "humidity"],
                 "Temp Magnetron": ["magnetronTemp", "magnetron"],
+                "Temp PDU": ["PDUTemp", "pdu"],
                 "Speed FAN 1": ["fanSpeed1", "FanSpeed1", "Speed1"],
                 "Speed FAN 2": ["fanSpeed2", "FanSpeed2", "Speed2"],
                 "Speed FAN 3": ["fanSpeed3", "FanSpeed3", "Speed3"],
@@ -1151,6 +1147,7 @@ class UnifiedParser:
                     "Temp Room": ["temp", "remote", "fan"],
                     "Room Humidity": ["humidity", "fan"],
                     "Temp Magnetron": ["magnetron", "temp"],
+                    "Temp PDU": ["pdu", "temp"],
                     "Speed FAN 1": ["speed", "fan", "1"],
                     "Speed FAN 2": ["speed", "fan", "2"],
                     "Speed FAN 3": ["speed", "fan", "3"],
