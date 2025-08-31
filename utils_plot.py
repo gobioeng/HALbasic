@@ -292,59 +292,21 @@ class PlotUtils:
         }
 
     @staticmethod
-    def create_single_graph_plot(widget, data, title="Graph"):
-        """Create single graph plot for individual parameter visualization"""
-        from PyQt5.QtWidgets import QVBoxLayout, QApplication
-
-        # Process any pending events first
-        QApplication.processEvents()
-
-        # Only create layout if widget doesn't have one
-        layout = widget.layout()
-        if layout is None:
-            layout = QVBoxLayout(widget)
-
-        # Setup professional style
-        PlotUtils.setup_professional_style()
-
-        # Create figure with single subplot
-        fig = Figure(figsize=(10, 6))
-        ax = fig.add_subplot(1, 1, 1)
-        PlotUtils._plot_parameter_data(ax, data, title)
-
-        # Adjust layout
-        fig.tight_layout(pad=3.0)
-
-        # Add to widget
-        canvas = FigureCanvas(fig)
-        layout.addWidget(canvas)
-
-        # Add interactive manager
-        interactive_manager = InteractivePlotManager(fig, [ax], canvas)
-
-        return canvas, interactive_manager
-
-    @staticmethod
     def create_dual_graph_plot(widget, data_top=None, data_bottom=None, title_top="Top Graph", title_bottom="Bottom Graph"):
         """Create dual graph layout (top and bottom) for enhanced parameter visualization"""
-        from PyQt5.QtWidgets import QVBoxLayout, QApplication
+        from PyQt5.QtWidgets import QVBoxLayout
 
-        # Process any pending events first
-        QApplication.processEvents()
-
-        # Validate data sizes to prevent UI freezing
-        if data_top is not None and len(data_top) > 1000:
-            print(f"Limiting top data from {len(data_top)} to 1000 points")
-            data_top = data_top.tail(1000)
-        
-        if data_bottom is not None and len(data_bottom) > 1000:
-            print(f"Limiting bottom data from {len(data_bottom)} to 1000 points")
-            data_bottom = data_bottom.tail(1000)
-
-        # Only create layout if widget doesn't have one
+        # Clear existing plot
         layout = widget.layout()
         if layout is None:
             layout = QVBoxLayout(widget)
+            widget.setLayout(layout)
+        else:
+            while layout.count():
+                item = layout.takeAt(0)
+                w = item.widget()
+                if w:
+                    w.deleteLater()
 
         # Setup professional style
         PlotUtils.setup_professional_style()
@@ -352,20 +314,13 @@ class PlotUtils:
         # Create figure with two subplots
         fig = Figure(figsize=(12, 8))
 
-        # Create single subplot when only one dataset provided
-        if data_bottom is None or data_bottom.empty:
-            ax1 = fig.add_subplot(1, 1, 1)
-            PlotUtils._plot_parameter_data(ax1, data_top, title_top)
-            axes = [ax1]
-        else:
-            # Top subplot
-            ax1 = fig.add_subplot(2, 1, 1)
-            PlotUtils._plot_parameter_data(ax1, data_top, title_top)
+        # Top subplot
+        ax1 = fig.add_subplot(2, 1, 1)
+        PlotUtils._plot_parameter_data(ax1, data_top, title_top)
 
-            # Bottom subplot
-            ax2 = fig.add_subplot(2, 1, 2)
-            PlotUtils._plot_parameter_data(ax2, data_bottom, title_bottom)
-            axes = [ax1, ax2]
+        # Bottom subplot  
+        ax2 = fig.add_subplot(2, 1, 2)
+        PlotUtils._plot_parameter_data(ax2, data_bottom, title_bottom)
 
         # Adjust layout
         fig.tight_layout(pad=3.0)
@@ -375,100 +330,215 @@ class PlotUtils:
         layout.addWidget(canvas)
 
         # Add interactive manager
-        interactive_manager = InteractivePlotManager(fig, axes, canvas)
+        interactive_manager = InteractivePlotManager(fig, [ax1, ax2], canvas)
 
         return canvas, interactive_manager
 
     @staticmethod
     def _plot_parameter_data(ax, data, title):
-        """Plot parameter data on given axes"""
+        """Plot parameter data on a specific axis - FIXED for actual data format"""
+        if data is None or data.empty:
+            ax.text(0.5, 0.5, 'No data available', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=12, color='gray')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            return
+
+        # Ensure datetime column exists and is valid
+        if 'datetime' in data.columns:
+            data['datetime'] = pd.to_datetime(data['datetime'], errors='coerce')
+            data = data[data['datetime'].notna()]
+
+        if data.empty:
+            ax.text(0.5, 0.5, 'No valid data', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=12, color='gray')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            return
+
+        # Plot data with auto-scaling
+        colors = PlotUtils.get_group_colors()
+        color_cycle = list(colors.values())
+
+        # Determine value column to use
+        value_col = None
+        possible_value_cols = ['avg', 'avg_value', 'Average', 'value']
+        for col in possible_value_cols:
+            if col in data.columns:
+                value_col = col
+                break
+
+        if not value_col:
+            ax.text(0.5, 0.5, f'No value column found\nAvailable: {list(data.columns)}', 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes, fontsize=10, color='red')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            return
+
+        print(f"🔍 Using value column: '{value_col}' for plotting")
+
+        if 'parameter' in data.columns or 'parameter_name' in data.columns:
+            # Multiple parameters
+            param_col = 'parameter' if 'parameter' in data.columns else 'parameter_name'
+            unique_params = data[param_col].unique()
+            for i, param in enumerate(unique_params):
+                param_data = data[data[param_col] == param]
+                color = color_cycle[i % len(color_cycle)]
+
+                if 'datetime' in param_data.columns and value_col in param_data.columns:
+                    ax.plot(param_data['datetime'], param_data[value_col], 
+                           label=param, color=color, linewidth=2, marker='o', markersize=4)
+
+                    # Add error bands if min/max available
+                    if 'min_value' in param_data.columns and 'max_value' in param_data.columns:
+                        ax.fill_between(param_data['datetime'], 
+                                      param_data['min_value'], param_data['max_value'],
+                                      alpha=0.2, color=color)
+                    elif 'Min' in param_data.columns and 'Max' in param_data.columns:
+                        ax.fill_between(param_data['datetime'], 
+                                      param_data['Min'], param_data['Max'],
+                                      alpha=0.2, color=color)
+        else:
+            # Single parameter
+            if 'datetime' in data.columns and value_col in data.columns:
+                ax.plot(data['datetime'], data[value_col], 
+                       color=color_cycle[0], linewidth=2, marker='o', markersize=4, 
+                       label=title)
+
+                # Add error bands if min/max available
+                if 'min_value' in data.columns and 'max_value' in data.columns:
+                    ax.fill_between(data['datetime'], 
+                                  data['min_value'], data['max_value'],
+                                  alpha=0.2, color=color_cycle[0])
+                elif 'Min' in data.columns and 'Max' in data.columns:
+                    ax.fill_between(data['datetime'], 
+                                  data['Min'], data['Max'],
+                                  alpha=0.2, color=color_cycle[0])
+
+        # Format axes
+        ax.set_title(title, fontsize=12, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        if 'datetime' in data.columns:
+            # Better date formatting for the actual data
+            date_range = data['datetime'].max() - data['datetime'].min()
+            if date_range.total_seconds() < 3600:  # Less than 1 hour
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+                ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=10))
+            elif date_range.total_seconds() < 86400:  # Less than 1 day
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+            else:
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+
+        # Auto-scale with some padding
+        ax.margins(x=0.02, y=0.05)
+
+        # Add legend if multiple parameters
+        if ('parameter' in data.columns and len(data['parameter'].unique()) > 1) or \
+           ('parameter_name' in data.columns and len(data['parameter_name'].unique()) > 1):
+            ax.legend(loc='best', framealpha=0.9)
+
+    @staticmethod
+    def _plot_parameter_data_single(widget, data, parameter_name):
+        """Plot single parameter data with enhanced styling and full timeline"""
         try:
+            # Clear existing layout
+            for i in reversed(range(widget.layout().count() if widget.layout() else 0)):
+                widget.layout().itemAt(i).widget().setParent(None)
+
+            if widget.layout() is None:
+                from PyQt5.QtWidgets import QVBoxLayout
+                widget.setLayout(QVBoxLayout())
+
+            layout = widget.layout()
+
+            # Create matplotlib figure with enhanced styling
+            fig = Figure(figsize=(12, 4), dpi=100, facecolor='white')
+            canvas = FigureCanvas(fig)
+            layout.addWidget(canvas)
+
+            ax = fig.add_subplot(111)
+
             if data.empty:
-                ax.text(0.5, 0.5, "No data available",
-                       horizontalalignment='center', verticalalignment='center',
-                       transform=ax.transAxes, fontsize=12, color='gray')
-                ax.set_title(title)
+                # Show helpful message for empty data
+                ax.text(0.5, 0.5, f"No data available for:\n{parameter_name}", 
+                       transform=ax.transAxes, ha='center', va='center',
+                       fontsize=12, color='#666666', style='italic')
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.set_title(f"{parameter_name} - No Data", fontsize=14, fontweight='bold')
+                fig.tight_layout()
+                canvas.draw()
                 return
 
             # Ensure datetime column is properly formatted
             if 'datetime' in data.columns:
-                if not pd.api.types.is_datetime64_any_dtype(data['datetime']):
-                    data['datetime'] = pd.to_datetime(data['datetime'])
+                data['datetime'] = pd.to_datetime(data['datetime'])
+                data = data.sort_values('datetime')
 
-                x = data['datetime']
+                # Plot with enhanced styling
+                x_data = data['datetime']
 
-                # Plot avg, min, max if available
-                for col, color, label in [('avg', '#2E8B57', 'Average'),
-                                        ('min', '#FF6B6B', 'Minimum'),
-                                        ('max', '#4ECDC4', 'Maximum')]:
-                    if col in data.columns and not data[col].isna().all():
-                        y_values = pd.to_numeric(data[col], errors='coerce').dropna()
-                        if not y_values.empty:
-                            # Filter x values to match y values
-                            valid_indices = pd.to_numeric(data[col], errors='coerce').notna()
-                            x_filtered = x[valid_indices]
-                            ax.plot(x_filtered, y_values, color=color, label=label, linewidth=1.5, alpha=0.8)
+                # Plot avg line (solid, prominent)
+                if 'avg' in data.columns:
+                    ax.plot(x_data, data['avg'], 
+                           color='#1976D2', linewidth=2.5, label='Average', 
+                           marker='o', markersize=3, alpha=0.9)
 
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                ax.set_title(title, fontsize=12, fontweight='bold')
-                ax.set_xlabel('Time')
-                ax.set_ylabel('Value')
+                # Plot min/max lines (dashed, faded)
+                if 'min_value' in data.columns:
+                    ax.plot(x_data, data['min_value'], 
+                           color='#1976D2', linewidth=1.5, linestyle='--', 
+                           alpha=0.6, label='Minimum')
 
-                # Format x-axis
-                from matplotlib.dates import DateFormatter
-                ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
-                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+                if 'max_value' in data.columns:
+                    ax.plot(x_data, data['max_value'], 
+                           color='#1976D2', linewidth=1.5, linestyle='--', 
+                           alpha=0.6, label='Maximum')
 
-            else:
-                ax.text(0.5, 0.5, "Invalid data format",
-                       horizontalalignment='center', verticalalignment='center',
-                       transform=ax.transAxes, fontsize=12, color='red')
+                # Enhanced timeline formatting
+                ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%m-%d'))
+                ax.xaxis.set_minor_locator(mdates.HourLocator())
+
+                # Rotate labels for better readability
+                plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+                # Enhanced grid
+                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+                ax.set_axisbelow(True)
+
+                # Add legend if multiple lines
+                if len([col for col in ['avg', 'min_value', 'max_value'] if col in data.columns]) > 1:
+                    ax.legend(loc='upper right', framealpha=0.9)
+
+            # Professional styling
+            ax.set_title(parameter_name, fontsize=14, fontweight='bold', pad=20)
+            ax.set_xlabel('Time', fontsize=11)
+            ax.set_ylabel('Value', fontsize=11)
+
+            # Set background colors
+            ax.set_facecolor('#FAFAFA')
+            fig.patch.set_facecolor('white')
+
+            # Auto-adjust layout to prevent label cutoff
+            fig.tight_layout(pad=2.0)
+
+            # Draw the canvas
+            canvas.draw()
 
         except Exception as e:
-            print(f"Error plotting data: {e}")
-            ax.text(0.5, 0.5, f"Error: {str(e)}",
-                   horizontalalignment='center', verticalalignment='center',
-                   transform=ax.transAxes, fontsize=10, color='red')
+            print(f"Error plotting {parameter_name}: {e}")
+            # Show error in graph
+            ax.text(0.5, 0.5, f"Error plotting {parameter_name}", 
+                   transform=ax.transAxes, ha='center', va='center',
+                   fontsize=12, color='red')
+            fig.tight_layout()
+            canvas.draw()
 
-    @staticmethod
-    def _plot_parameter_data_single(widget, data, title):
-        """Plot parameter data on a single widget"""
-        from PyQt5.QtWidgets import QVBoxLayout
-
-        # Get or use existing layout
-        layout = widget.layout()
-        if layout is None:
-            layout = QVBoxLayout(widget)
-            widget.setLayout(layout)
-        else:
-            # Clear existing widgets from layout
-            while layout.count():
-                item = layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-
-        # Setup professional style
-        PlotUtils.setup_professional_style()
-
-        # Create figure with single subplot
-        fig = Figure(figsize=(8, 4))
-        ax = fig.add_subplot(111)
-
-        # Plot the data
-        PlotUtils._plot_parameter_data(ax, data, title)
-
-        # Adjust layout
-        fig.tight_layout(pad=2.0)
-
-        # Add to widget
-        canvas = FigureCanvas(fig)
-        layout.addWidget(canvas)
-
-        # Add interactive manager
-        interactive_manager = InteractivePlotManager(fig, ax, canvas)
-
-        return canvas, interactive_manager
 
     @staticmethod
     def plot_shortdata_parameters(widget, shortdata_parser, group_name, serial_number=None, parameter_name=None):
@@ -542,7 +612,7 @@ def plot_trend(widget, df: pd.DataFrame, title_suffix: str = ""):
         # Show empty state
         fig = Figure(figsize=(10, 6))
         ax = fig.add_subplot(111)
-        ax.text(0.5, 0.5, 'No data available for plotting',
+        ax.text(0.5, 0.5, 'No data available for plotting', 
                 horizontalalignment='center', verticalalignment='center',
                 transform=ax.transAxes, fontsize=14, color='gray')
         ax.set_xlim(0, 1)
@@ -784,8 +854,8 @@ def plot_multi_date_timeline(ax, df, param_name, gap_threshold=timedelta(days=1)
         cluster_data = df_clean.iloc[cluster]
 
         # Plot the cluster
-        ax.plot(cluster_data['datetime'], cluster_data['avg'],
-               color=colors[i], linewidth=2, alpha=0.8,
+        ax.plot(cluster_data['datetime'], cluster_data['avg'], 
+               color=colors[i], linewidth=2, alpha=0.8, 
                marker='o', markersize=4, label=f'Period {i+1}' if len(clusters) > 1 else param_name)
 
         # Add a visual gap indicator if there are multiple clusters
@@ -806,7 +876,7 @@ def plot_multi_date_timeline(ax, df, param_name, gap_threshold=timedelta(days=1)
             else:
                 gap_text = f'{gap_duration.seconds//3600}h gap'
 
-            ax.annotate(gap_text, xy=(gap_mid, ax.get_ylim()[1] * 0.9),
+            ax.annotate(gap_text, xy=(gap_mid, ax.get_ylim()[1] * 0.9), 
                        ha='center', va='bottom', fontsize=8, color='red', alpha=0.7)
 
     # Enhance axis formatting
@@ -914,22 +984,22 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                     # Find min/max values for this time range if available
                     if not min_df.empty:
                         min_cluster_data = min_df[
-                            (min_df["datetime"] >= min_time) &
+                            (min_df["datetime"] >= min_time) & 
                             (min_df["datetime"] <= max_time)
                         ]
                         if not min_cluster_data.empty:
                             norm_min_times = [transform_time(t) for t in min_cluster_data["datetime"]]
-                            ax.plot(norm_min_times, min_cluster_data["avg"].tolist(),
+                            ax.plot(norm_min_times, min_cluster_data["avg"].tolist(), 
                                   color=color, linestyle='--', linewidth=1.5, alpha=0.7, label='Min Range')
 
                     if not max_df.empty:
                         max_cluster_data = max_df[
-                            (max_df["datetime"] >= min_time) &
+                            (max_df["datetime"] >= min_time) & 
                             (max_df["datetime"] <= max_time)
                         ]
                         if not max_cluster_data.empty:
                             norm_max_times = [transform_time(t) for t in max_cluster_data["datetime"]]
-                            ax.plot(norm_max_times, max_cluster_data["avg"].tolist(),
+                            ax.plot(norm_max_times, max_cluster_data["avg"].tolist(), 
                                   color=color, linestyle='--', linewidth=1.5, alpha=0.7, label='Max Range')
 
                     # Enhanced fill between min and max with better visibility
@@ -937,24 +1007,24 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                         merged = pd.merge(
                             min_df[(min_df["datetime"] >= min_time) & (min_df["datetime"] <= max_time)][["datetime", "avg"]],
                             max_df[(max_df["datetime"] >= min_time) & (max_df["datetime"] <= max_time)][["datetime", "avg"]],
-                            on="datetime",
+                            on="datetime", 
                             suffixes=("_min", "_max")
                         )
                         if not merged.empty:
                             norm_merged_times = [transform_time(t) for t in merged["datetime"]]
                             # Primary shaded area
                             ax.fill_between(
-                                norm_merged_times,
-                                merged["avg_min"].tolist(),
+                                norm_merged_times, 
+                                merged["avg_min"].tolist(), 
                                 merged["avg_max"].tolist(),
-                                color=color,
+                                color=color, 
                                 alpha=0.25,
                                 label='Min-Max Range'
                             )
                             # Add subtle edge lines for better definition
-                            ax.plot(norm_merged_times, merged["avg_min"].tolist(),
+                            ax.plot(norm_merged_times, merged["avg_min"].tolist(), 
                                   color=color, linestyle=':', linewidth=1, alpha=0.6)
-                            ax.plot(norm_merged_times, merged["avg_max"].tolist(),
+                            ax.plot(norm_merged_times, merged["avg_max"].tolist(), 
                                   color=color, linestyle=':', linewidth=1, alpha=0.6)
 
                 # Add break marks between clusters
@@ -975,9 +1045,9 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                     days_diff = (start_next_time - end_time).total_seconds() / 86400
 
                     # Add text annotation for the time gap
-                    ax.annotate(f"{days_diff:.1f} days",
-                              xy=(mid, 0.02),
-                              xycoords='axes fraction',
+                    ax.annotate(f"{days_diff:.1f} days", 
+                              xy=(mid, 0.02), 
+                              xycoords='axes fraction', 
                               ha='center', va='bottom',
                               bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.8))
 
@@ -1006,7 +1076,7 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                 ax.grid(True, linestyle='--', alpha=0.3)
 
                 # Add title under the plot
-                ax.text(0.5, -0.1, "Time (days with compressed gaps)",
+                ax.text(0.5, -0.1, "Time (days with compressed gaps)", 
                        ha='center', va='center', transform=ax.transAxes, fontsize=10)
 
             else:
@@ -1016,11 +1086,11 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
 
                 # Enhanced min/max visualization
                 if not min_df.empty:
-                    ax.plot(min_df["datetime"], min_df["avg"],
+                    ax.plot(min_df["datetime"], min_df["avg"], 
                           color=color, linestyle='--', linewidth=1.5, alpha=0.7, label='Min Range')
 
                 if not max_df.empty:
-                    ax.plot(max_df["datetime"], max_df["avg"],
+                    ax.plot(max_df["datetime"], max_df["avg"], 
                           color=color, linestyle='--', linewidth=1.5, alpha=0.7, label='Max Range')
 
                 # Enhanced fill between with better visibility
@@ -1028,23 +1098,23 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
                     merged = pd.merge(
                         min_df[["datetime", "avg"]],
                         max_df[["datetime", "avg"]],
-                        on="datetime",
+                        on="datetime", 
                         suffixes=("_min", "_max")
                     )
                     if not merged.empty:
                         # Primary shaded area with better opacity
                         ax.fill_between(
-                            merged["datetime"],
-                            merged["avg_min"],
-                            merged["avg_max"],
-                            color=color,
+                            merged["datetime"], 
+                            merged["avg_min"], 
+                            merged["avg_max"], 
+                            color=color, 
                             alpha=0.25,
                             label='Min-Max Range'
                         )
                         # Add subtle edge lines for definition
-                        ax.plot(merged["datetime"], merged["avg_min"],
+                        ax.plot(merged["datetime"], merged["avg_min"], 
                               color=color, linestyle=':', linewidth=1, alpha=0.6)
-                        ax.plot(merged["datetime"], merged["avg_max"],
+                        ax.plot(merged["datetime"], merged["avg_max"], 
                               color=color, linestyle=':', linewidth=1, alpha=0.6)
 
                 # Add trend line
@@ -1117,7 +1187,7 @@ def _plot_single_parameter(ax, df: pd.DataFrame, param_name: str, subplot: bool 
         print(f"Error plotting parameter {param_name}: {e}")
         # Create a simple error message in the plot
         ax.clear()
-        ax.text(0.5, 0.5, f'Error plotting data: {str(e)}',
+        ax.text(0.5, 0.5, f'Error plotting data: {str(e)}', 
                 horizontalalignment='center', verticalalignment='center',
                 transform=ax.transAxes, fontsize=10, color='red')
         ax.set_xticks([])
@@ -1171,7 +1241,7 @@ def create_summary_plot(df: pd.DataFrame) -> Figure:
     fig.suptitle("LINAC Water System Overview", fontsize=16, fontweight='bold')
     if df.empty:
         ax = fig.add_subplot(111)
-        ax.text(0.5, 0.5, 'No data available',
+        ax.text(0.5, 0.5, 'No data available', 
                 horizontalalignment='center', verticalalignment='center',
                 transform=ax.transAxes, fontsize=14, color='gray')
         return fig

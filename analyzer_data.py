@@ -221,44 +221,6 @@ class DataAnalyzer:
         self.anomaly_models = {}
         self.scalers = {}
 
-    def _get_parameter_unit(self, param_name: str) -> str:
-        """Get unit for parameter"""
-        if param_name in self.parameter_thresholds:
-            return self.parameter_thresholds[param_name]['unit']
-
-        # Infer from parameter name
-        param_lower = param_name.lower()
-        if any(word in param_lower for word in ['temp', 'temperature']):
-            return '°C'
-        elif any(word in param_lower for word in ['voltage', 'v', '24v', '48v', '5v']):
-            return 'V'
-        elif any(word in param_lower for word in ['flow']):
-            return 'L/min'
-        elif any(word in param_lower for word in ['pressure']):
-            return 'PSI'
-        elif any(word in param_lower for word in ['speed', 'fan']):
-            return 'RPM'
-        elif any(word in param_lower for word in ['humidity']):
-            return '%'
-        else:
-            return ''
-
-    def _categorize_parameter(self, param_name: str) -> str:
-        """Categorize parameter by type"""
-        param_lower = param_name.lower()
-        if any(word in param_lower for word in ['flow', 'pressure', 'pump', 'water', 'mag', 'target', 'chiller', 'cooling']):
-            return 'Water System'
-        elif any(word in param_lower for word in ['voltage', '24v', '48v', '5v', 'mlc', 'col']):
-            return 'Voltages'
-        elif any(word in param_lower for word in ['temp', 'temperature']):
-            return 'Temperatures'
-        elif any(word in param_lower for word in ['humidity', 'humid']):
-            return 'Humidity'
-        elif any(word in param_lower for word in ['fan', 'speed']):
-            return 'Fan Speeds'
-        else:
-            return 'Other'
-
     def calculate_comprehensive_statistics(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate comprehensive statistics with confidence intervals and advanced metrics"""
         if data.empty:
@@ -267,90 +229,48 @@ class DataAnalyzer:
         try:
             stats_list = []
 
-            # Check data structure and adapt
-            if 'param' in data.columns:  # New structure from database
-                for param_type in data["param"].unique():
-                    param_data = data[data["param"] == param_type]
+            for param_type in data["parameter_type"].unique():
+                param_data = data[data["parameter_type"] == param_type]
 
-                    for stat_type in ['avg', 'min', 'max']:
-                        if stat_type in param_data.columns:
-                            values = param_data[stat_type].dropna()
+                for stat_type in param_data["statistic_type"].unique():
+                    values = param_data[param_data["statistic_type"] == stat_type][
+                        "value"
+                    ]
 
-                            if len(values) == 0:
-                                continue
-                            # Basic statistics
-                            stats_dict = {
-                                "parameter": param_type,
-                                "statistic_type": stat_type,
-                                "count": len(values),
-                                "mean": values.mean(),
-                                "median": values.median(),
-                                "std": values.std(),
-                                "min": values.min(),
-                                "max": values.max(),
-                                "q25": values.quantile(0.25),
-                                "q75": values.quantile(0.75),
-                                "unit": self._get_parameter_unit(param_type),
-                                "group": self._categorize_parameter(param_type)
-                            }
+                    if len(values) == 0:
+                        continue
 
-                            # Advanced statistics
-                            stats_dict.update(self._calculate_advanced_statistics(values))
+                    # Basic statistics
+                    stats_dict = {
+                        "parameter": param_type,
+                        "statistic_type": stat_type,
+                        "count": len(values),
+                        "mean": values.mean(),
+                        "median": values.median(),
+                        "std": values.std(),
+                        "min": values.min(),
+                        "max": values.max(),
+                        "q25": values.quantile(0.25),
+                        "q75": values.quantile(0.75),
+                        "unit": (
+                            param_data["unit"].iloc[0] if not param_data.empty else ""
+                        ),
+                    }
 
-                            # Confidence intervals
-                            stats_dict.update(self._calculate_confidence_intervals(values))
+                    # Advanced statistics
+                    stats_dict.update(self._calculate_advanced_statistics(values))
 
-                            # Trend analysis
-                            if len(values) > 5:
-                                stats_dict.update(self._calculate_trend_statistics(values))
+                    # Confidence intervals
+                    stats_dict.update(self._calculate_confidence_intervals(values))
 
-                            # Quality assessment
-                            stats_dict.update(self._assess_data_quality(values, param_type))
+                    # Trend analysis
+                    if len(values) > 5:
+                        stats_dict.update(self._calculate_trend_statistics(values))
 
-                            stats_list.append(stats_dict)
-            elif 'parameter_type' in data.columns:  # Old structure
-                for param_type in data["parameter_type"].unique():
-                    param_data = data[data["parameter_type"] == param_type]
+                    # Quality assessment
+                    stats_dict.update(self._assess_data_quality(values, param_type))
 
-                    for stat_type in param_data["statistic_type"].unique():
-                        values = param_data[param_data["statistic_type"] == stat_type][
-                            "value"
-                        ]
-
-                        if len(values) == 0:
-                            continue
-                        # Basic statistics
-                        stats_dict = {
-                            "parameter": param_type,
-                            "statistic_type": stat_type,
-                            "count": len(values),
-                            "mean": values.mean(),
-                            "median": values.median(),
-                            "std": values.std(),
-                            "min": values.min(),
-                            "max": values.max(),
-                            "q25": values.quantile(0.25),
-                            "q75": values.quantile(0.75),
-                            "unit": self._get_parameter_unit(param_type),
-                            "group": self._categorize_parameter(param_type)
-                        }
-
-                        # Advanced statistics
-                        stats_dict.update(self._calculate_advanced_statistics(values))
-
-                        # Confidence intervals
-                        stats_dict.update(self._calculate_confidence_intervals(values))
-
-                        # Trend analysis
-                        if len(values) > 5:
-                            stats_dict.update(self._calculate_trend_statistics(values))
-
-                        # Quality assessment
-                        stats_dict.update(self._assess_data_quality(values, param_type))
-
-                        stats_list.append(stats_dict)
-            else:
-                return pd.DataFrame()
+                    stats_list.append(stats_dict)
 
             if stats_list:
                 return pd.DataFrame(stats_list)
@@ -570,7 +490,7 @@ class DataAnalyzer:
                         f"Values outside acceptable range: {out_of_range}"
                     )
 
-                # Check for stability
+                # Check stability
                 cv = values.std() / abs(values.mean()) if values.mean() != 0 else np.inf
                 if cv > thresholds["cv_threshold"]:
                     quality_score -= 15

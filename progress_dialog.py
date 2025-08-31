@@ -1,74 +1,104 @@
 """
-Simplified Progress Dialog for HALog
-Optimized for minimal overhead and fast updates
+Enhanced Progress Dialog for HALog
+Native Windows styling with responsive design
 """
 
-from PyQt5.QtWidgets import QProgressDialog, QLabel
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-import time
+from PyQt5.QtWidgets import QProgressDialog, QProgressBar, QLabel, QVBoxLayout, QWidget, QApplication
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont
 
 
 class ProgressDialog(QProgressDialog):
-    """Simplified progress dialog with essential features"""
-
-    cancelled = pyqtSignal()
+    """Enhanced progress dialog with native Windows styling"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setupUI()
-        self.start_time = time.time()
 
-    def setupUI(self):
-        """Setup minimal UI"""
-        self.setWindowTitle("Processing File")
+        self.setWindowTitle("Processing...")
         self.setWindowModality(Qt.WindowModal)
         self.setMinimumWidth(400)
-        self.setRange(0, 100)
-        self.setValue(0)
+        self.setMinimumHeight(150)
 
-        # Simple styling
+        # Use native Windows styling
         self.setStyleSheet("""
             QProgressDialog {
-                background-color: #f5f5f5;
-                border-radius: 4px;
-                padding: 16px;
+                background-color: white;
+                border: 1px solid #c0c0c0;
+                font-family: 'Segoe UI';
+                font-size: 9pt;
             }
             QProgressBar {
-                border: 1px solid #ccc;
-                border-radius: 4px;
+                border: 1px solid #c0c0c0;
+                border-radius: 2px;
                 text-align: center;
-                background-color: #e6e6e6;
-                color: #333;
-                height: 20px;
+                background-color: #f0f0f0;
+                color: #000000;
+                font-size: 8pt;
+                min-height: 16px;
             }
             QProgressBar::chunk {
                 background-color: #0078d4;
-                border-radius: 3px;
+                border-radius: 1px;
+            }
+            QLabel {
+                color: #000000;
+                font-size: 9pt;
+                padding: 4px;
+            }
+            QPushButton {
+                background-color: #e1e1e1;
+                border: 1px solid #adadad;
+                padding: 6px 12px;
+                border-radius: 2px;
+                font-size: 9pt;
+                min-width: 75px;
+            }
+            QPushButton:hover {
+                background-color: #e5f1fb;
+                border: 1px solid #0078d4;
+            }
+            QPushButton:pressed {
+                background-color: #cce4f7;
             }
         """)
 
-    def set_file_info(self, filename: str, file_size: int):
-        """Set file information"""
-        self.setWindowTitle(f"Processing: {filename}")
-        size_mb = file_size / (1024 * 1024)
-        self.setLabelText(f"Processing {filename} ({size_mb:.1f} MB)...")
+        self.current_phase = "processing"
+        self.current_phase_progress = 0
 
-    def update_progress(self, percentage: int, message: str = ""):
-        """Update progress"""
-        self.setValue(percentage)
-        if message:
-            self.setLabelText(message)
+        # Setup initial state
+        self.setRange(0, 100)
+        self.setValue(0)
+        self.setLabelText("Initializing...")
+
+    def set_phase(self, phase_name, initial_progress=0):
+        """Set current processing phase"""
+        phase_names = {
+            "uploading": "Uploading file...",
+            "processing": "Processing data...",
+            "finalizing": "Finalizing...",
+            "saving": "Saving results...",
+            "analyzing": "Analyzing data..."
+        }
+
+        self.current_phase = phase_name
+        self.current_phase_progress = initial_progress
+
+        label_text = phase_names.get(phase_name, f"{phase_name.title()}...")
+        self.setLabelText(label_text)
+        self.setValue(initial_progress)
+
+    def update_progress(self, percentage, status_message="", lines_processed=0, 
+                       total_lines=0, bytes_processed=0, total_bytes=0):
+        """Update progress with detailed information"""
+        self.setValue(min(100, max(0, int(percentage))))
+
+        if status_message:
+            self.setLabelText(status_message)
 
         # Process events to keep UI responsive
-        from PyQt5.QtWidgets import QApplication
         QApplication.processEvents()
 
-    def closeEvent(self, event):
-        """Handle close event"""
-        self.cancelled.emit()
-        super().closeEvent(event)
-
-    def reject(self):
-        """Handle cancel"""
-        self.cancelled.emit()
-        super().reject()
+    def mark_complete(self):
+        """Mark processing as complete"""
+        self.setValue(100)
+        self.setLabelText("Complete!")

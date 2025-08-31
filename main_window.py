@@ -25,9 +25,9 @@ from PyQt5.QtGui import QFont, QKeySequence
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("Gobioeng HALog 0.0.1 beta")
-        MainWindow.resize(1200, 800)
-        MainWindow.setMinimumSize(800, 600)
+        MainWindow.setWindowTitle("HALog • Professional LINAC Monitor")
+        MainWindow.resize(1400, 900)
+        MainWindow.setMinimumSize(1000, 700)
 
         # Setup menu bar FIRST before anything else
         self.setup_menu_bar(MainWindow)
@@ -36,10 +36,277 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.main_layout = QVBoxLayout(self.centralwidget)
-        self.main_layout.setSpacing(16)
-        self.main_layout.setContentsMargins(16, 16, 16, 16)
+        self.main_layout.setSpacing(12)
+        self.main_layout.setContentsMargins(12, 12, 12, 12)
 
+        # Apply modern native styling
+        self.apply_modern_styling(MainWindow)
         self.setup_main_content()
+
+    def apply_modern_styling(self, MainWindow):
+        """Apply modern native Windows-style theme with responsive design"""
+        MainWindow.setStyleSheet("""
+            /* Modern Windows Theme - Native Feel */
+            QMainWindow {
+                background-color: #f8f9fa;
+                color: #212529;
+                font-family: 'Segoe UI', 'Microsoft Sans Serif', sans-serif;
+                font-size: 9pt;
+            }
+            
+            /* Enhanced Tab Widget - Windows 11 Style */
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                background-color: white;
+                border-radius: 8px;
+                margin-top: 4px;
+            }
+            QTabBar {
+                background-color: transparent;
+                border: none;
+            }
+            QTabBar::tab {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 12px 24px;
+                margin-right: 4px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-weight: 500;
+                min-width: 80px;
+                border: 1px solid #dee2e6;
+                border-bottom: none;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                color: #0d6efd;
+                border-color: #0d6efd;
+                border-bottom: 2px solid #0d6efd;
+                font-weight: 600;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #f8f9fa;
+                border-color: #adb5bd;
+            }
+            
+            /* Modern Group Boxes - Card Style */
+            QGroupBox {
+                font-weight: 600;
+                color: #212529;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                margin-top: 16px;
+                padding-top: 20px;
+                background-color: white;
+                font-size: 10pt;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 16px;
+                padding: 6px 12px;
+                background-color: #0d6efd;
+                color: white;
+                border-radius: 4px;
+                font-weight: 600;
+            }
+            
+            /* Modern Buttons - Windows 11 Fluent Style */
+            QPushButton {
+                background-color: #0d6efd;
+                color: white;
+                border: 1px solid #0d6efd;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 9pt;
+                min-width: 80px;
+                min-height: 20px;
+            }
+            QPushButton:hover {
+                background-color: #0b5ed7;
+                border-color: #0b5ed7;
+                transform: translateY(-1px);
+            }
+            QPushButton:pressed {
+                background-color: #0a58ca;
+                border-color: #0a58ca;
+                transform: translateY(0px);
+            }
+            QPushButton:disabled {
+                background-color: #e9ecef;
+                color: #6c757d;
+                border-color: #dee2e6;
+            }
+            
+            /* Secondary Button Style */
+            QPushButton#secondaryButton {
+                background-color: #6c757d;
+                border-color: #6c757d;
+            }
+            QPushButton#secondaryButton:hover {
+                background-color: #5c636a;
+                border-color: #5c636a;
+            }
+            
+            /* Success Button Style */
+            QPushButton#successButton {
+                background-color: #198754;
+                border-color: #198754;
+            }
+            QPushButton#successButton:hover {
+                background-color: #157347;
+                border-color: #157347;
+            }
+            
+            /* Danger Button Style */
+            QPushButton#dangerButton {
+                background-color: #dc3545;
+                border-color: #dc3545;
+            }
+            QPushButton#dangerButton:hover {
+                background-color: #bb2d3b;
+                border-color: #bb2d3b;
+            }
+            
+            /* Modern Input Fields */
+            QLineEdit, QTextEdit {
+                border: 2px solid #ced4da;
+                border-radius: 6px;
+                padding: 8px 12px;
+                background-color: white;
+                color: #212529;
+                font-size: 9pt;
+                selection-background-color: #cfe2ff;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border-color: #86b7fe;
+                outline: 0;
+                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            }
+            QLineEdit:hover, QTextEdit:hover {
+                border-color: #adb5bd;
+            }
+            
+            /* Modern ComboBox */
+            QComboBox {
+                border: 2px solid #ced4da;
+                border-radius: 6px;
+                padding: 6px 12px;
+                background-color: white;
+                color: #212529;
+                font-size: 9pt;
+                min-width: 120px;
+            }
+            QComboBox:focus {
+                border-color: #86b7fe;
+            }
+            QComboBox:hover {
+                border-color: #adb5bd;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-style: solid;
+                border-width: 4px 4px 0px 4px;
+                border-color: #6c757d transparent transparent transparent;
+            }
+            
+            /* Modern Tables */
+            QTableWidget {
+                background-color: white;
+                gridline-color: #dee2e6;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                font-size: 9pt;
+                selection-background-color: #cfe2ff;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f8f9fa;
+            }
+            QTableWidget::item:selected {
+                background-color: #cfe2ff;
+                color: #0d6efd;
+            }
+            QTableWidget::item:alternate {
+                background-color: #f8f9fa;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px 8px;
+                border: none;
+                border-bottom: 2px solid #0d6efd;
+                font-weight: 600;
+                font-size: 9pt;
+            }
+            QHeaderView::section:hover {
+                background-color: #f8f9fa;
+            }
+            
+            /* Modern Labels */
+            QLabel {
+                color: #212529;
+                font-size: 9pt;
+            }
+            
+            /* Modern Frames */
+            QFrame#plotFrame {
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                background-color: white;
+                margin: 4px;
+                padding: 8px;
+            }
+            
+            /* Modern Progress Bars */
+            QProgressBar {
+                border: none;
+                border-radius: 4px;
+                background-color: #e9ecef;
+                text-align: center;
+                color: #495057;
+                font-weight: 500;
+                height: 8px;
+            }
+            QProgressBar::chunk {
+                background-color: #0d6efd;
+                border-radius: 4px;
+            }
+            
+            /* Modern Status Bar */
+            QStatusBar {
+                background-color: #f8f9fa;
+                border-top: 1px solid #dee2e6;
+                color: #6c757d;
+                font-size: 8pt;
+                padding: 4px;
+            }
+            
+            /* Modern Scrollbars */
+            QScrollBar:vertical {
+                background-color: #f8f9fa;
+                width: 12px;
+                border-radius: 6px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #ced4da;
+                border-radius: 6px;
+                min-height: 20px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #adb5bd;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                border: none;
+                background: none;
+            }
+        """)
 
     def setup_menu_bar(self, MainWindow):
         """Setup the menu bar with all menus and actions"""

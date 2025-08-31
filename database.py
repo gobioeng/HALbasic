@@ -517,6 +517,16 @@ class DatabaseManager:
             print(f"Error optimizing DB: {e}")
             traceback.print_exc()
 
+    def get_record_count(self) -> int:
+        """Get total record count from database"""
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("SELECT COUNT(*) FROM water_logs").fetchone()
+                return result[0] if result else 0
+        except Exception as e:
+            print(f"Error getting record count: {e}")
+            return 0
+
     def __del__(self):
         """Cleanup database connections on object destruction"""
         try:
