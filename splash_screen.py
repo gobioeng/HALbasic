@@ -8,7 +8,7 @@ Company: gobioeng.com
 
 from PyQt5.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QProgressBar, QWidget
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRect  # Explicitly import QRect
-from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QLinearGradient, QBrush
+from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QLinearGradient, QBrush, QImage, QPen
 from resource_helper import resource_path, generate_icon
 import time
 import os
@@ -42,26 +42,9 @@ class BootstrapSplashWidget(QWidget):
             self.logo_label.setText("🏥")
             self.logo_label.setStyleSheet("font-size: 64px; color: gold;")
         self.logo_label.setAlignment(Qt.AlignCenter)
+        # Remove all background styling completely
+        self.logo_label.setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;")
         layout.addWidget(self.logo_label)
-
-    def _remove_white_background(self, pixmap: QPixmap, size: int) -> QPixmap:
-        """Remove white background from logo and scale it"""
-        # Scale first
-        scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        
-        # Convert to image for pixel manipulation
-        image = scaled_pixmap.toImage()
-        
-        # Make white/light pixels transparent
-        for x in range(image.width()):
-            for y in range(image.height()):
-                pixel = image.pixel(x, y)
-                color = QColor(pixel)
-                # Make white and very light gray pixels transparent
-                if color.lightness() > 240:  # Very light colors
-                    image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())  # Transparent
-        
-        return QPixmap.fromImage(image)
 
         # App name
         app_name = QLabel("Gobioeng HALog")
@@ -78,7 +61,7 @@ class BootstrapSplashWidget(QWidget):
         layout.addWidget(version)
 
         # Tagline
-        tagline = QLabel("Professional LINAC water system monitor")
+        tagline = QLabel("LINAC LOG ANALYSIS TOOL")
         tagline.setFont(QFont("Arial", 11))
         tagline.setStyleSheet("color: #95a5a6; margin-bottom:12px;")
         tagline.setAlignment(Qt.AlignCenter)
@@ -94,6 +77,30 @@ class BootstrapSplashWidget(QWidget):
         designer.setStyleSheet("color: #ecf0f1; margin-top:24px;")
         designer.setAlignment(Qt.AlignCenter)
         layout.addWidget(designer)
+
+    def _remove_white_background(self, pixmap: QPixmap, size: int) -> QPixmap:
+        """Replace white background from logo with transparent background"""
+        # Scale first
+        scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Convert to image for pixel manipulation
+        image = scaled_pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
+
+        # Replace white/light pixels with transparent - more aggressive approach
+        for x in range(image.width()):
+            for y in range(image.height()):
+                color = QColor(image.pixel(x, y))
+
+                # Extremely aggressive white background removal
+                # Check for any light colors that could appear as white background
+                if (color.lightness() > 180 or  # Much lower threshold
+                    (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
+                    (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
+                    (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
+                    # Make it completely transparent
+                    image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
+
+        return QPixmap.fromImage(image)
 
 
 class SplashScreen(QSplashScreen):
@@ -126,15 +133,15 @@ class SplashScreen(QSplashScreen):
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Microsoft Word 2024 style gradient background - very subtle
+        # Windows system background color gradient - matches native Windows
         gradient = QLinearGradient(0, 0, 0, pixmap.height())
-        gradient.setColorAt(0, QColor("#ffffff"))  # Pure white
-        gradient.setColorAt(0.5, QColor("#fafbfc"))  # Very light gray
-        gradient.setColorAt(1, QColor("#f8f9fa"))  # Slightly more gray
+        gradient.setColorAt(0, QColor("#f0f0f0"))  # Windows system background
+        gradient.setColorAt(0.5, QColor("#e8e8e8"))  # Slightly darker
+        gradient.setColorAt(1, QColor("#e0e0e0"))  # Even more subtle
         painter.fillRect(pixmap.rect(), QBrush(gradient))
 
-        # Subtle border like Word 2024
-        painter.setPen(QPen(QColor("#e3e4e6"), 1))
+        # Subtle border matching Windows style
+        painter.setPen(QPen(QColor("#d0d0d0"), 1))
         painter.drawRect(0, 0, pixmap.width() - 1, pixmap.height() - 1)
 
         # Modern logo placement - centered and larger
@@ -145,34 +152,30 @@ class SplashScreen(QSplashScreen):
         logo_path = resource_path("linac_logo.ico")
         if os.path.exists(logo_path):
             logo_pixmap = QPixmap(logo_path)
-            
-            # Create a version with transparent white background
-            transparent_logo = QPixmap(logo_size, logo_size)
-            transparent_logo.fill(Qt.transparent)
-            
-            logo_painter = QPainter(transparent_logo)
-            logo_painter.setRenderHint(QPainter.Antialiasing)
-            
+
             # Scale the original logo
             scaled_logo = logo_pixmap.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            
-            # Convert white/light pixels to transparent
-            image = scaled_logo.toImage()
+
+            # Convert white/light pixels to transparent - very aggressive removal
+            image = scaled_logo.toImage().convertToFormat(QImage.Format_ARGB32)
             for x in range(image.width()):
                 for y in range(image.height()):
-                    pixel = image.pixel(x, y)
-                    color = QColor(pixel)
-                    # Make white and very light gray pixels transparent
-                    if color.lightness() > 240:  # Very light colors
-                        image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())  # Transparent
-            
-            # Convert back to pixmap and draw
+                    color = QColor(image.pixel(x, y))
+
+                    # Extremely aggressive white background removal
+                    # Check for any light colors that could appear as white background
+                    if (color.lightness() > 180 or  # Much lower threshold
+                        (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
+                        (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
+                        (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
+                        # Direct RGB check for white-ish colors
+                        image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
+
+            # Convert back to pixmap and draw directly
             processed_logo = QPixmap.fromImage(image)
-            logo_painter.drawPixmap(0, 0, processed_logo)
-            logo_painter.end()
-            
-            # Draw the processed logo onto the splash screen
-            painter.drawPixmap(logo_x, logo_y, transparent_logo)
+
+            # Draw the processed logo directly onto the splash screen
+            painter.drawPixmap(logo_x, logo_y, processed_logo)
         else:
             # Generate modern icon as fallback
             fallback_icon = generate_icon(logo_size)
@@ -192,7 +195,7 @@ class SplashScreen(QSplashScreen):
         painter.setFont(font)
         subtitle_y = title_y + 45
         subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 25)
-        painter.drawText(subtitle_rect, Qt.AlignCenter, "LINAC Log Analyzer")
+        painter.drawText(subtitle_rect, Qt.AlignCenter, "LINAC LOG ANALYSIS TOOL")
 
         # Version info in a clean, minimal way
         painter.setPen(QColor("#8a8886"))  # Light gray
@@ -206,10 +209,10 @@ class SplashScreen(QSplashScreen):
         progress_y = pixmap.height() - 80
         progress_width = 200
         progress_x = (pixmap.width() - progress_width) // 2
-        
+
         # Progress bar background
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#f3f2f1"))  # Light background
+        painter.setBrush(QColor("#d8d8d8"))  # Matching system background
         painter.drawRoundedRect(progress_x, progress_y, progress_width, 6, 3, 3)
 
         # Branding footer - very subtle like Word 2024
@@ -234,7 +237,7 @@ class SplashScreen(QSplashScreen):
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: none;
-                background-color: #f3f2f1;
+                background-color: #d8d8d8;
                 border-radius: 3px;
                 text-align: center;
             }
