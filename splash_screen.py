@@ -35,11 +35,8 @@ class BootstrapSplashWidget(QWidget):
         self.logo_label = QLabel()
         logo_pix = QPixmap(resource_path("linac_logo.ico"))
         if not logo_pix.isNull():
-            # Process logo with new background processing options
-            from resource_helper import process_icon_background
-            # Use rounded container for this widget since it has a darker background
-            processed_logo = process_icon_background(logo_pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation), 
-                                                     "rounded_container", "#34495e")
+            # Process logo to remove white background
+            processed_logo = self._remove_white_background(logo_pix, 80)
             self.logo_label.setPixmap(processed_logo)
         else:
             self.logo_label.setText("🏥")
@@ -81,20 +78,41 @@ class BootstrapSplashWidget(QWidget):
         designer.setAlignment(Qt.AlignCenter)
         layout.addWidget(designer)
 
-    # No longer needed - replaced with modern background processing in resource_helper.py
+    def _remove_white_background(self, pixmap: QPixmap, size: int) -> QPixmap:
+        """Replace white background from logo with transparent background"""
+        # Scale first
+        scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Convert to image for pixel manipulation
+        image = scaled_pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
+
+        # Replace white/light pixels with transparent - more aggressive approach
+        for x in range(image.width()):
+            for y in range(image.height()):
+                color = QColor(image.pixel(x, y))
+
+                # Extremely aggressive white background removal
+                # Check for any light colors that could appear as white background
+                if (color.lightness() > 180 or  # Much lower threshold
+                    (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
+                    (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
+                    (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
+                    # Make it completely transparent
+                    image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
+
+        return QPixmap.fromImage(image)
 
 
 class SplashScreen(QSplashScreen):
     finished = pyqtSignal()
 
-    def __init__(self, app_version="0.0.1", logo_style="replace_color"):
+    def __init__(self, app_version="0.0.1"):
         # Create pixmap for the splash screen
         pixmap = QPixmap(500, 350)
         super().__init__(pixmap)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.start_time = time.time()
         self.app_version = app_version
-        self.logo_style = logo_style  # "replace_color", "rounded_container", "transparent"
         self.minimum_display_time = 2.5  # seconds
 
         # Create a timer for animations
@@ -131,19 +149,30 @@ class SplashScreen(QSplashScreen):
         logo_x = (pixmap.width() - logo_size) // 2
         logo_y = 60
 
-        # Calculate average background color from gradient for better matching
-        gradient_avg_color = "#e8e8e8"  # Average of #f0f0f0 and #e0e0e0
-
         logo_path = resource_path("linac_logo.ico")
         if os.path.exists(logo_path):
             logo_pixmap = QPixmap(logo_path)
-            
+
             # Scale the original logo
             scaled_logo = logo_pixmap.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-            # Apply background processing based on selected style
-            from resource_helper import process_icon_background
-            processed_logo = process_icon_background(scaled_logo, self.logo_style, gradient_avg_color)
+            # Convert white/light pixels to transparent - very aggressive removal
+            image = scaled_logo.toImage().convertToFormat(QImage.Format_ARGB32)
+            for x in range(image.width()):
+                for y in range(image.height()):
+                    color = QColor(image.pixel(x, y))
+
+                    # Extremely aggressive white background removal
+                    # Check for any light colors that could appear as white background
+                    if (color.lightness() > 180 or  # Much lower threshold
+                        (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
+                        (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
+                        (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
+                        # Direct RGB check for white-ish colors
+                        image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
+
+            # Convert back to pixmap and draw directly
+            processed_logo = QPixmap.fromImage(image)
 
             # Draw the processed logo directly onto the splash screen
             painter.drawPixmap(logo_x, logo_y, processed_logo)

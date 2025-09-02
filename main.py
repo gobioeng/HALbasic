@@ -132,24 +132,12 @@ class HALogApp:
         self.status_label = None
         self.progress_bar = None
 
-    def create_splash(self, use_modern_splash=True, logo_style="replace_color"):
+    def create_splash(self):
         """
         Create professional splash screen with optimized layout
         Gobioeng HALog Implementation
         Developer: gobioeng.com
-        
-        Args:
-            use_modern_splash: Use the modern SplashScreen class instead of custom drawing
-            logo_style: "replace_color", "rounded_container", or "transparent"
         """
-        if use_modern_splash:
-            # Use the modern SplashScreen class with improved logo processing
-            from splash_screen import SplashScreen
-            self.splash = SplashScreen(self.app_version, logo_style)
-            self.splash.show()
-            return self.splash
-        
-        # Fallback to original implementation
         # Import everything explicitly
         QtWidgets = lazy_import("PyQt5.QtWidgets")
         QtGui = lazy_import("PyQt5.QtGui")
@@ -182,7 +170,7 @@ class HALogApp:
             from resource_helper import load_splash_icon
 
             # Load with optimized size for splash screen (100px)
-            logo_pixmap = load_splash_icon(100, logo_style, "#808080")
+            logo_pixmap = load_splash_icon(100)
 
             # Position icon directly on gray background without white card
             icon_x = 50  # Simple positioning without card
