@@ -385,6 +385,81 @@ class DataAnalyzer:
             print(f"Anomaly detection error: {e}")
             return pd.DataFrame()
     
+    def detect_percentage_deviation_anomalies(self, data: pd.DataFrame, 
+                                              deviation_threshold: float = 2.0) -> pd.DataFrame:
+        """Detect anomalies where deviation from average exceeds threshold percentage
+        
+        Args:
+            data: DataFrame with parameter data
+            deviation_threshold: Percentage deviation threshold (default 2.0%)
+            
+        Returns:
+            DataFrame containing only anomalous records
+        """
+        try:
+            if data.empty:
+                return pd.DataFrame()
+            
+            anomalous_records = []
+            
+            # Group by parameter to calculate deviations
+            param_col = None
+            value_col = None
+            
+            # Find parameter and value columns
+            for col in ['param', 'parameter_type', 'parameter_name']:
+                if col in data.columns:
+                    param_col = col
+                    break
+                    
+            for col in ['avg', 'average', 'avg_value', 'value']:
+                if col in data.columns:
+                    value_col = col
+                    break
+            
+            if not param_col or not value_col:
+                print(f"Could not find parameter column ({param_col}) or value column ({value_col})")
+                return pd.DataFrame()
+            
+            # Process each parameter separately
+            for param_name in data[param_col].unique():
+                param_data = data[data[param_col] == param_name].copy()
+                
+                if len(param_data) < 2:
+                    continue
+                
+                values = param_data[value_col].dropna()
+                if values.empty:
+                    continue
+                
+                # Calculate average for this parameter
+                average_value = values.mean()
+                
+                if average_value == 0:
+                    # For zero average, use absolute threshold
+                    threshold = 0.01  # Small absolute threshold
+                    anomaly_mask = np.abs(values) > threshold
+                else:
+                    # Calculate percentage deviation from average
+                    percentage_deviation = np.abs((values - average_value) / average_value * 100)
+                    anomaly_mask = percentage_deviation > deviation_threshold
+                
+                # Add anomalous records
+                if anomaly_mask.any():
+                    anomalous_indices = param_data.loc[values.index[anomaly_mask]].index
+                    anomalous_records.extend(anomalous_indices.tolist())
+            
+            if anomalous_records:
+                return data.loc[anomalous_records].copy()
+            else:
+                return pd.DataFrame()
+                
+        except Exception as e:
+            print(f"Percentage deviation anomaly detection error: {e}")
+            import traceback
+            traceback.print_exc()
+            return pd.DataFrame()
+    
     def calculate_parameter_correlation(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate correlation matrix for numeric parameters"""
         try:
