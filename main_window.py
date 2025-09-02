@@ -1278,6 +1278,42 @@ class Ui_MainWindow(object):
         descriptions_layout.addWidget(tb_group)
         
         results_layout.addLayout(descriptions_layout)
+        
+        # Add User Notes section
+        notes_group = QGroupBox("User Notes")
+        notes_layout = QVBoxLayout(notes_group)
+        notes_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # Note display area
+        self.txtUserNote = QTextEdit()
+        self.txtUserNote.setMaximumHeight(100)
+        self.txtUserNote.setPlaceholderText("Add your own notes about this fault code here...")
+        notes_layout.addWidget(self.txtUserNote)
+        
+        # Note controls
+        note_controls_layout = QHBoxLayout()
+        note_controls_layout.setSpacing(8)
+        
+        self.btnSaveNote = QPushButton("Save Note")
+        self.btnSaveNote.setObjectName("primaryButton")
+        self.btnSaveNote.setMaximumWidth(100)
+        note_controls_layout.addWidget(self.btnSaveNote)
+        
+        self.btnClearNote = QPushButton("Clear Note")
+        self.btnClearNote.setObjectName("secondaryButton")
+        self.btnClearNote.setMaximumWidth(100)
+        note_controls_layout.addWidget(self.btnClearNote)
+        
+        note_controls_layout.addStretch()
+        
+        # Note info label
+        self.lblNoteInfo = QLabel("")
+        self.lblNoteInfo.setStyleSheet("color: #666; font-size: 11px;")
+        note_controls_layout.addWidget(self.lblNoteInfo)
+        
+        notes_layout.addLayout(note_controls_layout)
+        
+        results_layout.addWidget(notes_group)
         layout.addWidget(results_group)
 
         stats_group = QGroupBox("Fault Code Statistics")
