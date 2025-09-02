@@ -23,7 +23,14 @@ class FileProcessingWorker(QThread):
         self.database = database
         self.parser = UnifiedParser()
         self._cancel_requested = False
-        self.chunk_size = 1000  # Process files in chunks of 1000 lines
+        
+        # Optimize chunk size based on file size
+        if file_size > 100 * 1024 * 1024:  # > 100MB
+            self.chunk_size = 5000  # Larger chunks for big files
+        elif file_size > 10 * 1024 * 1024:  # > 10MB  
+            self.chunk_size = 2000  # Medium chunks
+        else:
+            self.chunk_size = 1000  # Default chunk size
 
     def run(self):
         """Main worker thread execution"""
@@ -60,8 +67,9 @@ class FileProcessingWorker(QThread):
                 self.file_size,
             )
 
-            # Insert data into database in batches
-            records_inserted = self.database.insert_data_batch(df, batch_size=500)
+            # Insert data into database in optimized batches
+            batch_size = min(1000, max(100, len(df) // 10))  # Dynamic batch size
+            records_inserted = self.database.insert_data_batch(df, batch_size=batch_size)
 
             # Insert file metadata
             filename = os.path.basename(self.file_path)

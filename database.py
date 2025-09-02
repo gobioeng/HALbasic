@@ -23,14 +23,19 @@ class DatabaseManager:
         self.init_db()
 
     def init_db(self):
-        """Initialize database with enhanced schema"""
+        """Initialize database with enhanced schema and performance optimizations"""
         with self.get_connection() as conn:
             # Enable performance optimizations
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA cache_size=10000")
+            conn.execute("PRAGMA cache_size=50000")  # Increased cache size
             conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA mmap_size=30000000")
+            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory mapping
+            conn.execute("PRAGMA page_size=8192")  # Larger page size for better performance
+            conn.execute("PRAGMA optimize")  # Optimize database statistics
+            
+            # Connection-specific optimizations
+            conn.execute("PRAGMA busy_timeout=30000")  # 30 second busy timeout
 
             # Create tables if they don't exist
             conn.execute(
@@ -113,7 +118,7 @@ class DatabaseManager:
 
     @contextmanager
     def get_connection(self):
-        """Get a database connection with thread safety"""
+        """Get a database connection with thread safety and performance optimizations"""
         # Thread-safe connection pool
         import threading
 
@@ -123,8 +128,16 @@ class DatabaseManager:
             self.connection_pool[thread_id] = sqlite3.connect(
                 self.db_path, timeout=30.0, isolation_level=None
             )
-            # Enable foreign keys
-            self.connection_pool[thread_id].execute("PRAGMA foreign_keys=ON")
+            conn = self.connection_pool[thread_id]
+            
+            # Apply performance optimizations to new connections
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA cache_size=50000")
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA mmap_size=268435456")
+            conn.execute("PRAGMA busy_timeout=30000")
 
         conn = self.connection_pool[thread_id]
         try:
