@@ -469,34 +469,64 @@ class HALogApp:
                     )
                     self._initialize_trend_controls()
 
-                    # Setup UI components
-                    self.load_dashboard()
+                    # Setup UI components with lazy loading
                     self.ui.tabWidget.currentChanged.connect(self.on_tab_changed)
                     self._optimize_database()
 
-                    # Load sample data if database is empty for demonstration
-                    try:
-                        if hasattr(self, 'db') and self.db:
-                            record_count = self.db.get_record_count()
-                            if record_count == 0:
-                                print("📋 No data in database, loading sample data for demonstration...")
-                                sample_file = os.path.join(os.path.dirname(__file__), 'test_complete_shortdata.txt')
-                                if os.path.exists(sample_file):
-                                    self._process_sample_shortdata(sample_file)
-                                    print("✓ Sample data loaded for trend analysis")
-                    except Exception as e:
-                        print(f"Note: Could not load sample data: {e}")
+                    # Defer expensive dashboard loading until first needed
+                    self._dashboard_loaded = False
+                    self._trend_controls_initialized = False
+                    
+                    # Load dashboard data in background after UI is ready
+                    QtCore.QTimer.singleShot(100, self._deferred_initialization)
+
                 except Exception as e:
                     print(f"Error initializing database: {e}")
                     traceback.print_exc()
 
-                # Setup memory monitoring
+                # Setup memory monitoring with longer interval
                 self.memory_timer = QtCore.QTimer()
                 self.memory_timer.timeout.connect(self._update_memory_usage)
-                self.memory_timer.start(30000)
+                self.memory_timer.start(60000)  # Reduced frequency from 30s to 60s
 
                 # Setup branding in status bar
                 self._setup_branding()
+                
+            def _deferred_initialization(self):
+                """Perform expensive initialization operations in background"""
+                try:
+                    print("🚀 Starting deferred initialization for better performance...")
+                    
+                    # Load dashboard data
+                    if not self._dashboard_loaded:
+                        self.load_dashboard()
+                        self._dashboard_loaded = True
+                    
+                    # Initialize trend controls
+                    if not self._trend_controls_initialized:
+                        self._initialize_trend_controls()
+                        self._trend_controls_initialized = True
+
+                    # Load sample data if database is empty (deferred to background)
+                    QtCore.QTimer.singleShot(500, self._check_and_load_sample_data)
+                    
+                    print("✓ Deferred initialization completed")
+                except Exception as e:
+                    print(f"Error in deferred initialization: {e}")
+                    
+            def _check_and_load_sample_data(self):
+                """Check and load sample data in background"""
+                try:
+                    if hasattr(self, 'db') and self.db:
+                        record_count = self.db.get_record_count()
+                        if record_count == 0:
+                            print("📋 No data in database, loading sample data for demonstration...")
+                            sample_file = os.path.join(os.path.dirname(__file__), 'test_complete_shortdata.txt')
+                            if os.path.exists(sample_file):
+                                self._process_sample_shortdata(sample_file)
+                                print("✓ Sample data loaded for trend analysis")
+                except Exception as e:
+                    print(f"Note: Could not load sample data: {e}")
 
             def apply_professional_styles(self):
                 """Apply comprehensive professional styling with VISIBLE MENU BAR"""
@@ -1189,8 +1219,13 @@ class HALogApp:
                             "Temp Room": "FanremoteTempStatistics",
                             "Room Humidity": "FanhumidityStatistics", 
                             "Temp Magnetron": "magnetronTemp",
-                            "MLC Bank A 24V": "COLboardTemp",
-                            "MLC Bank B 24V": "COLboardTemp",
+                            "Temp COL Board": "COLboardTemp",
+                            "Temp PDU": "PDUTemp",
+                            "MLC Bank A 24V": "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V",
+                            "MLC Bank B 24V": "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V",
+                            "MLC Bank A 48V": "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V",
+                            "MLC Bank B 48V": "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V",
+                            "COL 24V Monitor": "COL_ADC_CHAN_TEMP_24V_MON",
                             "Speed FAN 1": "FanfanSpeed1Statistics",
                             "Speed FAN 2": "FanfanSpeed2Statistics",
                             "Speed FAN 3": "FanfanSpeed3Statistics", 
@@ -1683,6 +1718,9 @@ Source: {result.get('source', 'unknown')} database
                     except TypeError:
                         self.df = self.db.get_all_logs()
 
+                    # Mark data as updated for cache invalidation
+                    self._mark_data_updated()
+                    
                     print(f"📊 Dashboard loading with {len(self.df)} records")
 
                     if not self.df.empty:
@@ -1925,7 +1963,7 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error updating trend combos: {e}")
 
             def update_data_table(self, page_size=1000):
-                """Update data table with all parsed parameters using masked names, sorted by parameter name"""
+                """Update data table with optimized performance for large datasets"""
                 try:
                     from PyQt5.QtWidgets import QTableWidgetItem
                     from PyQt5.QtCore import Qt
@@ -1936,48 +1974,77 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.lblTableInfo.setText("No data available")
                         return
 
-                    print(f"🔍 DataFrame columns: {list(self.df.columns)}")
-                    print(f"🔍 DataFrame shape: {self.df.shape}")
+                    # Use cached sorted data if available and not stale
+                    cache_key = 'sorted_data_table'
+                    if (hasattr(self, '_data_cache') and 
+                        cache_key in self._data_cache and 
+                        self._data_cache[cache_key]['timestamp'] > getattr(self, '_last_data_update', 0)):
+                        display_df = self._data_cache[cache_key]['data']
+                        param_col = self._data_cache[cache_key]['param_col']
+                        print("📋 Using cached sorted data for table (performance optimization)")
+                    else:
+                        print(f"🔍 DataFrame columns: {list(self.df.columns)}")
+                        print(f"🔍 DataFrame shape: {self.df.shape}")
 
-                    # Find parameter column
-                    param_col = None
-                    for col in ['param', 'parameter_type', 'parameter_name']:
-                        if col in self.df.columns:
-                            param_col = col
-                            break
+                        # Find parameter column
+                        param_col = None
+                        for col in ['param', 'parameter_type', 'parameter_name']:
+                            if col in self.df.columns:
+                                param_col = col
+                                break
+                        
+                        print(f"🔍 Using parameter column: '{param_col}'")
+
+                        if not param_col:
+                            self.ui.tableData.setRowCount(0)
+                            self.ui.lblTableInfo.setText("No parameter column found")
+                            return
+
+                        # Sort by parameter name, then by datetime (newest first) - expensive operation
+                        print("📋 Sorting data for table display...")
+                        df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
+                        display_df = df_sorted.iloc[:page_size]
+                        
+                        # Cache the sorted result
+                        if not hasattr(self, '_data_cache'):
+                            self._data_cache = {}
+                        self._data_cache[cache_key] = {
+                            'data': display_df,
+                            'param_col': param_col,
+                            'timestamp': time.time()
+                        }
+
+                    # Find column mappings with better fallbacks (cached)
+                    if not hasattr(self, '_column_mapping_cache'):
+                        serial_col = None
+                        avg_col = None
+                        min_col = None 
+                        max_col = None
+                        
+                        # Map columns
+                        for col in self.df.columns:
+                            col_lower = col.lower()
+                            if col_lower in ['serial', 'serial_number']:
+                                serial_col = col
+                            elif col_lower in ['avg', 'average', 'avg_value']:
+                                avg_col = col
+                            elif col_lower in ['min', 'min_value', 'minimum']:
+                                min_col = col
+                            elif col_lower in ['max', 'max_value', 'maximum']:
+                                max_col = col
+                        
+                        self._column_mapping_cache = {
+                            'serial_col': serial_col,
+                            'avg_col': avg_col,
+                            'min_col': min_col,
+                            'max_col': max_col
+                        }
                     
-                    print(f"🔍 Using parameter column: '{param_col}'")
-
-                    if not param_col:
-                        self.ui.tableData.setRowCount(0)
-                        self.ui.lblTableInfo.setText("No parameter column found")
-                        return
-
-                    # Show available parameters for debugging
-                    available_params = self.df[param_col].unique()
-                    print(f"🔍 Available parameters: {available_params}")
-
-                    # Find column mappings with better fallbacks
-                    serial_col = None
-                    avg_col = None
-                    min_col = None 
-                    max_col = None
-                    
-                    # Map columns
-                    for col in self.df.columns:
-                        col_lower = col.lower()
-                        if col_lower in ['serial', 'serial_number']:
-                            serial_col = col
-                        elif col_lower in ['avg', 'average', 'avg_value']:
-                            avg_col = col
-                        elif col_lower in ['min', 'min_value', 'minimum']:
-                            min_col = col
-                        elif col_lower in ['max', 'max_value', 'maximum']:
-                            max_col = col
-
-                    # Sort by parameter name, then by datetime (newest first)
-                    df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
-                    display_df = df_sorted.iloc[:page_size]
+                    # Use cached column mappings
+                    serial_col = self._column_mapping_cache['serial_col']
+                    avg_col = self._column_mapping_cache['avg_col']
+                    min_col = self._column_mapping_cache['min_col']
+                    max_col = self._column_mapping_cache['max_col']
 
                     # Set table size and headers (match main_window.py which expects 7 columns)
                     self.ui.tableData.setRowCount(len(display_df))
@@ -1992,7 +2059,11 @@ Source: {result.get('source', 'unknown')} database
                         "Diff (Max-Min)"
                     ])
 
-                    # Populate table rows
+                    # Optimize table population with batch updates
+                    self.ui.tableData.setSortingEnabled(False)  # Disable sorting during updates
+                    self.ui.tableData.setUpdatesEnabled(False)  # Disable updates during population
+
+                    # Populate table rows with optimized performance
                     for row_idx, (_, row) in enumerate(display_df.iterrows()):
                         try:
                             # DateTime
@@ -2065,11 +2136,14 @@ Source: {result.get('source', 'unknown')} database
                                     placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemIsEditable)
                                     self.ui.tableData.setItem(row_idx, col_idx, placeholder_item)
 
-                    # Enable table updates
+                    # Re-enable table updates and sorting
                     self.ui.tableData.setUpdatesEnabled(True)
+                    self.ui.tableData.setSortingEnabled(True)
 
-                    # Auto-resize columns to content
-                    self.ui.tableData.resizeColumnsToContents()
+                    # Auto-resize columns to content (only if not done recently)
+                    if not hasattr(self, '_last_column_resize') or time.time() - self._last_column_resize > 30:
+                        self.ui.tableData.resizeColumnsToContents()
+                        self._last_column_resize = time.time()
 
                     # Update info label
                     total_records = len(self.df)
@@ -2391,16 +2465,58 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error filtering analysis results: {e}")
 
             def on_tab_changed(self, index):
-                """Handle tab changes with professional animations"""
+                """Handle tab changes with optimized performance and caching"""
                 try:
-                    if index == 1:  # Trends tab
-                        self.update_trend()
-                    elif index == 2:  # Data Table tab
-                        self.update_data_table()
-                    elif index == 3:  # Analysis tab
-                        self.update_analysis_tab()
+                    # Initialize tab cache if not exists
+                    if not hasattr(self, '_tab_cache'):
+                        self._tab_cache = {}
+                    
+                    # Track last data modification time to know when to refresh
+                    if not hasattr(self, '_last_data_update'):
+                        self._last_data_update = 0
+                    
+                    current_time = time.time()
+                    tab_name = f"tab_{index}"
+                    
+                    # Ensure components are initialized before trying to update
+                    if not getattr(self, '_dashboard_loaded', False) and index in [0, 2, 3]:
+                        print("📊 Loading dashboard data on first access...")
+                        self.load_dashboard()
+                        self._dashboard_loaded = True
+                        
+                    if not getattr(self, '_trend_controls_initialized', False) and index == 1:
+                        print("📈 Initializing trend controls on first access...")
+                        self._initialize_trend_controls()
+                        self._trend_controls_initialized = True
+                    
+                    # Only update if tab hasn't been cached or data has been updated
+                    should_update = (
+                        tab_name not in self._tab_cache or 
+                        self._tab_cache[tab_name] < self._last_data_update or
+                        current_time - self._tab_cache.get(tab_name, 0) > 300  # Force refresh every 5 minutes
+                    )
+                    
+                    if should_update:
+                        if index == 1:  # Trends tab
+                            self.update_trend()
+                        elif index == 2:  # Data Table tab
+                            self.update_data_table()
+                        elif index == 3:  # Analysis tab
+                            self.update_analysis_tab()
+                        
+                        # Update cache timestamp
+                        self._tab_cache[tab_name] = current_time
+                    else:
+                        print(f"Using cached data for tab {index} (performance optimization)")
+                        
                 except Exception as e:
                     print(f"Error handling tab change: {e}")
+                    
+            def _mark_data_updated(self):
+                """Mark that data has been updated to invalidate tab cache"""
+                self._last_data_update = time.time()
+                if hasattr(self, '_tab_cache'):
+                    self._tab_cache.clear()
 
             def update_trend(self):
                 """Update trend visualization with professional styling - Legacy compatibility"""
@@ -2780,6 +2896,9 @@ Source: {result.get('source', 'unknown')} database
                         self.df = self.db.get_all_logs(chunk_size=10000)
                     except TypeError:
                         self.df = self.db.get_all_logs()
+
+                    # Mark data as updated for cache invalidation
+                    self._mark_data_updated()
 
                     # Force complete refresh of all UI components
                     self.load_dashboard()
