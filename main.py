@@ -117,7 +117,7 @@ def test_icon_loading():
 
 class HALogApp:
     """
-    Gobioeng HALog Application with optimized startup
+    Gobioeng HALog Application with professional thread management and fail-safe mechanisms
     Professional LINAC Log Analysis Suite - gobioeng.com
     """
 
@@ -131,6 +131,11 @@ class HALogApp:
         self.app_version = APP_VERSION
         self.status_label = None
         self.progress_bar = None
+        
+        # Professional thread and state management
+        self.thread_manager = None
+        self.app_state_manager = None
+        self._shutdown_in_progress = False
 
     def create_splash(self):
         """
@@ -336,6 +341,74 @@ class HALogApp:
         QtWidgets = lazy_import("PyQt5.QtWidgets")
         QtWidgets.QApplication.instance().processEvents()
 
+    def _initialize_thread_management(self):
+        """Initialize professional thread and state management"""
+        try:
+            # Initialize thread manager
+            from thread_manager import ThreadManager
+            self.thread_manager = ThreadManager()
+            
+            # Initialize application state manager
+            from app_state_manager import AppStateManager, ApplicationState
+            self.app_state_manager = AppStateManager("HALbasic")
+            
+            # Connect state manager signals
+            self.app_state_manager.crash_detected.connect(self._handle_crash_detected)
+            self.app_state_manager.recovery_completed.connect(self._handle_recovery_completed)
+            
+            # Connect thread manager signals
+            self.thread_manager.thread_error.connect(self._handle_thread_error)
+            self.thread_manager.thread_timeout.connect(self._handle_thread_timeout)
+            self.thread_manager.all_threads_finished.connect(self._handle_all_threads_finished)
+            
+            print("✓ Professional thread and state management initialized")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Error initializing thread management: {e}")
+            # Continue without thread management as fallback
+            return False
+    
+    def _handle_crash_detected(self, reason: str):
+        """Handle application crash detection"""
+        print(f"🚨 Crash detected: {reason}")
+        if self.window and hasattr(self.window, 'show_crash_recovery_dialog'):
+            self.window.show_crash_recovery_dialog(reason)
+    
+    def _handle_recovery_completed(self, success: bool):
+        """Handle crash recovery completion"""
+        if success:
+            print("✓ Crash recovery completed successfully")
+        else:
+            print("⚠️ Crash recovery failed")
+    
+    def _handle_thread_error(self, thread_name: str, error_message: str):
+        """Handle thread errors"""
+        print(f"🔴 Thread error [{thread_name}]: {error_message}")
+        if self.app_state_manager:
+            self.app_state_manager.record_crash(f"Thread {thread_name}: {error_message}")
+    
+    def _handle_thread_timeout(self, thread_name: str):
+        """Handle thread timeouts"""
+        print(f"⏰ Thread timeout: {thread_name}")
+        if self.app_state_manager:
+            self.app_state_manager.record_crash(f"Thread timeout: {thread_name}")
+    
+    def _handle_all_threads_finished(self):
+        """Handle all threads finished signal"""
+        print("✓ All threads finished successfully")
+        if self._shutdown_in_progress:
+            self._complete_shutdown()
+
+    def _complete_shutdown(self):
+        """Complete the shutdown process"""
+        try:
+            if self.app_state_manager:
+                self.app_state_manager.shutdown_gracefully()
+            print("✓ Graceful shutdown completed")
+        except Exception as e:
+            print(f"⚠️ Error during final shutdown: {e}")
+
     def create_main_window(self):
         """Create professional main application window"""
         start_window = time.time()
@@ -416,6 +489,9 @@ class HALogApp:
                     import pandas as pd
 
                     self.df = pd.DataFrame()
+
+                    # Initialize professional thread and state management
+                    self._initialize_thread_management()
 
                     # Initialize unified parser for fault codes and other data
                     from unified_parser import UnifiedParser
@@ -2449,6 +2525,15 @@ Source: {result.get('source', 'unknown')} database
 
                             analyzer = DataAnalyzer()
                             worker = AnalysisWorker(analyzer, self.df)
+                            
+                            # Register worker with thread manager if available
+                            parent_app = self.parent()
+                            if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
+                                parent_app.thread_manager.register_thread(
+                                    worker, 
+                                    f"analysis_{int(time.time())}", 
+                                    timeout=60.0  # 1 minute timeout for analysis
+                                )
 
                             worker.analysis_progress.connect(
                                 lambda p, m: progress_dialog.setValue(p)
@@ -2465,7 +2550,12 @@ Source: {result.get('source', 'unknown')} database
                             )
 
                             progress_dialog.canceled.connect(worker.cancel_analysis)
-                            worker.start()
+                            
+                            # Start through thread manager if available, otherwise directly
+                            if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
+                                parent_app.thread_manager.start_thread(f"analysis_{int(time.time())}")
+                            else:
+                                worker.start()
                         except Exception as e:
                             print(f"Error creating analysis worker: {e}")
                             self._direct_analysis_with_cache(cache_key)
@@ -3306,6 +3396,16 @@ Source: {result.get('source', 'unknown')} database
 
                     self.worker = FileProcessingWorker(file_path, file_size, self.db)
                     self.worker.chunk_size = 5000
+                    
+                    # Register worker with thread manager if available
+                    parent_app = self.parent()
+                    worker_name = f"file_processing_{int(time.time())}"
+                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
+                        parent_app.thread_manager.register_thread(
+                            self.worker,
+                            worker_name,
+                            timeout=300.0  # 5 minute timeout for file processing
+                        )
 
                     # Simple progress handling
                     def handle_progress_update(percentage, status_message="", lines_processed=0, total_lines=0, bytes_processed=0, total_bytes=0):
@@ -3324,8 +3424,11 @@ Source: {result.get('source', 'unknown')} database
                     # Handle cancel button
                     self.progress_dialog.canceled.connect(self.worker.cancel_processing)
 
-                    # Start processing
-                    self.worker.start()
+                    # Start processing through thread manager if available, otherwise directly
+                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
+                        parent_app.thread_manager.start_thread(worker_name)
+                    else:
+                        self.worker.start()
                 except Exception as e:
                     QtWidgets.QMessageBox.critical(
                         self,
@@ -3756,26 +3859,144 @@ Source: {result.get('source', 'unknown')} database
                     traceback.print_exc()
 
             def closeEvent(self, event):
-                """Clean up resources when closing application"""
+                """Clean up resources when closing application with professional thread management"""
                 try:
+                    print("🔄 Initiating graceful application shutdown...")
+                    
+                    # Mark shutdown in progress
+                    if hasattr(self.parent(), '_shutdown_in_progress'):
+                        self.parent()._shutdown_in_progress = True
+                    
+                    # Stop memory monitoring timer
                     if hasattr(self, "memory_timer"):
                         self.memory_timer.stop()
-
-                    if hasattr(self, "db"):
+                    
+                    # Stop any running worker threads gracefully
+                    if hasattr(self, "worker") and self.worker:
+                        try:
+                            self.worker.cancel_processing()
+                            # Give thread time to finish gracefully
+                            if not self.worker.wait(3000):  # Wait 3 seconds
+                                print("⚠️ Worker thread did not finish gracefully")
+                        except Exception as e:
+                            print(f"Error stopping worker thread: {e}")
+                        finally:
+                            self.worker.deleteLater()
+                            self.worker = None
+                    
+                    # Use thread manager if available
+                    parent_app = self.parent()
+                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
+                        print("🔄 Shutting down all managed threads...")
+                        if not parent_app.thread_manager.shutdown_all_threads(timeout=5.0):
+                            print("⚠️ Some threads did not shutdown gracefully")
+                    
+                    # Close progress dialogs
+                    if hasattr(self, "progress_dialog") and self.progress_dialog:
+                        self.progress_dialog.close()
+                    
+                    # Vacuum database for optimal shutdown
+                    if hasattr(self, "db") and self.db:
                         try:
                             self.db.vacuum_database()
-                        except:
-                            pass
-
+                        except Exception as e:
+                            print(f"Database vacuum error during shutdown: {e}")
+                    
+                    # Memory cleanup
                     import gc
-
                     gc.collect()
-
-                    print("Window close event: cleaning up resources")
+                    
+                    print("✓ Resource cleanup completed")
                     event.accept()
+                    
                 except Exception as e:
-                    print(f"Error during application close: {e}")
+                    print(f"⚠️ Error during application close: {e}")
+                    # Accept the event anyway to prevent hanging
                     event.accept()
+                finally:
+                    # Ensure parent cleanup is called
+                    parent_app = self.parent()
+                    if hasattr(parent_app, '_complete_shutdown'):
+                        try:
+                            parent_app._complete_shutdown()
+                        except Exception as e:
+                            print(f"Error in final shutdown: {e}")
+
+            def show_crash_recovery_dialog(self, crash_reason: str):
+                """Show professional crash recovery dialog"""
+                try:
+                    from crash_recovery_dialog import show_crash_recovery_dialog
+                    
+                    # Get crash info from state manager if available
+                    crash_info = {}
+                    parent_app = self.parent()
+                    if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
+                        crash_info = parent_app.app_state_manager.get_crash_info()
+                        stats = parent_app.app_state_manager.get_statistics()
+                        crash_info.update(stats)
+                    
+                    # Show recovery dialog
+                    result = show_crash_recovery_dialog(crash_reason, crash_info, self)
+                    
+                    if result['restart_requested']:
+                        print("🔄 User requested application restart")
+                        # Handle restart request
+                        self._handle_restart_request(result['recovery_options'])
+                    else:
+                        print("👋 User chose to exit application")
+                        self.close()
+                        
+                except Exception as e:
+                    print(f"Error showing crash recovery dialog: {e}")
+                    # Fallback to simple message
+                    QtWidgets.QMessageBox.critical(
+                        self,
+                        "Application Error",
+                        f"HALbasic encountered an error: {crash_reason}\n\n"
+                        "The application will now close. Please restart to continue."
+                    )
+                    self.close()
+            
+            def _handle_restart_request(self, recovery_options: dict):
+                """Handle application restart request"""
+                try:
+                    print("🔄 Processing restart request...")
+                    
+                    # Save current state if requested
+                    if recovery_options.get('preserve_data', True):
+                        parent_app = self.parent()
+                        if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
+                            # Create checkpoint with current session data
+                            session_data = {
+                                'last_file_path': getattr(self, '_last_file_path', ''),
+                                'ui_state': {},  # Could save UI state here
+                                'user_preferences': {}  # Could save preferences here
+                            }
+                            parent_app.app_state_manager.create_checkpoint('pre_restart', session_data)
+                    
+                    # Schedule restart
+                    QtCore.QTimer.singleShot(100, self._perform_restart)
+                    
+                except Exception as e:
+                    print(f"Error handling restart request: {e}")
+                    self.close()
+            
+            def _perform_restart(self):
+                """Perform the actual restart"""
+                try:
+                    print("🚀 Restarting HALbasic...")
+                    
+                    # Close current application gracefully
+                    self.close()
+                    
+                    # Restart the application
+                    import subprocess
+                    import sys
+                    subprocess.Popen([sys.executable] + sys.argv)
+                    
+                except Exception as e:
+                    print(f"Error performing restart: {e}")
+                    self.close()
 
         self.window = HALogMaterialApp()
         self.update_splash_progress(80, "Finalizing interface...")
