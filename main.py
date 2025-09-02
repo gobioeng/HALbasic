@@ -1629,9 +1629,10 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Database optimization error: {e}")
 
             def _update_memory_usage(self):
-                """Monitor and display memory usage"""
+                """Monitor memory usage and perform cleanup when needed"""
                 try:
                     import psutil
+                    import gc
 
                     process = psutil.Process()
                     memory_info = process.memory_info()
@@ -1646,13 +1647,39 @@ Source: {result.get('source', 'unknown')} database
                         )
                         self.statusBar().addPermanentWidget(self.memory_label)
 
-                    # Force garbage collection if memory usage is too high
+                    # Perform memory cleanup if usage is high
                     if memory_mb > 500:
-                        import gc
+                        print(f"🧹 High memory usage detected ({memory_mb:.1f} MB), performing cleanup...")
+                        
+                        # Clear old cache entries
+                        if hasattr(self, '_data_cache'):
+                            # Remove cache entries older than 10 minutes
+                            current_time = time.time()
+                            old_keys = [
+                                key for key, value in self._data_cache.items()
+                                if isinstance(value, dict) and 
+                                current_time - value.get('timestamp', 0) > 600
+                            ]
+                            for key in old_keys:
+                                del self._data_cache[key]
+                            if old_keys:
+                                print(f"🧹 Cleared {len(old_keys)} old cache entries")
+                        
+                        # Clear tab cache if it gets too large
+                        if hasattr(self, '_tab_cache') and len(self._tab_cache) > 20:
+                            self._tab_cache.clear()
+                            print("🧹 Cleared tab cache")
+                        
+                        # Force garbage collection
+                        collected = gc.collect()
+                        print(f"🧹 Garbage collection freed {collected} objects")
+                        
+                        # Check memory again after cleanup
+                        new_memory_mb = process.memory_info().rss / (1024 * 1024)
+                        print(f"🧹 Memory after cleanup: {new_memory_mb:.1f} MB (saved {memory_mb - new_memory_mb:.1f} MB)")
 
-                        gc.collect()
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Error in memory monitoring: {e}")
 
             def _setup_branding(self):
                 """Setup branding elements in the status bar"""
@@ -1962,7 +1989,7 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error updating trend combos: {e}")
 
-            def update_data_table(self, page_size=1000):
+            def update_data_table(self, page_size=None):
                 """Update data table with optimized performance for large datasets"""
                 try:
                     from PyQt5.QtWidgets import QTableWidgetItem
@@ -1973,6 +2000,18 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.tableData.setRowCount(0)
                         self.ui.lblTableInfo.setText("No data available")
                         return
+
+                    # Smart page sizing based on dataset size
+                    if page_size is None:
+                        total_records = len(self.df)
+                        if total_records > 50000:
+                            page_size = 500   # Very large datasets: show only 500 rows
+                        elif total_records > 10000:
+                            page_size = 1000  # Large datasets: show 1000 rows  
+                        elif total_records > 1000:
+                            page_size = 2000  # Medium datasets: show 2000 rows
+                        else:
+                            page_size = total_records  # Small datasets: show all
 
                     # Use cached sorted data if available and not stale
                     cache_key = 'sorted_data_table'
