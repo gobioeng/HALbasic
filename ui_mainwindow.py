@@ -199,7 +199,7 @@ class Ui_MainWindow:
         layout.setContentsMargins(20, 20, 20, 20)
         
         # Welcome section
-        welcome_label = QLabel("<h2>📊 HALog Dashboard</h2><p>Professional LINAC Water System Monitoring</p>")
+        welcome_label = QLabel("<h2>📊 HALog Dashboard</h2><p>Professional LINAC Log Analysis Suite</p>")
         layout.addWidget(welcome_label)
         
         # Summary cards
