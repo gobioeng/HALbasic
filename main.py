@@ -446,6 +446,10 @@ class HALogApp:
                     from unified_parser import UnifiedParser
                     self.fault_parser = UnifiedParser()
 
+                    # Initialize fault notes manager
+                    from fault_notes_manager import FaultNotesManager
+                    self.fault_notes_manager = FaultNotesManager()
+
                     # Load fault code databases from core data directory
                     hal_fault_path = os.path.join(os.path.dirname(__file__), 'data', 'HALfault.txt')
                     tb_fault_path = os.path.join(os.path.dirname(__file__), 'data', 'TBFault.txt')
@@ -895,6 +899,15 @@ class HALogApp:
                     if hasattr(self.ui, 'txtSearchDescription'):
                         self.ui.txtSearchDescription.returnPressed.connect(self.search_fault_description)
                         print("✓ Fault description input Enter key connected")
+
+                    # FAULT CODE NOTES ACTIONS
+                    if hasattr(self.ui, 'btnSaveNote'):
+                        self.ui.btnSaveNote.clicked.connect(self.save_fault_note)
+                        print("✓ Save fault note button connected")
+
+                    if hasattr(self.ui, 'btnClearNote'):
+                        self.ui.btnClearNote.clicked.connect(self.clear_fault_note)
+                        print("✓ Clear fault note button connected")
 
                     print("✓ Button actions connected")
 
@@ -1560,6 +1573,9 @@ Source: {result.get('source', 'unknown')} database
                                 self.ui.txtTBDescription.setText(result['description'])
                             else:
                                 self.ui.txtTBDescription.setText("No TB description available for this code")
+                        
+                        # Load and display existing note for this fault code
+                        self._load_fault_note(code)
                     else:
                         self.ui.txtFaultResult.setText(f"❌ Fault code '{code}' not found in the loaded databases.\n\nLoaded databases: {', '.join(self.fault_parser.get_fault_code_statistics()['sources'])}")
 
@@ -1568,6 +1584,9 @@ Source: {result.get('source', 'unknown')} database
                             self.ui.txtHALDescription.setText("Fault code not found")
                         if hasattr(self.ui, 'txtTBDescription'):
                             self.ui.txtTBDescription.setText("Fault code not found")
+                        
+                        # Clear notes area
+                        self._clear_fault_note_display()
 
                 except Exception as e:
                     error_msg = f"❌ Error searching fault code: {str(e)}"
@@ -1610,8 +1629,14 @@ Source: {result.get('source', 'unknown')} database
                             self.ui.txtHALDescription.setText("Multiple results found - use specific fault code search")
                         if hasattr(self.ui, 'txtTBDescription'):
                             self.ui.txtTBDescription.setText("Multiple results found - use specific fault code search")
+                        
+                        # Clear notes area for multiple results
+                        self._clear_fault_note_display()
                     else:
                         self.ui.txtFaultResult.setText(f"❌ No fault codes found matching '{search_term}' in the loaded databases.\n\nSearched in: {', '.join(self.fault_parser.get_fault_code_statistics()['sources'])}")
+                        
+                        # Clear notes area for no results
+                        self._clear_fault_note_display()
 
                 except Exception as e:
                     error_msg = f"❌ Error searching fault descriptions: {str(e)}"
@@ -1619,6 +1644,150 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error in fault description search: {e}")
                     import traceback
                     traceback.print_exc()
+
+            def save_fault_note(self):
+                """Save the note for the current fault code"""
+                try:
+                    # Get the current fault code from the search field
+                    fault_code = self.ui.txtFaultCode.text().strip()
+                    if not fault_code:
+                        QtWidgets.QMessageBox.warning(
+                            self, "No Fault Code", 
+                            "Please search for a fault code first before saving a note."
+                        )
+                        return
+                    
+                    # Get the note text
+                    note_text = self.ui.txtUserNote.toPlainText().strip()
+                    if not note_text:
+                        QtWidgets.QMessageBox.warning(
+                            self, "Empty Note", 
+                            "Please enter some text before saving the note."
+                        )
+                        return
+                    
+                    # Save the note
+                    success = self.fault_notes_manager.save_note(fault_code, note_text)
+                    if success:
+                        self._update_note_info(fault_code)
+                        QtWidgets.QMessageBox.information(
+                            self, "Note Saved", 
+                            f"Note for fault code {fault_code} has been saved successfully."
+                        )
+                    else:
+                        QtWidgets.QMessageBox.critical(
+                            self, "Save Error", 
+                            "Failed to save the note. Please try again."
+                        )
+                        
+                except Exception as e:
+                    print(f"Error saving fault note: {e}")
+                    QtWidgets.QMessageBox.critical(
+                        self, "Error", 
+                        f"An error occurred while saving the note: {str(e)}"
+                    )
+
+            def clear_fault_note(self):
+                """Clear the note for the current fault code"""
+                try:
+                    # Get the current fault code from the search field
+                    fault_code = self.ui.txtFaultCode.text().strip()
+                    if not fault_code:
+                        QtWidgets.QMessageBox.warning(
+                            self, "No Fault Code", 
+                            "Please search for a fault code first."
+                        )
+                        return
+                    
+                    # Confirm deletion
+                    reply = QtWidgets.QMessageBox.question(
+                        self, "Confirm Clear Note", 
+                        f"Are you sure you want to delete the note for fault code {fault_code}?",
+                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                        QtWidgets.QMessageBox.No
+                    )
+                    
+                    if reply == QtWidgets.QMessageBox.Yes:
+                        success = self.fault_notes_manager.delete_note(fault_code)
+                        if success:
+                            self.ui.txtUserNote.clear()
+                            self._update_note_info(fault_code)
+                            QtWidgets.QMessageBox.information(
+                                self, "Note Cleared", 
+                                f"Note for fault code {fault_code} has been deleted."
+                            )
+                        else:
+                            QtWidgets.QMessageBox.critical(
+                                self, "Delete Error", 
+                                "Failed to delete the note. Please try again."
+                            )
+                        
+                except Exception as e:
+                    print(f"Error clearing fault note: {e}")
+                    QtWidgets.QMessageBox.critical(
+                        self, "Error", 
+                        f"An error occurred while clearing the note: {str(e)}"
+                    )
+
+            def _load_fault_note(self, fault_code: str):
+                """Load and display the note for a specific fault code"""
+                try:
+                    note_data = self.fault_notes_manager.get_note(fault_code)
+                    if note_data:
+                        self.ui.txtUserNote.setText(note_data.get('note', ''))
+                        self._update_note_info(fault_code, note_data)
+                    else:
+                        self.ui.txtUserNote.clear()
+                        self._update_note_info(fault_code)
+                        
+                except Exception as e:
+                    print(f"Error loading fault note for {fault_code}: {e}")
+                    self.ui.txtUserNote.clear()
+                    self._update_note_info(fault_code)
+
+            def _clear_fault_note_display(self):
+                """Clear the note display area"""
+                try:
+                    if hasattr(self.ui, 'txtUserNote'):
+                        self.ui.txtUserNote.clear()
+                    if hasattr(self.ui, 'lblNoteInfo'):
+                        self.ui.lblNoteInfo.setText("")
+                except Exception as e:
+                    print(f"Error clearing fault note display: {e}")
+
+            def _update_note_info(self, fault_code: str, note_data=None):
+                """Update the note information label"""
+                try:
+                    if not hasattr(self.ui, 'lblNoteInfo'):
+                        return
+                        
+                    if note_data is None:
+                        note_data = self.fault_notes_manager.get_note(fault_code)
+                    
+                    if note_data:
+                        created_date = note_data.get('created_date', '')
+                        last_modified = note_data.get('last_modified', '')
+                        author = note_data.get('author', 'User')
+                        
+                        # Parse dates for display
+                        try:
+                            from datetime import datetime
+                            if last_modified:
+                                mod_date = datetime.fromisoformat(last_modified.replace('Z', '+00:00'))
+                                date_str = mod_date.strftime('%Y-%m-%d %H:%M')
+                                info_text = f"Note by {author}, last modified: {date_str}"
+                            else:
+                                info_text = f"Note by {author}"
+                        except:
+                            info_text = f"Note by {author}"
+                        
+                        self.ui.lblNoteInfo.setText(info_text)
+                    else:
+                        total_notes = self.fault_notes_manager.get_notes_count()
+                        self.ui.lblNoteInfo.setText(f"No note for this fault code. Total notes: {total_notes}")
+                        
+                except Exception as e:
+                    print(f"Error updating note info: {e}")
 
             def _optimize_database(self):
                 """Apply database optimizations"""
