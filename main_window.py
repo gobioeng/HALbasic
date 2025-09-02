@@ -24,7 +24,7 @@ from PyQt5.QtGui import QKeySequence
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("HALog • Professional LINAC Monitor")
+        MainWindow.setWindowTitle("HALog • Professional LINAC Log Analysis Suite")
         MainWindow.resize(1400, 900)
         MainWindow.setMinimumSize(1000, 700)
 
@@ -392,7 +392,7 @@ class Ui_MainWindow(object):
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        header_label = QLabel("<h2>LINAC Water System Monitor</h2>")
+        header_label = QLabel("<h2>LINAC Log Analysis Suite</h2>")
         header_label.setAlignment(Qt.AlignCenter)
         header_label.setWordWrap(True)
         layout.addWidget(header_label)
@@ -1265,29 +1265,22 @@ class Ui_MainWindow(object):
         results_layout = QVBoxLayout(results_group)
         results_layout.setContentsMargins(16, 16, 16, 16)
 
+        # Combined Fault Results and Description - Single optimized text area
         self.txtFaultResult = QTextEdit()
         self.txtFaultResult.setReadOnly(True)
-        self.txtFaultResult.setMinimumHeight(150)
-        self.txtFaultResult.setPlaceholderText("Search results will appear here...")
+        self.txtFaultResult.setMinimumHeight(200)  # Slightly larger to accommodate combined content
+        self.txtFaultResult.setPlaceholderText("Search results and fault descriptions will appear here...")
+        self.txtFaultResult.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 8px;
+                background-color: white;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 12px;
+            }
+        """)
         results_layout.addWidget(self.txtFaultResult)
-
-        # Add HAL and TB Description text boxes - COMBINED
-        descriptions_layout = QHBoxLayout()
-        descriptions_layout.setSpacing(12)
-        
-        # Combined Description box (HAL and TB together)
-        desc_group = QGroupBox("Fault Description")
-        desc_layout = QVBoxLayout(desc_group)
-        desc_layout.setContentsMargins(8, 8, 8, 8)
-        
-        self.txtFaultDescription = QTextEdit()
-        self.txtFaultDescription.setReadOnly(True)
-        self.txtFaultDescription.setMaximumHeight(120)
-        self.txtFaultDescription.setPlaceholderText("Fault descriptions (HAL and TB) will appear here...")
-        desc_layout.addWidget(self.txtFaultDescription)
-        
-        descriptions_layout.addWidget(desc_group)
-        results_layout.addLayout(descriptions_layout)
         
         # Add User Notes section - ENLARGED
         notes_group = QGroupBox("User Notes")
@@ -1357,7 +1350,7 @@ class Ui_MainWindow(object):
 
         app_info = QLabel(
             "<h2>Gobioeng HALog 0.0.1 beta</h2>"
-            "<p>A professional LINAC water system monitoring application</p>"
+            "<p>A professional LINAC log analysis application</p>"
             "<p>Developed by <b>gobioeng.com</b></p>"
             "<p><a href='https://gobioeng.com'>gobioeng.com</a></p>"
             "<p>© 2025 Gobioeng. All rights reserved.</p>"

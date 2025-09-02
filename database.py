@@ -1,6 +1,6 @@
 """
 Enhanced Database Manager - Gobioeng HALog
-Provides optimized database operations for LINAC water system data
+Provides optimized database operations for LINAC log analysis data
 """
 
 import sqlite3
