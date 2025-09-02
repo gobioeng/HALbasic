@@ -58,9 +58,6 @@ class DatabaseManager:
             """
             )
 
-            # Create optimized indices
-            self._create_indices(conn)
-
             # Create metadata table
             conn.execute(
                 """
@@ -89,12 +86,13 @@ class DatabaseManager:
                     deviation_percentage REAL NOT NULL,
                     anomaly_type TEXT NOT NULL,
                     detection_method TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (datetime, serial_number, parameter_type, statistic_type) 
-                    REFERENCES water_logs (datetime, serial_number, parameter_type, statistic_type)
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
+
+            # Create optimized indices
+            self._create_indices(conn)
 
             conn.commit()
 
@@ -600,7 +598,7 @@ class DatabaseManager:
                         deviation = row['deviation_percentage']
                     
                     anomaly_record = (
-                        row.get('datetime', ''),
+                        str(row.get('datetime', '')),  # Convert to string
                         row.get('serial', row.get('serial_number', '')),
                         row.get('param', row.get('parameter_type', '')),
                         row.get('stat_type', row.get('statistic_type', 'avg')),
