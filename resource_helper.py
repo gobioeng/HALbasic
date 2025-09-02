@@ -72,13 +72,18 @@ def resource_path(relative_path):
     return relative_path
 
 
-def load_splash_icon(size=120):
+def load_splash_icon(size=120, background_mode="replace_color", background_color="#e8e8e8"):
     """
-    Load icon specifically for splash screen with maximum quality preservation
+    Load icon specifically for splash screen with configurable background processing
     Priority: High-res PNG > Low-res PNG > ICO > Generated fallback
     Developer: Tanmay Pandey - gobioeng.com
+    
+    Args:
+        size: Icon size
+        background_mode: "replace_color", "rounded_container", "transparent", or "original"
+        background_color: Color to use for background replacement
     """
-    print(f"Loading splash icon with size: {size}")
+    print(f"Loading splash icon with size: {size}, background_mode: {background_mode}")
 
     # Try PNG files first (highest quality) - prioritize by resolution
     png_files = ["linac_logo_256.png", "linac_logo_100.png", "linac_logo.png"]
@@ -92,11 +97,17 @@ def load_splash_icon(size=120):
                 print(
                     f"Successfully loaded PNG: {png_path} (original size: {pixmap.size()})"
                 )
-                # Apply contrast enhancement
-                enhanced_pixmap = enhance_icon_contrast(pixmap)
-                return enhanced_pixmap.scaled(
+                # Scale first
+                scaled_pixmap = pixmap.scaled(
                     size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
                 )
+                
+                # Apply background processing based on mode
+                processed_pixmap = process_icon_background(scaled_pixmap, background_mode, background_color)
+                
+                # Apply contrast enhancement
+                enhanced_pixmap = enhance_icon_contrast(processed_pixmap)
+                return enhanced_pixmap
 
     # Try ICO files with size preference
     ico_files = ["linac_logo_256.ico", "linac_logo_100.ico", "linac_logo.ico"]
@@ -123,21 +134,145 @@ def load_splash_icon(size=120):
                     print(
                         f"Successfully loaded ICO: {ico_path} (size: {pixmap.size()})"
                     )
-                    # Apply contrast enhancement
-                    enhanced_pixmap = enhance_icon_contrast(pixmap)
-                    return enhanced_pixmap.scaled(
+                    # Scale to desired size
+                    scaled_pixmap = pixmap.scaled(
                         size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
                     )
+                    
+                    # Apply background processing based on mode
+                    processed_pixmap = process_icon_background(scaled_pixmap, background_mode, background_color)
+                    
+                    # Apply contrast enhancement
+                    enhanced_pixmap = enhance_icon_contrast(processed_pixmap)
+                    return enhanced_pixmap
 
     # If both fail, try direct loading
     print("Trying direct icon loading...")
     direct_icon = load_direct_icon(size)
     if direct_icon and not direct_icon.isNull():
-        return direct_icon
+        processed_pixmap = process_icon_background(direct_icon, background_mode, background_color)
+        return enhance_icon_contrast(processed_pixmap)
 
     # Generate high-quality fallback if no files found
     print("No icon files found, generating high-quality fallback")
     return generate_icon(size, high_quality=True)
+
+
+def process_icon_background(pixmap, mode="replace_color", background_color="#e8e8e8"):
+    """
+    Process icon background based on the specified mode
+    Background processing by Tanmay Pandey
+    """
+    if pixmap.isNull():
+        return pixmap
+        
+    if mode == "replace_color":
+        return replace_background_with_color(pixmap, background_color)
+    elif mode == "rounded_container":
+        return create_rounded_container(pixmap, background_color)
+    elif mode == "transparent":
+        return make_background_transparent(pixmap)
+    elif mode == "original":
+        return pixmap
+    else:
+        print(f"Unknown background mode: {mode}, using transparent")
+        return make_background_transparent(pixmap)
+
+
+def replace_background_with_color(pixmap, background_color="#e8e8e8"):
+    """
+    Replace white/light background with specified background color
+    More precise background matching by Tanmay Pandey
+    """
+    if pixmap.isNull():
+        return pixmap
+
+    print(f"Replacing background with color: {background_color}")
+
+    # Convert to image for pixel manipulation
+    image = pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
+    bg_color = QColor(background_color)
+
+    # Process each pixel
+    for y in range(image.height()):
+        for x in range(image.width()):
+            color = QColor(image.pixel(x, y))
+
+            # Check if pixel is white/light background that should be replaced
+            if (color.lightness() > 180 or  # Light threshold
+                (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # RGB threshold
+                (color.saturation() < 40 and color.lightness() > 150) or  # Grayscale detection
+                (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Yellow-ish backgrounds
+                # Replace with background color
+                image.setPixel(x, y, bg_color.rgba())
+
+    print("Background color replacement completed")
+    return QPixmap.fromImage(image)
+
+
+def create_rounded_container(pixmap, container_color="#e8e8e8", border_color="#d0d0d0", corner_radius=10):
+    """
+    Create a rounded square container for the logo
+    Modern container design by Tanmay Pandey
+    """
+    if pixmap.isNull():
+        return pixmap
+
+    print(f"Creating rounded container with color: {container_color}")
+
+    # Create container slightly larger than the pixmap
+    padding = 8
+    container_size = max(pixmap.width(), pixmap.height()) + (padding * 2)
+    container = QPixmap(container_size, container_size)
+    container.fill(Qt.transparent)
+
+    painter = QPainter(container)
+    painter.setRenderHint(QPainter.Antialiasing, True)
+
+    # Draw rounded rectangle background
+    painter.setBrush(QColor(container_color))
+    painter.setPen(QPen(QColor(border_color), 1))
+    painter.drawRoundedRect(0, 0, container_size, container_size, corner_radius, corner_radius)
+
+    # Center the logo in the container
+    logo_x = (container_size - pixmap.width()) // 2
+    logo_y = (container_size - pixmap.height()) // 2
+
+    # Draw the logo with transparent background (processed separately)
+    processed_logo = make_background_transparent(pixmap)
+    painter.drawPixmap(logo_x, logo_y, processed_logo)
+
+    painter.end()
+
+    print("Rounded container creation completed")
+    return container
+
+
+def make_background_transparent(pixmap):
+    """
+    Make white/light background transparent (original aggressive approach)
+    Background removal by Tanmay Pandey
+    """
+    if pixmap.isNull():
+        return pixmap
+
+    # Convert to image for pixel manipulation
+    image = pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
+
+    # Replace white/light pixels with transparent
+    for x in range(image.width()):
+        for y in range(image.height()):
+            color = QColor(image.pixel(x, y))
+
+            # Aggressive white background removal
+            if (color.lightness() > 180 or  # Light threshold
+                (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # RGB threshold
+                (color.saturation() < 40 and color.lightness() > 150) or  # Grayscale detection
+                (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Yellow-ish backgrounds
+                # Make it completely transparent
+                image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
+
+    return QPixmap.fromImage(image)
 
 
 def enhance_icon_contrast(pixmap):
