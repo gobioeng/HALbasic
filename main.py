@@ -3922,6 +3922,82 @@ Source: {result.get('source', 'unknown')} database
                         except Exception as e:
                             print(f"Error in final shutdown: {e}")
 
+            def show_crash_recovery_dialog(self, crash_reason: str):
+                """Show professional crash recovery dialog"""
+                try:
+                    from crash_recovery_dialog import show_crash_recovery_dialog
+                    
+                    # Get crash info from state manager if available
+                    crash_info = {}
+                    parent_app = self.parent()
+                    if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
+                        crash_info = parent_app.app_state_manager.get_crash_info()
+                        stats = parent_app.app_state_manager.get_statistics()
+                        crash_info.update(stats)
+                    
+                    # Show recovery dialog
+                    result = show_crash_recovery_dialog(crash_reason, crash_info, self)
+                    
+                    if result['restart_requested']:
+                        print("🔄 User requested application restart")
+                        # Handle restart request
+                        self._handle_restart_request(result['recovery_options'])
+                    else:
+                        print("👋 User chose to exit application")
+                        self.close()
+                        
+                except Exception as e:
+                    print(f"Error showing crash recovery dialog: {e}")
+                    # Fallback to simple message
+                    QtWidgets.QMessageBox.critical(
+                        self,
+                        "Application Error",
+                        f"HALbasic encountered an error: {crash_reason}\n\n"
+                        "The application will now close. Please restart to continue."
+                    )
+                    self.close()
+            
+            def _handle_restart_request(self, recovery_options: dict):
+                """Handle application restart request"""
+                try:
+                    print("🔄 Processing restart request...")
+                    
+                    # Save current state if requested
+                    if recovery_options.get('preserve_data', True):
+                        parent_app = self.parent()
+                        if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
+                            # Create checkpoint with current session data
+                            session_data = {
+                                'last_file_path': getattr(self, '_last_file_path', ''),
+                                'ui_state': {},  # Could save UI state here
+                                'user_preferences': {}  # Could save preferences here
+                            }
+                            parent_app.app_state_manager.create_checkpoint('pre_restart', session_data)
+                    
+                    # Schedule restart
+                    QtCore.QTimer.singleShot(100, self._perform_restart)
+                    
+                except Exception as e:
+                    print(f"Error handling restart request: {e}")
+                    self.close()
+            
+            def _perform_restart(self):
+                """Perform the actual restart"""
+                try:
+                    print("🚀 Restarting HALbasic...")
+                    
+                    # Close current application gracefully
+                    self.close()
+                    
+                    # Restart the application
+                    import subprocess
+                    import sys
+                    subprocess.Popen([sys.executable] + sys.argv)
+                    
+                except Exception as e:
+                    print(f"Error performing restart: {e}")
+                    self.close()
+
         self.window = HALogMaterialApp()
         self.update_splash_progress(80, "Finalizing interface...")
         self.load_times["window_creation"] = time.time() - start_window
