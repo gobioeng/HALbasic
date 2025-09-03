@@ -1057,7 +1057,7 @@ class HALogApp:
 
                     all_params = list(self.df[param_column].unique())
                     print(f"🔧 Initializing trend controls with {len(all_params)} parameters")
-                    print(f"🔧 Sample parameters: {all_params[:5]}")
+                    print(f"🔧 All parameters: {all_params}")
 
                     # Since your data shows COL parameters, let's categorize them properly
                     flow_params = []
@@ -1086,6 +1086,17 @@ class HALogApp:
                         else:
                             # Default unknown parameters to voltage category for display
                             voltage_params.append(param)
+
+                    # Debug parameter categorization
+                    print(f"🔧 Parameter categorization:")
+                    print(f"   Flow: {len(flow_params)} - {flow_params}")
+                    print(f"   Voltage: {len(voltage_params)} - {voltage_params}")
+                    print(f"   Temperature: {len(temp_params)} - {temp_params}")
+                    print(f"   Humidity: {len(humidity_params)} - {humidity_params}")
+                    print(f"   Fan: {len(fan_params)} - {fan_params}")
+                    
+                    total_categorized = len(flow_params) + len(voltage_params) + len(temp_params) + len(humidity_params) + len(fan_params)
+                    print(f"   Total categorized: {total_categorized} of {len(all_params)}")
 
                     # Populate dropdown controls with actual parameters
                     dropdown_configs = [
@@ -2390,82 +2401,45 @@ Source: {result.get('source', 'unknown')} database
                         "Diff (Max-Min)"
                     ])
 
-                    # Optimize table population with batch updates
+                    # Optimize table population with batch data preparation
                     self.ui.tableData.setSortingEnabled(False)  # Disable sorting during updates
                     self.ui.tableData.setUpdatesEnabled(False)  # Disable updates during population
 
-                    # Populate table rows with optimized performance
-                    for row_idx, (_, row) in enumerate(display_df.iterrows()):
+                    print(f"📊 Preparing {len(display_df)} table rows with optimized batch processing...")
+                    
+                    # Pre-process all data for better performance
+                    table_data = []
+                    for _, row in display_df.iterrows():
                         try:
-                            # DateTime
+                            # Pre-calculate all values
                             dt_str = row["datetime"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(row["datetime"]) else "N/A"
-                            dt_item = QTableWidgetItem(dt_str)
-                            dt_item.setFlags(dt_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 0, dt_item)
-
-                            # Serial Number
-                            serial_value = "Unknown"
-                            if serial_col and pd.notna(row[serial_col]):
-                                serial_value = str(row[serial_col])
-                            serial_item = QTableWidgetItem(serial_value)
-                            serial_item.setFlags(serial_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 1, serial_item)
-
-                            # Parameter Name (use enhanced name)
+                            serial_value = str(row[serial_col]) if serial_col and pd.notna(row[serial_col]) else "Unknown"
+                            
                             raw_param = str(row[param_col])
                             display_param = self._get_enhanced_parameter_name(raw_param)
-                            param_item = QTableWidgetItem(display_param)
-                            param_item.setToolTip(f"Raw parameter: {raw_param}")  # Show raw name in tooltip
-                            param_item.setFlags(param_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 2, param_item)
-
-                            # Average value
-                            avg_value = 0.0
-                            if avg_col and pd.notna(row[avg_col]):
-                                try:
-                                    avg_value = float(row[avg_col])
-                                except (ValueError, TypeError):
-                                    avg_value = 0.0
-                            avg_item = QTableWidgetItem(f"{avg_value:.4f}")
-                            avg_item.setFlags(avg_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 3, avg_item)
-
-                            # Min value
-                            min_value = 0.0
-                            if min_col and pd.notna(row[min_col]):
-                                try:
-                                    min_value = float(row[min_col])
-                                except (ValueError, TypeError):
-                                    min_value = 0.0
-                            min_item = QTableWidgetItem(f"{min_value:.4f}")
-                            min_item.setFlags(min_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 4, min_item)
-
-                            # Max value
-                            max_value = 0.0
-                            if max_col and pd.notna(row[max_col]):
-                                try:
-                                    max_value = float(row[max_col])
-                                except (ValueError, TypeError):
-                                    max_value = 0.0
-                            max_item = QTableWidgetItem(f"{max_value:.4f}")
-                            max_item.setFlags(max_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 5, max_item)
-
-                            # Difference (Max - Min)
+                            
+                            avg_value = float(row[avg_col]) if avg_col and pd.notna(row[avg_col]) else 0.0
+                            min_value = float(row[min_col]) if min_col and pd.notna(row[min_col]) else 0.0
+                            max_value = float(row[max_col]) if max_col and pd.notna(row[max_col]) else 0.0
                             diff_value = max_value - min_value
-                            diff_item = QTableWidgetItem(f"{diff_value:.4f}")
-                            diff_item.setFlags(diff_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 6, diff_item)
+                            
+                            table_data.append([
+                                dt_str, serial_value, display_param, f"{avg_value:.4f}", 
+                                f"{min_value:.4f}", f"{max_value:.4f}", f"{diff_value:.4f}", raw_param
+                            ])
+                        except Exception:
+                            # Fallback for problematic rows
+                            table_data.append(["N/A", "Unknown", "Error", "0.0000", "0.0000", "0.0000", "0.0000", ""])
 
-                        except Exception as e:
-                            print(f"Error processing row {row_idx}: {e}")
-                            # Fill row with N/A values if there's an error
-                            for col_idx in range(7):
-                                if not self.ui.tableData.item(row_idx, col_idx):
-                                    placeholder_item = QTableWidgetItem("N/A")
-                                    placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemIsEditable)
-                                    self.ui.tableData.setItem(row_idx, col_idx, placeholder_item)
+                    # Bulk populate table with pre-processed data
+                    print(f"📊 Populating table with {len(table_data)} optimized rows...")
+                    for row_idx, row_data in enumerate(table_data):
+                        for col_idx, value in enumerate(row_data[:7]):  # Only first 7 columns for table
+                            item = QTableWidgetItem(value)
+                            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                            if col_idx == 2 and len(row_data) > 7:  # Parameter column - add tooltip
+                                item.setToolTip(f"Raw parameter: {row_data[7]}")
+                            self.ui.tableData.setItem(row_idx, col_idx, item)
 
                     # Re-enable table updates and sorting
                     self.ui.tableData.setUpdatesEnabled(True)
@@ -2937,16 +2911,14 @@ Source: {result.get('source', 'unknown')} database
                 """Initialize default trend displays to show graphs at startup"""
                 try:
                     print("🔄 Initializing default trend displays...")
-                    # Check if we have shortdata_parser available
+                    # Only initialize the first trend tab (fan_speed) to avoid popup issues
+                    # Other tabs will be initialized when user clicks on them
                     if hasattr(self, 'shortdata_parser') and self.shortdata_parser:
-                        # Initialize each trend group with default displays
-                        trend_groups = ['flow', 'voltage', 'temperature', 'humidity', 'fan_speed']
-                        for group in trend_groups:
-                            try:
-                                self.refresh_trend_tab(group)
-                                print(f"  ✓ {group} trend initialized")
-                            except Exception as e:
-                                print(f"  ⚠️ Failed to initialize {group} trend: {e}")
+                        try:
+                            self.refresh_trend_tab('fan_speed')
+                            print(f"  ✓ fan_speed trend initialized")
+                        except Exception as e:
+                            print(f"  ⚠️ Failed to initialize fan_speed trend: {e}")
                     else:
                         print("  ⚠️ Shortdata parser not available for trend initialization")
                 except Exception as e:
