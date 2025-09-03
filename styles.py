@@ -7,14 +7,14 @@ Date: 2025-01-21
 
 
 def get_modern_native_stylesheet():
-    """Get modern native Windows-style stylesheet without unsupported properties"""
+    """Get modern native Windows-style stylesheet with Calibri font"""
     return """
-    /* Modern Native Windows Theme */
+    /* Modern Native Windows Theme with Calibri Font */
     QMainWindow {
         background-color: #f0f0f0;
         color: #333333;
-        font-family: 'Segoe UI', Arial, sans-serif;
-        font-size: 9pt;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+        font-size: 10pt;
     }
 
     /* Native-style buttons */
@@ -24,6 +24,7 @@ def get_modern_native_stylesheet():
         padding: 6px 12px;
         border-radius: 3px;
         color: #333333;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
         font-weight: normal;
         min-height: 18px;
     }
@@ -64,6 +65,7 @@ def get_modern_native_stylesheet():
 
     /* Native-style group boxes */
     QGroupBox {
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
         font-weight: bold;
         border: 1px solid #adadad;
         border-radius: 3px;
@@ -76,6 +78,7 @@ def get_modern_native_stylesheet():
         left: 10px;
         padding: 0 5px 0 5px;
         background-color: #f0f0f0;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
     }
 
     /* Native-style tables */
@@ -85,6 +88,7 @@ def get_modern_native_stylesheet():
         gridline-color: #d0d0d0;
         selection-background-color: #0078d4;
         selection-color: white;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
     }
     QHeaderView::section {
         background-color: #f0f0f0;
@@ -92,6 +96,7 @@ def get_modern_native_stylesheet():
         padding: 4px;
         font-weight: bold;
         color: #333333;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
     }
 
     /* Native-style combo boxes */
@@ -100,6 +105,7 @@ def get_modern_native_stylesheet():
         padding: 4px;
         background-color: white;
         color: #333333;
+        font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
     }
     QComboBox:focus {
         border: 2px solid #0078d4;

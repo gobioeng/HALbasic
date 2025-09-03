@@ -20,21 +20,23 @@ class MinimalisticSplashScreen(QSplashScreen):
     finished = pyqtSignal()
 
     def __init__(self, app_version="1.0.0"):
-        # Create clean splash screen
+        # Create clean splash screen INSTANTLY
         pixmap = QPixmap(400, 250)  # Smaller, more compact size
         super().__init__(pixmap)
         
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.app_version = app_version
         self.start_time = time.time()
-        self.minimum_display_time = 2.0
+        # FIXED: Reduced minimum display time for instant launch feel
+        self.minimum_display_time = 1.0  # Reduced from 2.0 to 1.0 seconds
         
-        # Animation timer
+        # OPTIMIZED: Less frequent animation updates to reduce CPU usage
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self.update_animation)
-        self.animation_timer.setInterval(100)
+        self.animation_timer.setInterval(200)  # Reduced from 100ms to 200ms
         self.animation_step = 0
         
+        # INSTANT SETUP: Create UI immediately without delays
         self.setupUI()
         self.animation_timer.start()
 
@@ -89,7 +91,7 @@ class MinimalisticSplashScreen(QSplashScreen):
         
         # App name
         painter.setPen(QColor(60, 60, 60))
-        font = QFont("Helvetica", 15, QFont.Light)
+        font = QFont("Calibri", 15, QFont.Light)  # Changed to Calibri
         painter.setFont(font)
         name_y = logo_y + logo_size + 20
         name_rect = QRect(0, name_y, pixmap.width(), 30)
@@ -97,7 +99,7 @@ class MinimalisticSplashScreen(QSplashScreen):
         
         # Subtitle
         painter.setPen(QColor(120, 120, 120))
-        font = QFont("Segoe UI", 10, QFont.Normal)
+        font = QFont("Calibri", 10, QFont.Normal)  # Changed to Calibri
         painter.setFont(font)
         subtitle_y = name_y + 35
         subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 20)
@@ -105,7 +107,7 @@ class MinimalisticSplashScreen(QSplashScreen):
         
         # Version
         painter.setPen(QColor(150, 150, 150))
-        font = QFont("Segoe UI", 9, QFont.Normal)
+        font = QFont("Calibri", 9, QFont.Normal)  # Changed to Calibri
         painter.setFont(font)
         version_y = subtitle_y + 25
         version_rect = QRect(0, version_y, pixmap.width(), 15)
@@ -143,7 +145,7 @@ class MinimalisticSplashScreen(QSplashScreen):
         self.status_label.setStyleSheet("""
             QLabel {
                 color: #888;
-                font-family: 'Segoe UI';
+                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
                 font-size: 9px;
                 background: transparent;
             }
