@@ -1,6 +1,6 @@
 """
-Gobioeng HALog 0.0.1 beta
-Professional LINAC Water System Monitor
+HALog — Visualize. Analyze. Optimize. v0.0.1
+Advanced LINAC Log Analysis System  
 Company: gobioeng.com
 Created: 2025-08-20 22:58:39 UTC
 Updated: 2025-08-27 15:08:00 UTC
@@ -2017,8 +2017,8 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Failed to load about dialog: {e}")
                     QtWidgets.QMessageBox.about(
                         self,
-                        "Gobioeng HALog",
-                        "HALog 0.0.1 beta\nProfessional LINAC Log Analysis System\nDeveloped by gobioeng.com\n© 2025 gobioeng.com",
+                        "HALog — Visualize. Analyze. Optimize.",
+                        f"HALog v{APP_VERSION}\nAdvanced LINAC Log Analysis System\nDeveloped by Tanmay Pandey\nwww.gobioeng.com\n© 2025 gobioeng.com",
                     )
 
             def load_dashboard(self):
