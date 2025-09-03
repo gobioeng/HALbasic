@@ -727,13 +727,31 @@ class PlotUtils:
 
             layout = widget.layout()
 
+            # CRITICAL FIX: Ensure matplotlib backend is properly configured
+            # This is essential for PyInstaller builds
+            try:
+                import matplotlib
+                current_backend = matplotlib.get_backend()
+                if current_backend.lower() != 'qt5agg':
+                    try:
+                        matplotlib.use('Qt5Agg', force=True)
+                    except ImportError as ie:
+                        if 'headless' not in str(ie).lower():
+                            print(f"Backend configuration warning: {ie}")
+            except Exception as e:
+                print(f"Backend configuration warning: {e}")
+
             # Create matplotlib figure with enhanced styling
             # FIXED: Smaller figure size to fit better in embedded widgets
             fig = Figure(figsize=(8, 3), dpi=80, facecolor='white')
             canvas = FigureCanvas(fig)
             
-            # CRITICAL: Set the canvas parent to prevent popup windows
+            # CRITICAL: Set the canvas parent to prevent popup windows and ensure proper embedding
             canvas.setParent(widget)
+            
+            # PYINSTALLER FIX: Force immediate widget ownership
+            widget.setFocusPolicy(canvas.focusPolicy())
+            
             layout.addWidget(canvas)
 
             ax = fig.add_subplot(111)

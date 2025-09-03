@@ -25,6 +25,20 @@ class PlotWidget(QWidget):
         self.setMinimumHeight(300)
         
         try:
+            # CRITICAL FIX: Ensure matplotlib backend is properly configured
+            # This is essential for PyInstaller builds
+            try:
+                import matplotlib
+                current_backend = matplotlib.get_backend()
+                if current_backend.lower() != 'qt5agg':
+                    try:
+                        matplotlib.use('Qt5Agg', force=True)
+                    except ImportError as ie:
+                        if 'headless' not in str(ie).lower():
+                            print(f"Backend configuration warning: {ie}")
+            except Exception as e:
+                print(f"Backend configuration warning: {e}")
+                
             # FIXED: Smaller figure size for embedded use
             self.figure = Figure(figsize=(8, 4), dpi=80)
             self.canvas = FigureCanvas(self.figure)

@@ -108,11 +108,37 @@ class HALbasicInstaller:
             else:
                 print(f"   ⚠️ Skipping missing data directory: {full_path}")
         
+        # CRITICAL FIX: Add matplotlib data files for PyInstaller
+        # This ensures matplotlib fonts and configuration work in the executable
+        try:
+            import matplotlib
+            import os
+            mpl_data_path = matplotlib.get_data_path()
+            if os.path.exists(mpl_data_path):
+                datas_list.append((mpl_data_path, 'matplotlib/mpl-data'))
+                print(f"   ✓ Added matplotlib data: {mpl_data_path}")
+                
+            # Also add matplotlib configuration directory
+            import matplotlib as mpl
+            config_dir = mpl.get_configdir()
+            if os.path.exists(config_dir):
+                datas_list.append((config_dir, 'matplotlib/config'))
+                print(f"   ✓ Added matplotlib config: {config_dir}")
+                
+        except Exception as e:
+            print(f"   ⚠️ Could not add matplotlib data: {e}")
+        
         # Hidden imports - remove ones you do NOT actually use to avoid failures
         hidden_imports = [
             'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets',
             'matplotlib.backends.backend_qt5agg',
             'matplotlib.backends.backend_pdf',
+            'matplotlib.backends._backend_qt5',
+            'matplotlib.figure',
+            'matplotlib.dates',
+            'matplotlib.pyplot',
+            'matplotlib._path',
+            'matplotlib.ft2font',
             'pandas', 'numpy', 'scipy',
             # Remove if unused:
             # 'sklearn', 'sqlalchemy', 'openpyxl',
