@@ -41,7 +41,7 @@ class AboutDialog(QDialog):
 
     def setupUI(self):
         """Setup the about dialog UI"""
-        self.setWindowTitle("About HALog")
+        self.setWindowTitle("About HALog — Visualize. Analyze. Optimize.")
         self.setModal(True)
         self.setFixedSize(500, 400)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
@@ -62,7 +62,7 @@ class AboutDialog(QDialog):
         # Application info
         app_info_layout = QVBoxLayout()
 
-        app_name = QLabel("HALog – LINAC Log Analyzer")
+        app_name = QLabel("HALog — Visualize. Analyze. Optimize.")
         app_name.setFont(QFont("Arial", 16, QFont.Bold))
         app_name.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
         app_info_layout.addWidget(app_name)
@@ -159,28 +159,31 @@ class AboutDialog(QDialog):
         description = QTextBrowser()
         description.setHtml(
             """
-        <h3>LINAC Log Analysis System</h3>
+        <h3>HALog — Visualize. Analyze. Optimize.</h3>
         <p>HALog is a professional desktop application designed for monitoring and analyzing 
-        machine log, water system parameters from Linear Accelerator (LINAC) medical devices.</p>
+        machine log, water system parameters from Linear Accelerator (LINAC) medical devices. 
+        Our mission is to help you visualize complex data, analyze performance patterns, and 
+        optimize system operations.</p>
         
-        <h4>Key Capabilities:</h4>
+        <h4>Key Features:</h4>
         <ul>
-            <li><b>Advanced Log Parsing:</b> Intelligent parsing of complex LINAC log files with 
-            unified parameter mapping</li>
-            <li><b>Real-time Analysis:</b> Comprehensive statistical analysis and anomaly detection</li>
-            <li><b>Professional Visualization:</b> Interactive trend charts and data visualization</li>
+            <li><b>Smart Anomaly Detection:</b> Intelligent filtering showing only data points with 
+            >2% deviation from baseline</li>
+            <li><b>Advanced Log Parsing:</b> Unified parameter mapping for complex LINAC log files</li>
+            <li><b>Real-time Visualization:</b> Interactive trend charts with all 13 parameters</li>
+            <li><b>Performance Optimization:</b> Fast data processing with intelligent caching</li>
             <li><b>Data Quality Assessment:</b> Automated quality scoring and validation</li>
         </ul>
         
         <h4>Developer Information:</h4>
         <p><b>Lead Developer:</b> Tanmay Pandey</p>
-        <p><b>Company:</b> gobioeng.com</p>
+        <p><b>Organization:</b> <a href="https://www.gobioeng.com">www.gobioeng.com</a></p>
         <p>Tanmay Pandey specializes in biomedical engineering solutions, providing innovative 
         software tools for LINAC and other medical device troubleshooting and monitoring.
-        Explore biomedical engineering resources, news, career opportunities, and expert
-        insights for students, educators, and job seekers.</p>
+        Visit gobioeng.com to explore biomedical engineering resources, news, career opportunities, 
+        and expert insights for students, educators, and job seekers.</p>
         
-        <p><b>Website:</b> <a href="https://www.gobioeng.com">gobioeng.com</a></p>
+        <p><b>Website:</b> <a href="https://www.gobioeng.com">www.gobioeng.com</a></p>
         <p><b>Support:</b> For technical support and inquiries, please visit our website.</p>
         
         <hr>

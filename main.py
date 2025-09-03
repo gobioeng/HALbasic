@@ -223,7 +223,7 @@ class HALogApp:
         painter.setFont(font)
         app_name_rect = QtCore.QRect(200, 50, 280, 40)  # Moved to avoid overlap
         painter.drawText(
-            app_name_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, "HALog"
+            app_name_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, "HALog — Visualize. Analyze. Optimize."
         )
 
         # Professional Typography - Secondary Text (adjusted font size)
@@ -416,7 +416,7 @@ class HALogApp:
 
                 # SECOND: Set window properties
                 self.setWindowTitle(
-                    f"HALog {APP_VERSION} • Professional LINAC Monitor • gobioeng.com"
+                    f"HALog — Visualize. Analyze. Optimize. • v{APP_VERSION} • gobioeng.com"
                 )
                 if app_icon:
                     self.setWindowIcon(app_icon)
@@ -1357,6 +1357,45 @@ class HALogApp:
                 except Exception as e:
                     return pd.DataFrame()
 
+            def _filter_anomalies(self, df, param_col, deviation_threshold=0.02):
+                """Filter data to show only anomalies (values that deviate from baseline by specified threshold)"""
+                try:
+                    if df.empty or 'avg' not in df.columns:
+                        return df
+                    
+                    anomalies_list = []
+                    
+                    # Group by parameter for baseline calculation
+                    for param in df[param_col].unique():
+                        param_data = df[df[param_col] == param].copy()
+                        
+                        if len(param_data) < 3:  # Need at least 3 points for meaningful baseline
+                            continue
+                            
+                        # Calculate baseline (mean of all values for this parameter)
+                        baseline = param_data['avg'].mean()
+                        
+                        # Calculate deviation percentage from baseline
+                        param_data['deviation_pct'] = abs((param_data['avg'] - baseline) / baseline)
+                        
+                        # Filter for anomalies (deviation > threshold)
+                        anomalies = param_data[param_data['deviation_pct'] > deviation_threshold]
+                        
+                        if not anomalies.empty:
+                            anomalies_list.append(anomalies)
+                    
+                    if anomalies_list:
+                        result_df = pd.concat(anomalies_list, ignore_index=True)
+                        print(f"🔍 Found {len(result_df)} anomalous data points (>{deviation_threshold*100}% deviation)")
+                        return result_df
+                    else:
+                        print(f"🔍 No anomalies found with >{deviation_threshold*100}% deviation threshold")
+                        return pd.DataFrame()
+                        
+                except Exception as e:
+                    print(f"❌ Error filtering anomalies: {e}")
+                    return df
+
             def refresh_latest_mpc(self):
                 """Load and display MPC results from database with single date selection"""
                 try:
@@ -2278,10 +2317,24 @@ Source: {result.get('source', 'unknown')} database
                             self.ui.lblTableInfo.setText("No parameter column found")
                             return
 
-                        # Sort by parameter name, then by datetime (newest first) - expensive operation
-                        print("📋 Sorting data for table display...")
-                        df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
-                        display_df = df_sorted.iloc[:page_size]
+                        # Filter for anomalies and recent data (last week only)
+                        print("📋 Filtering for anomalies and recent data...")
+                        from datetime import datetime, timedelta
+                        
+                        # Filter for last week data only
+                        one_week_ago = datetime.now() - timedelta(days=7)
+                        recent_df = self.df[pd.to_datetime(self.df['datetime']) >= one_week_ago]
+                        
+                        # Filter for anomalies (2% deviation from baseline/avg)
+                        anomaly_df = self._filter_anomalies(recent_df, param_col, deviation_threshold=0.02)
+                        
+                        # Sort by parameter name, then by datetime (newest first)
+                        print("📋 Sorting anomaly data for table display...")
+                        df_sorted = anomaly_df.sort_values([param_col, 'datetime'], ascending=[True, False])
+                        
+                        # Limit to max 520 data points as requested
+                        max_points = min(520, len(df_sorted))
+                        display_df = df_sorted.iloc[:max_points]
                         
                         # Cache the sorted result
                         if not hasattr(self, '_data_cache'):
@@ -2423,17 +2476,17 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.tableData.resizeColumnsToContents()
                         self._last_column_resize = time.time()
 
-                    # Update info label
+                    # Update info label to reflect anomaly filtering
                     total_records = len(self.df)
                     showing_records = len(display_df)
                     unique_params = self.df[param_col].nunique()
 
                     self.ui.lblTableInfo.setText(
-                        f"Showing {showing_records:,} of {total_records:,} records | "
-                        f"Unique Parameters: {unique_params} | Sorted by parameter name, then date"
+                        f"Showing {showing_records:,} anomalies (>2% deviation) from last week | "
+                        f"Total Records: {total_records:,} | Unique Parameters: {unique_params}"
                     )
 
-                    print(f"✓ Data table updated: {showing_records:,} records displayed with {unique_params} unique parameters")
+                    print(f"✓ Data table updated: {showing_records:,} anomaly records displayed (max 520) with {unique_params} unique parameters")
 
                 except Exception as e:
                     print(f"Error updating data table: {e}")
