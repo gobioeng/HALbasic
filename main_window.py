@@ -24,7 +24,7 @@ from PyQt5.QtGui import QKeySequence
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setWindowTitle("HALog • Professional LINAC Log Analysis Suite")
+        MainWindow.setWindowTitle("HALog • Professional LINAC Monitor")
         MainWindow.resize(1400, 900)
         MainWindow.setMinimumSize(1000, 700)
 
@@ -392,7 +392,7 @@ class Ui_MainWindow(object):
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        header_label = QLabel("<h2>LINAC Log Analysis Suite</h2>")
+        header_label = QLabel("<h2>LINAC Water System Monitor</h2>")
         header_label.setAlignment(Qt.AlignCenter)
         header_label.setWordWrap(True)
         layout.addWidget(header_label)
@@ -1242,24 +1242,11 @@ class Ui_MainWindow(object):
         results_layout = QVBoxLayout(results_group)
         results_layout.setContentsMargins(16, 16, 16, 16)
 
-        # Combined Fault Results and Description - Single optimized text area
         self.txtFaultResult = QTextEdit()
         self.txtFaultResult.setReadOnly(True)
-        self.txtFaultResult.setMinimumHeight(200)  # Slightly larger to accommodate combined content
-        self.txtFaultResult.setPlaceholderText("Search results and fault descriptions will appear here...")
-        self.txtFaultResult.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                padding: 8px;
-                background-color: white;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 12px;
-            }
-        """)
+        self.txtFaultResult.setMinimumHeight(150)
+        self.txtFaultResult.setPlaceholderText("Search results will appear here...")
         results_layout.addWidget(self.txtFaultResult)
-<<<<<<< HEAD
-=======
 
         # Add HAL and TB Description text boxes
         descriptions_layout = QHBoxLayout()
@@ -1291,7 +1278,6 @@ class Ui_MainWindow(object):
         descriptions_layout.addWidget(tb_group)
         
         results_layout.addLayout(descriptions_layout)
->>>>>>> parent of 9f2a620 (Merge pull request #4 from gobioeng/copilot/fix-1391bda7-5a3d-4358-a1b8-82b769060160)
         
         # Add User Notes section
         notes_group = QGroupBox("User Notes")
@@ -1361,7 +1347,7 @@ class Ui_MainWindow(object):
 
         app_info = QLabel(
             "<h2>Gobioeng HALog 0.0.1 beta</h2>"
-            "<p>A professional LINAC log analysis application</p>"
+            "<p>A professional LINAC water system monitoring application</p>"
             "<p>Developed by <b>gobioeng.com</b></p>"
             "<p><a href='https://gobioeng.com'>gobioeng.com</a></p>"
             "<p>© 2025 Gobioeng. All rights reserved.</p>"

@@ -159,9 +159,9 @@ class AboutDialog(QDialog):
         description = QTextBrowser()
         description.setHtml(
             """
-        <h3>LINAC Log Analysis Suite</h3>
+        <h3>LINAC Log Analysis System</h3>
         <p>HALog is a professional desktop application designed for monitoring and analyzing 
-        machine log parameters from Linear Accelerator (LINAC) medical devices.</p>
+        machine log, water system parameters from Linear Accelerator (LINAC) medical devices.</p>
         
         <h4>Key Capabilities:</h4>
         <ul>

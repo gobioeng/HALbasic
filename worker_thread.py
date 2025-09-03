@@ -1,17 +1,12 @@
-from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QMutexLocker
+from PyQt5.QtCore import QThread, pyqtSignal
 from unified_parser import UnifiedParser
 from database import DatabaseManager
 import os
 import json
-import time
-import logging
 
 
 class FileProcessingWorker(QThread):
-    """
-    Professional background worker thread for processing large LINAC log files
-    Includes fail-safe mechanisms and proper cleanup procedures
-    """
+    """Background worker thread for processing large LINAC log files"""
 
     # Signals for communication with main thread
     progress_update = pyqtSignal(
@@ -20,7 +15,6 @@ class FileProcessingWorker(QThread):
     status_update = pyqtSignal(str)  # status message
     finished = pyqtSignal(int, dict)  # records_count, parsing_stats
     error = pyqtSignal(str)  # error message
-    cleanup_completed = pyqtSignal()  # cleanup finished signal
 
     def __init__(self, file_path: str, file_size: int, database: DatabaseManager):
         super().__init__()
@@ -29,9 +23,6 @@ class FileProcessingWorker(QThread):
         self.database = database
         self.parser = UnifiedParser()
         self._cancel_requested = False
-        self._cleanup_completed = False
-        self.mutex = QMutex()
-        self.logger = logging.getLogger(f"{__name__}.FileProcessingWorker")
         
         # Optimize chunk size based on file size
         if file_size > 100 * 1024 * 1024:  # > 100MB
@@ -42,17 +33,12 @@ class FileProcessingWorker(QThread):
             self.chunk_size = 1000  # Default chunk size
 
     def run(self):
-        """Main worker thread execution with enhanced error handling and cleanup"""
+        """Main worker thread execution"""
         try:
-            self.logger.info(f"Starting file processing: {self.file_path}")
             self.status_update.emit("Initializing parser...")
             self.progress_update.emit(
                 0, "Starting file processing...", 0, 0, 0, self.file_size
             )
-
-            # Check for cancellation before starting
-            if self._is_cancelled():
-                return
 
             # Parse file with chunked processing
             df = self.parser.parse_linac_file(
@@ -62,7 +48,7 @@ class FileProcessingWorker(QThread):
                 cancel_callback=self._cancel_callback,
             )
 
-            if self._is_cancelled():
+            if self._cancel_requested:
                 self.status_update.emit("Processing cancelled by user")
                 return
 
@@ -81,10 +67,6 @@ class FileProcessingWorker(QThread):
                 self.file_size,
             )
 
-            # Check for cancellation before database operations
-            if self._is_cancelled():
-                return
-
             # Insert data into database in optimized batches
             batch_size = min(1000, max(100, len(df) // 10))  # Dynamic batch size
             records_inserted = self.database.insert_data_batch(df, batch_size=batch_size)
@@ -100,70 +82,25 @@ class FileProcessingWorker(QThread):
             )
 
             # Final progress update
-            if not self._is_cancelled():
-                self.progress_update.emit(
-                    100,
-                    "Processing completed successfully!",
-                    self.parser.parsing_stats["lines_processed"],
-                    self.parser.parsing_stats["lines_processed"],
-                    self.file_size,
-                    self.file_size,
-                )
+            self.progress_update.emit(
+                100,
+                "Processing completed successfully!",
+                self.parser.parsing_stats["lines_processed"],
+                self.parser.parsing_stats["lines_processed"],
+                self.file_size,
+                self.file_size,
+            )
 
-                # Emit completion signal
-                self.finished.emit(records_inserted, self.parser.get_parsing_stats())
-                self.logger.info(f"File processing completed successfully: {records_inserted} records")
+            # Emit completion signal
+            self.finished.emit(records_inserted, self.parser.get_parsing_stats())
 
         except Exception as e:
             error_msg = f"Error processing file: {str(e)}"
-            self.logger.error(error_msg)
             self.error.emit(error_msg)
-        finally:
-            self._perform_cleanup()
-
-    def _is_cancelled(self) -> bool:
-        """Thread-safe check for cancellation"""
-        with QMutexLocker(self.mutex):
-            return self._cancel_requested
-
-    def _perform_cleanup(self):
-        """Perform thread cleanup operations"""
-        try:
-            with QMutexLocker(self.mutex):
-                if self._cleanup_completed:
-                    return
-                self._cleanup_completed = True
-            
-            self.logger.info("Performing thread cleanup")
-            
-            # Close any open file handles in parser
-            if hasattr(self.parser, 'cleanup'):
-                self.parser.cleanup()
-            
-            # Clear large data structures
-            if hasattr(self, 'parser'):
-                self.parser = None
-            
-            self.cleanup_completed.emit()
-            self.logger.info("Thread cleanup completed")
-            
-        except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
-
-    def cancel_processing(self):
-        """Request cancellation of processing with improved safety"""
-        with QMutexLocker(self.mutex):
-            self._cancel_requested = True
-        
-        self.status_update.emit("Cancelling processing...")
-        self.logger.info("Processing cancellation requested")
-        
-        # Don't use terminate() - let the thread finish gracefully
-        # The run() method will check _cancel_requested and exit cleanly
 
     def _progress_callback(self, percentage: float, message: str):
         """Handle progress updates from parser"""
-        if self._is_cancelled():
+        if self._cancel_requested:
             return
 
         # Calculate estimated lines and bytes processed
@@ -187,194 +124,96 @@ class FileProcessingWorker(QThread):
 
     def _cancel_callback(self) -> bool:
         """Check if cancellation was requested"""
-        return self._is_cancelled()
+        return self._cancel_requested
 
     def cancel_processing(self):
-        """Request cancellation of processing with improved safety"""
-        with QMutexLocker(self.mutex):
-            self._cancel_requested = True
-        
+        """Request cancellation of processing"""
+        self._cancel_requested = True
         self.status_update.emit("Cancelling processing...")
-        self.logger.info("Processing cancellation requested")
-        
-        # Don't use terminate() - let the thread finish gracefully
-        # The run() method will check _cancel_requested and exit cleanly
+
+        # Terminate thread if it's still running
+        if self.isRunning():
+            self.terminate()
+            self.wait(5000)  # Wait up to 5 seconds for clean termination
 
 
 class AnalysisWorker(QThread):
-    """
-    Professional background worker for data analysis operations
-    Includes fail-safe mechanisms and proper cleanup procedures
-    """
+    """Background worker for data analysis operations"""
 
     analysis_progress = pyqtSignal(int, str)  # percentage, message
     analysis_finished = pyqtSignal(dict)  # results dictionary
     analysis_error = pyqtSignal(str)  # error message
-    cleanup_completed = pyqtSignal()  # cleanup finished signal
 
     def __init__(self, data_analyzer, dataframe):
         super().__init__()
         self.analyzer = data_analyzer
         self.df = dataframe
         self._cancel_requested = False
-        self._cleanup_completed = False
-        self.mutex = QMutex()
-        self.logger = logging.getLogger(f"{__name__}.AnalysisWorker")
 
     def run(self):
-        """Run comprehensive data analysis in background with enhanced error handling"""
+        """Run comprehensive data analysis in background"""
         try:
-            self.logger.info("Starting data analysis")
             results = {}
 
             # Step 1: Calculate comprehensive statistics
-            if not self._is_cancelled():
-                self.analysis_progress.emit(25, "Calculating comprehensive statistics...")
+            self.analysis_progress.emit(25, "Calculating comprehensive statistics...")
+            if not self._cancel_requested:
                 results["statistics"] = (
                     self.analyzer.calculate_comprehensive_statistics(self.df)
                 )
 
             # Step 2: Detect anomalies
-            if not self._is_cancelled():
-                self.analysis_progress.emit(50, "Detecting anomalies...")
+            self.analysis_progress.emit(50, "Detecting anomalies...")
+            if not self._cancel_requested:
                 results["anomalies"] = self.analyzer.detect_advanced_anomalies(self.df)
 
             # Step 3: Calculate trends
-            if not self._is_cancelled():
-                self.analysis_progress.emit(75, "Analyzing trends...")
+            self.analysis_progress.emit(75, "Analyzing trends...")
+            if not self._cancel_requested:
                 results["trends"] = self.analyzer.calculate_advanced_trends(self.df)
 
             # Step 4: Complete
-            if not self._is_cancelled():
-                self.analysis_progress.emit(100, "Analysis completed!")
+            self.analysis_progress.emit(100, "Analysis completed!")
+            if not self._cancel_requested:
                 self.analysis_finished.emit(results)
-                self.logger.info("Data analysis completed successfully")
 
         except Exception as e:
-            error_msg = f"Analysis error: {str(e)}"
-            self.logger.error(error_msg)
-            self.analysis_error.emit(error_msg)
-        finally:
-            self._perform_cleanup()
-
-    def _is_cancelled(self) -> bool:
-        """Thread-safe check for cancellation"""
-        with QMutexLocker(self.mutex):
-            return self._cancel_requested
-
-    def _perform_cleanup(self):
-        """Perform thread cleanup operations"""
-        try:
-            with QMutexLocker(self.mutex):
-                if self._cleanup_completed:
-                    return
-                self._cleanup_completed = True
-            
-            self.logger.info("Performing analysis thread cleanup")
-            
-            # Clear references to large data structures
-            if hasattr(self, 'df'):
-                self.df = None
-            if hasattr(self, 'analyzer'):
-                self.analyzer = None
-            
-            self.cleanup_completed.emit()
-            self.logger.info("Analysis thread cleanup completed")
-            
-        except Exception as e:
-            self.logger.error(f"Error during analysis cleanup: {e}")
+            self.analysis_error.emit(f"Analysis error: {str(e)}")
 
     def cancel_analysis(self):
-        """Cancel the analysis operation safely"""
-        with QMutexLocker(self.mutex):
-            self._cancel_requested = True
-        
-        self.logger.info("Analysis cancellation requested")
+        """Cancel the analysis operation"""
+        self._cancel_requested = True
 
 
 class DatabaseWorker(QThread):
-    """
-    Professional background worker for database operations
-    Includes fail-safe mechanisms and proper cleanup procedures
-    """
+    """Background worker for database operations"""
 
     db_progress = pyqtSignal(int, str)  # percentage, message
     db_finished = pyqtSignal(bool, str)  # success, message
-    cleanup_completed = pyqtSignal()  # cleanup finished signal
 
     def __init__(self, database: DatabaseManager, operation: str, **kwargs):
         super().__init__()
         self.database = database
         self.operation = operation
         self.kwargs = kwargs
-        self._cancel_requested = False
-        self._cleanup_completed = False
-        self.mutex = QMutex()
-        self.logger = logging.getLogger(f"{__name__}.DatabaseWorker")
 
     def run(self):
-        """Execute database operation in background with enhanced error handling"""
+        """Execute database operation in background"""
         try:
-            self.logger.info(f"Starting database operation: {self.operation}")
-            
-            if self._is_cancelled():
-                return
-
             if self.operation == "clear_all":
                 self.db_progress.emit(50, "Clearing database...")
                 self.database.clear_all()
                 self.db_progress.emit(100, "Database cleared successfully")
-                if not self._is_cancelled():
-                    self.db_finished.emit(True, "Database cleared successfully")
+                self.db_finished.emit(True, "Database cleared successfully")
 
             elif self.operation == "vacuum":
                 self.db_progress.emit(50, "Optimizing database...")
                 self.database.vacuum_database()
                 self.db_progress.emit(100, "Database optimized")
-                if not self._is_cancelled():
-                    self.db_finished.emit(True, "Database optimized successfully")
+                self.db_finished.emit(True, "Database optimized successfully")
 
             else:
-                if not self._is_cancelled():
-                    self.db_finished.emit(False, f"Unknown operation: {self.operation}")
-
-            self.logger.info(f"Database operation completed: {self.operation}")
+                self.db_finished.emit(False, f"Unknown operation: {self.operation}")
 
         except Exception as e:
-            error_msg = f"Database operation failed: {str(e)}"
-            self.logger.error(error_msg)
-            self.db_finished.emit(False, error_msg)
-        finally:
-            self._perform_cleanup()
-
-    def _is_cancelled(self) -> bool:
-        """Thread-safe check for cancellation"""
-        with QMutexLocker(self.mutex):
-            return self._cancel_requested
-
-    def _perform_cleanup(self):
-        """Perform thread cleanup operations"""
-        try:
-            with QMutexLocker(self.mutex):
-                if self._cleanup_completed:
-                    return
-                self._cleanup_completed = True
-            
-            self.logger.info("Performing database thread cleanup")
-            
-            # Clear references
-            if hasattr(self, 'database'):
-                self.database = None
-            
-            self.cleanup_completed.emit()
-            self.logger.info("Database thread cleanup completed")
-            
-        except Exception as e:
-            self.logger.error(f"Error during database cleanup: {e}")
-
-    def cancel_operation(self):
-        """Cancel the database operation safely"""
-        with QMutexLocker(self.mutex):
-            self._cancel_requested = True
-        
-        self.logger.info("Database operation cancellation requested")
+            self.db_finished.emit(False, f"Database operation failed: {str(e)}")

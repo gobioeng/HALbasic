@@ -1,253 +1,236 @@
-#!/usr/bin/env python3
 """
-Simple test for HALbasic threading improvements
-Tests startup and basic thread safety without full GUI
-
-Author: gobioeng.com
-Date: 2025-01-20
+Comprehensive integration test for the fault notes feature
+Tests the complete workflow that would happen in the GUI
 """
 
-import sys
 import os
-import time
+import sys
 import tempfile
 
-# Add the project directory to path
+# Add the project directory to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def test_imports():
-    """Test that all our new modules can be imported"""
-    print("Testing imports...")
-    
-    try:
-        from thread_manager import ThreadManager, ThreadState
-        print("✓ ThreadManager imported successfully")
-    except Exception as e:
-        print(f"✗ ThreadManager import failed: {e}")
-        return False
-    
-    try:
-        from app_state_manager import AppStateManager, ApplicationState
-        print("✓ AppStateManager imported successfully")
-    except Exception as e:
-        print("✗ AppStateManager import failed: {e}")
-        return False
-    
-    try:
-        from worker_thread import FileProcessingWorker, AnalysisWorker, DatabaseWorker
-        print("✓ Enhanced worker threads imported successfully")
-    except Exception as e:
-        print(f"✗ Worker threads import failed: {e}")
-        return False
-    
-    return True
+from fault_notes_manager import FaultNotesManager
+from unified_parser import UnifiedParser
 
-def test_app_state_manager():
-    """Test AppStateManager without GUI"""
-    print("\nTesting AppStateManager...")
+
+def test_complete_workflow():
+    """Test the complete fault search and notes workflow"""
+    print("🧪 Comprehensive Fault Notes Integration Test")
+    print("=" * 60)
+    
+    # Use a temporary file for testing
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp_file:
+        temp_notes_path = temp_file.name
     
     try:
-        from app_state_manager import AppStateManager, ApplicationState
+        # 1. Initialize components (simulates application startup)
+        print("1️⃣  Initializing components...")
+        fault_parser = UnifiedParser()
+        notes_manager = FaultNotesManager(temp_notes_path)
         
-        # Create state manager
-        state_manager = AppStateManager("TestApp")
+        # 2. Load fault databases (simulates what happens in main.py)
+        print("2️⃣  Loading fault databases...")
+        hal_fault_path = os.path.join(os.path.dirname(__file__), 'data', 'HALfault.txt')
+        tb_fault_path = os.path.join(os.path.dirname(__file__), 'data', 'TBFault.txt')
         
-        # Test state management
-        state_manager.set_state(ApplicationState.BUSY, "Testing")
-        assert state_manager.get_state() == ApplicationState.BUSY
-        assert state_manager.is_busy()
-        print("✓ State management working")
+        if os.path.exists(hal_fault_path):
+            hal_loaded = fault_parser.load_fault_codes_from_file(hal_fault_path, 'hal')
+            print(f"   ✓ HAL fault codes: {'loaded' if hal_loaded else 'failed'}")
         
-        # Test user data
-        test_data = {"test_key": "test_value", "number": 42}
-        state_manager.set_user_data("test", test_data)
-        retrieved = state_manager.get_user_data("test")
-        assert retrieved == test_data
-        print("✓ User data storage working")
+        if os.path.exists(tb_fault_path):
+            tb_loaded = fault_parser.load_fault_codes_from_file(tb_fault_path, 'tb')
+            print(f"   ✓ TB fault codes: {'loaded' if tb_loaded else 'failed'}")
         
-        # Test crash recording
-        state_manager.record_crash("Test crash")
-        crash_info = state_manager.get_crash_info()
-        assert crash_info['crash_count'] == 1
-        assert crash_info['last_crash_reason'] == "Test crash"
-        print("✓ Crash recording working")
+        # 3. Test fault search workflow (simulates user interaction)
+        print("3️⃣  Testing fault search workflow...")
+        test_fault_code = "400027"
         
-        # Test checkpoint
-        state_manager.create_checkpoint("test_checkpoint", {"important": "data"})
-        restored = state_manager.restore_checkpoint("test_checkpoint")
-        assert restored == {"important": "data"}
-        print("✓ Checkpoint system working")
+        # Simulate user entering fault code and clicking search
+        print(f"   🔍 User searches for fault code: {test_fault_code}")
+        search_result = fault_parser.search_fault_code(test_fault_code)
         
-        # Clean shutdown
-        state_manager.shutdown_gracefully()
-        print("✓ Graceful shutdown working")
-        
-        return True
-        
-    except Exception as e:
-        print(f"✗ AppStateManager test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def test_database_integration():
-    """Test database integration with enhanced error handling"""
-    print("\nTesting database integration...")
-    
-    try:
-        from database import DatabaseManager
-        
-        # Create temporary database
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
-        
-        try:
-            # Test database creation
-            db = DatabaseManager(db_path)
-            print("✓ Database created successfully")
+        if search_result['found']:
+            print(f"   ✅ Fault found in {search_result.get('database_description', 'Unknown')} database")
+            print(f"   📝 Description: {search_result['description'][:60]}...")
             
-            # Test basic operations
-            record_count = db.get_record_count()
-            print(f"✓ Database record count: {record_count}")
-            
-            # Test anomaly operations
-            anomaly_count = db.get_anomaly_count()
-            print(f"✓ Database anomaly count: {anomaly_count}")
-            
-            return True
-            
-        finally:
-            # Clean up
-            try:
-                os.unlink(db_path)
-            except:
-                pass
-        
-    except Exception as e:
-        print(f"✗ Database test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def test_worker_thread_classes():
-    """Test that worker thread classes can be instantiated"""
-    print("\nTesting worker thread classes...")
-    
-    try:
-        from worker_thread import FileProcessingWorker, AnalysisWorker, DatabaseWorker
-        from database import DatabaseManager
-        import pandas as pd
-        
-        # Create temporary database for testing
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
-        
-        try:
-            db = DatabaseManager(db_path)
-            
-            # Test FileProcessingWorker creation
-            file_worker = FileProcessingWorker("/tmp/test.txt", 1024, db)
-            assert hasattr(file_worker, '_cancel_requested')
-            assert hasattr(file_worker, 'cleanup_completed')
-            print("✓ FileProcessingWorker enhanced")
-            
-            # Test AnalysisWorker creation (mock analyzer and dataframe)
-            mock_analyzer = type('MockAnalyzer', (), {})()
-            mock_df = pd.DataFrame()
-            analysis_worker = AnalysisWorker(mock_analyzer, mock_df)
-            assert hasattr(analysis_worker, '_cancel_requested')
-            assert hasattr(analysis_worker, 'cleanup_completed')
-            print("✓ AnalysisWorker enhanced")
-            
-            # Test DatabaseWorker creation
-            db_worker = DatabaseWorker(db, "vacuum")
-            assert hasattr(db_worker, '_cancel_requested')
-            assert hasattr(db_worker, 'cleanup_completed')
-            print("✓ DatabaseWorker enhanced")
-            
-            return True
-            
-        finally:
-            try:
-                os.unlink(db_path)
-            except:
-                pass
-        
-    except Exception as e:
-        print(f"✗ Worker thread test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def test_main_app_imports():
-    """Test that main.py can import our new modules"""
-    print("\nTesting main application integration...")
-    
-    try:
-        # Import main components to verify integration
-        import main
-        print("✓ Main module imported successfully")
-        
-        # Check that HALogApp has our new attributes
-        app = main.HALogApp()
-        assert hasattr(app, 'thread_manager')
-        assert hasattr(app, 'app_state_manager')
-        assert hasattr(app, '_shutdown_in_progress')
-        print("✓ HALogApp has thread management attributes")
-        
-        # Check that our new methods exist
-        assert hasattr(app, '_initialize_thread_management')
-        assert hasattr(app, '_handle_crash_detected')
-        assert hasattr(app, '_complete_shutdown')
-        print("✓ HALogApp has thread management methods")
-        
-        return True
-        
-    except Exception as e:
-        print(f"✗ Main app integration test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-def run_all_tests():
-    """Run all non-GUI tests"""
-    print("🧪 Running HALbasic Thread Safety Tests (Non-GUI)")
-    print("=" * 50)
-    
-    tests = [
-        ("Import Test", test_imports),
-        ("AppStateManager Test", test_app_state_manager),
-        ("Database Integration Test", test_database_integration),
-        ("Worker Thread Classes Test", test_worker_thread_classes),
-        ("Main App Integration Test", test_main_app_imports),
-    ]
-    
-    passed = 0
-    total = len(tests)
-    
-    for test_name, test_func in tests:
-        print(f"\n📋 {test_name}")
-        print("-" * 30)
-        
-        try:
-            if test_func():
-                print(f"✅ {test_name} PASSED")
-                passed += 1
+            # Simulate loading existing note (happens automatically in real app)
+            existing_note = notes_manager.get_note(test_fault_code)
+            if existing_note:
+                print(f"   📌 Existing note loaded: {existing_note['note'][:40]}...")
             else:
-                print(f"❌ {test_name} FAILED")
-        except Exception as e:
-            print(f"❌ {test_name} FAILED with exception: {e}")
-    
-    print("\n" + "=" * 50)
-    print(f"📊 Test Results: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("🎉 All tests passed! Thread safety improvements working correctly.")
+                print(f"   📌 No existing note for this fault code")
+                
+        else:
+            print(f"   ❌ Fault code not found")
+            return False
+        
+        # 4. Test saving a note (simulates user typing and clicking Save)
+        print("4️⃣  Testing note saving...")
+        user_note = """Network socket creation failure during COL subsystem initialization.
+        
+        Resolution: Restarted network services and COL subsystem. 
+        Root cause: Temporary network configuration conflict.
+        Follow-up: Monitor for recurrence during next startup."""
+        
+        print(f"   ✍️  User types note (length: {len(user_note)} characters)")
+        print(f"   💾 User clicks 'Save Note'...")
+        
+        # Simulate save_fault_note() function
+        if not test_fault_code:
+            print("   ❌ Validation failed: No fault code selected")
+            return False
+        
+        if not user_note.strip():
+            print("   ❌ Validation failed: Empty note")
+            return False
+        
+        save_success = notes_manager.save_note(test_fault_code, user_note, "TestUser")
+        if save_success:
+            print("   ✅ Note saved successfully")
+        else:
+            print("   ❌ Failed to save note")
+            return False
+        
+        # 5. Test note retrieval (simulates searching for same fault again)
+        print("5️⃣  Testing note retrieval...")
+        print(f"   🔍 User searches for {test_fault_code} again...")
+        
+        # Simulate _load_fault_note() function
+        loaded_note = notes_manager.get_note(test_fault_code)
+        if loaded_note:
+            print(f"   ✅ Note automatically loaded")
+            print(f"   📝 Note content: {loaded_note['note'][:50]}...")
+            print(f"   👤 Author: {loaded_note.get('author', 'Unknown')}")
+            print(f"   📅 Last modified: {loaded_note.get('last_modified', 'Unknown')}")
+        else:
+            print("   ❌ Failed to load note")
+            return False
+        
+        # 6. Test note updating (simulates user editing and saving again)
+        print("6️⃣  Testing note updating...")
+        updated_note = user_note + "\n\nUPDATE: No recurrence observed after 24 hours."
+        
+        print(f"   ✏️  User updates note...")
+        print(f"   💾 User clicks 'Save Note' again...")
+        
+        update_success = notes_manager.save_note(test_fault_code, updated_note, "TestUser")
+        if update_success:
+            print("   ✅ Note updated successfully")
+            
+            # Verify the update
+            updated_loaded = notes_manager.get_note(test_fault_code)
+            if updated_loaded and "UPDATE:" in updated_loaded['note']:
+                print("   ✅ Update verified in retrieved note")
+            else:
+                print("   ❌ Update not found in retrieved note")
+                return False
+        else:
+            print("   ❌ Failed to update note")
+            return False
+        
+        # 7. Test note clearing (simulates user clicking Clear Note)
+        print("7️⃣  Testing note clearing...")
+        print(f"   🗑️  User clicks 'Clear Note'...")
+        print(f"   ❓ User confirms deletion...")
+        
+        # Simulate clear_fault_note() function
+        clear_success = notes_manager.delete_note(test_fault_code)
+        if clear_success:
+            print("   ✅ Note cleared successfully")
+            
+            # Verify deletion
+            deleted_check = notes_manager.get_note(test_fault_code)
+            if deleted_check is None:
+                print("   ✅ Deletion verified - note no longer exists")
+            else:
+                print("   ❌ Note still exists after deletion")
+                return False
+        else:
+            print("   ❌ Failed to clear note")
+            return False
+        
+        # 8. Test persistence across sessions (simulates app restart)
+        print("8️⃣  Testing persistence across sessions...")
+        
+        # Save a new note
+        session_test_note = "Persistence test note - should survive app restart"
+        notes_manager.save_note(test_fault_code, session_test_note, "PersistenceTest")
+        
+        # Create a new manager instance (simulates app restart)
+        print("   🔄 Simulating application restart...")
+        new_manager = FaultNotesManager(temp_notes_path)
+        
+        # Try to retrieve the note
+        persisted_note = new_manager.get_note(test_fault_code)
+        if persisted_note and "Persistence test" in persisted_note['note']:
+            print("   ✅ Note persistence verified across sessions")
+        else:
+            print("   ❌ Note did not persist across sessions")
+            return False
+        
+        # 9. Test with multiple fault codes
+        print("9️⃣  Testing multiple fault codes...")
+        
+        multiple_codes = ["251330", "313211", "400001"]
+        for i, code in enumerate(multiple_codes):
+            search_result = fault_parser.search_fault_code(code)
+            if search_result['found']:
+                note_text = f"Test note #{i+1} for fault code {code}"
+                new_manager.save_note(code, note_text, f"TestUser{i+1}")
+                print(f"   ✅ Note saved for {code}")
+            else:
+                print(f"   ⚠️  Fault code {code} not found, skipping")
+        
+        # Verify all notes
+        all_notes = new_manager.get_all_notes()
+        print(f"   📊 Total notes in system: {len(all_notes)}")
+        
+        # 10. Final verification
+        print("🔟 Final verification...")
+        
+        # Test statistics
+        total_notes = new_manager.get_notes_count()
+        print(f"   📈 Notes count: {total_notes}")
+        
+        # Test file existence
+        if os.path.exists(temp_notes_path):
+            print(f"   💾 Notes file exists: {temp_notes_path}")
+            with open(temp_notes_path, 'r') as f:
+                import json
+                file_data = json.load(f)
+                print(f"   📁 File contains {len(file_data)} note entries")
+        else:
+            print("   ❌ Notes file does not exist")
+            return False
+        
+        print("\n🎉 ALL TESTS PASSED! Fault notes feature is fully functional.")
+        print("\n📋 FUNCTIONALITY VERIFIED:")
+        print("   ✅ Fault code search integration")
+        print("   ✅ Note saving with validation")
+        print("   ✅ Note loading and display")
+        print("   ✅ Note updating")
+        print("   ✅ Note clearing with confirmation")
+        print("   ✅ Persistence across application sessions")
+        print("   ✅ Multiple fault codes support")
+        print("   ✅ File-based storage")
+        print("   ✅ Metadata tracking (author, dates)")
+        
         return True
-    else:
-        print("⚠️ Some tests failed. Please check the implementation.")
+        
+    except Exception as e:
+        print(f"\n❌ Test failed with error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
+        
+    finally:
+        # Clean up test file
+        if os.path.exists(temp_notes_path):
+            os.unlink(temp_notes_path)
+
 
 if __name__ == "__main__":
-    success = run_all_tests()
+    success = test_complete_workflow()
+    print(f"\n{'🎯 INTEGRATION TEST SUCCESSFUL' if success else '💥 INTEGRATION TEST FAILED'}")
     sys.exit(0 if success else 1)

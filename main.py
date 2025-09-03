@@ -1,6 +1,6 @@
 """
 Gobioeng HALog 0.0.1 beta
-Professional LINAC Log Analysis Suite
+Professional LINAC Water System Monitor
 Company: gobioeng.com
 Created: 2025-08-20 22:58:39 UTC
 Updated: 2025-08-27 15:08:00 UTC
@@ -117,8 +117,8 @@ def test_icon_loading():
 
 class HALogApp:
     """
-    Gobioeng HALog Application with professional thread management and fail-safe mechanisms
-    Professional LINAC Log Analysis Suite - gobioeng.com
+    Gobioeng HALog Application with optimized startup
+    Professional LINAC Water System Monitor - gobioeng.com
     """
 
     def __init__(self):
@@ -131,11 +131,6 @@ class HALogApp:
         self.app_version = APP_VERSION
         self.status_label = None
         self.progress_bar = None
-        
-        # Professional thread and state management
-        self.thread_manager = None
-        self.app_state_manager = None
-        self._shutdown_in_progress = False
 
     def create_splash(self):
         """
@@ -177,9 +172,28 @@ class HALogApp:
             # Load with optimized size for splash screen (100px)
             logo_pixmap = load_splash_icon(100)
 
-            # Position icon directly on gray background without white card
-            icon_x = 50  # Simple positioning without card
-            icon_y = 50
+            # Create card-like container for icon
+            card_x = 30
+            card_y = 30
+            card_size = 140  # Smaller card for better proportion
+
+            # Draw elevation shadow
+            for i in range(6):  # Reduced shadow layers
+                shadow_color = QtGui.QColor(0, 0, 0, 15 - i * 2)
+                painter.setBrush(QtGui.QBrush(shadow_color))
+                painter.setPen(QtCore.Qt.NoPen)
+                painter.drawRoundedRect(
+                    card_x + i, card_y + i, card_size, card_size, 12, 12
+                )
+
+            # Draw card background
+            painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255, 250)))
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.drawRoundedRect(card_x, card_y, card_size, card_size, 12, 12)
+
+            # Position icon in center of card
+            icon_x = card_x + (card_size - logo_pixmap.width()) // 2
+            icon_y = card_y + (card_size - logo_pixmap.height()) // 2
 
             painter.drawPixmap(icon_x, icon_y, logo_pixmap)
 
@@ -192,8 +206,14 @@ class HALogApp:
 
             fallback_icon = generate_icon(100, high_quality=True, color="#1976D2")
 
-            # Position fallback icon directly without white background
-            icon_x, icon_y = 50, 50
+            # Draw card for fallback too
+            card_x, card_y, card_size = 30, 30, 140
+            painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255, 250)))
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.drawRoundedRect(card_x, card_y, card_size, card_size, 12, 12)
+
+            icon_x = card_x + (card_size - fallback_icon.width()) // 2
+            icon_y = card_y + (card_size - fallback_icon.height()) // 2
             painter.drawPixmap(icon_x, icon_y, fallback_icon)
             print("Using generated fallback icon")
 
@@ -225,7 +245,7 @@ class HALogApp:
         painter.drawText(
             tagline_rect,
             QtCore.Qt.AlignCenter,
-            "Professional LINAC Log Analysis Suite",
+            "Professional LINAC Water System Monitor",
         )
 
         # Professional Typography - Caption (Developer Credit) (adjusted font size)
@@ -341,74 +361,6 @@ class HALogApp:
         QtWidgets = lazy_import("PyQt5.QtWidgets")
         QtWidgets.QApplication.instance().processEvents()
 
-    def _initialize_thread_management(self):
-        """Initialize professional thread and state management"""
-        try:
-            # Initialize thread manager
-            from thread_manager import ThreadManager
-            self.thread_manager = ThreadManager()
-            
-            # Initialize application state manager
-            from app_state_manager import AppStateManager, ApplicationState
-            self.app_state_manager = AppStateManager("HALbasic")
-            
-            # Connect state manager signals
-            self.app_state_manager.crash_detected.connect(self._handle_crash_detected)
-            self.app_state_manager.recovery_completed.connect(self._handle_recovery_completed)
-            
-            # Connect thread manager signals
-            self.thread_manager.thread_error.connect(self._handle_thread_error)
-            self.thread_manager.thread_timeout.connect(self._handle_thread_timeout)
-            self.thread_manager.all_threads_finished.connect(self._handle_all_threads_finished)
-            
-            print("✓ Professional thread and state management initialized")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ Error initializing thread management: {e}")
-            # Continue without thread management as fallback
-            return False
-    
-    def _handle_crash_detected(self, reason: str):
-        """Handle application crash detection"""
-        print(f"🚨 Crash detected: {reason}")
-        if self.window and hasattr(self.window, 'show_crash_recovery_dialog'):
-            self.window.show_crash_recovery_dialog(reason)
-    
-    def _handle_recovery_completed(self, success: bool):
-        """Handle crash recovery completion"""
-        if success:
-            print("✓ Crash recovery completed successfully")
-        else:
-            print("⚠️ Crash recovery failed")
-    
-    def _handle_thread_error(self, thread_name: str, error_message: str):
-        """Handle thread errors"""
-        print(f"🔴 Thread error [{thread_name}]: {error_message}")
-        if self.app_state_manager:
-            self.app_state_manager.record_crash(f"Thread {thread_name}: {error_message}")
-    
-    def _handle_thread_timeout(self, thread_name: str):
-        """Handle thread timeouts"""
-        print(f"⏰ Thread timeout: {thread_name}")
-        if self.app_state_manager:
-            self.app_state_manager.record_crash(f"Thread timeout: {thread_name}")
-    
-    def _handle_all_threads_finished(self):
-        """Handle all threads finished signal"""
-        print("✓ All threads finished successfully")
-        if self._shutdown_in_progress:
-            self._complete_shutdown()
-
-    def _complete_shutdown(self):
-        """Complete the shutdown process"""
-        try:
-            if self.app_state_manager:
-                self.app_state_manager.shutdown_gracefully()
-            print("✓ Graceful shutdown completed")
-        except Exception as e:
-            print(f"⚠️ Error during final shutdown: {e}")
-
     def create_main_window(self):
         """Create professional main application window"""
         start_window = time.time()
@@ -452,7 +404,7 @@ class HALogApp:
         class HALogMaterialApp(QtWidgets.QMainWindow):
             """
             Main Gobioeng HALog Application Window
-            Professional LINAC Log Analysis Suite - gobioeng.com
+            Professional LINAC Log Analysis System - gobioeng.com
             """
 
             def __init__(self, parent=None):
@@ -464,7 +416,7 @@ class HALogApp:
 
                 # SECOND: Set window properties
                 self.setWindowTitle(
-                    f"HALog {APP_VERSION} • Professional LINAC Log Analysis Suite • gobioeng.com"
+                    f"HALog {APP_VERSION} • Professional LINAC Monitor • gobioeng.com"
                 )
                 if app_icon:
                     self.setWindowIcon(app_icon)
@@ -489,9 +441,6 @@ class HALogApp:
                     import pandas as pd
 
                     self.df = pd.DataFrame()
-
-                    # Initialize professional thread and state management
-                    self._initialize_thread_management()
 
                     # Initialize unified parser for fault codes and other data
                     from unified_parser import UnifiedParser
@@ -1014,14 +963,6 @@ class HALogApp:
                         print("⚠️ No database data available for trend controls")
                         return
 
-                    # Use cached parameters if available to improve reliability
-                    cache_key = "trend_params_cache"
-                    if hasattr(self, '_trend_params_cache') and cache_key in self._trend_params_cache:
-                        print("🚀 Using cached trend parameters for instant loading")
-                        cached_params = self._trend_params_cache[cache_key]
-                        self._populate_trend_dropdowns(cached_params)
-                        return
-
                     # Get unique serial numbers from database
                     if 'serial_number' in self.df.columns:
                         serial_numbers = sorted(list(set(self.df['serial_number'].astype(str).unique())))
@@ -1048,16 +989,65 @@ class HALogApp:
                     print(f"🔧 Initializing trend controls with {len(all_params)} parameters")
                     print(f"🔧 Sample parameters: {all_params[:5]}")
 
-                    # Categorize parameters more robustly
-                    categorized_params = self._categorize_parameters(all_params)
-                    
-                    # Cache the categorized parameters for future use
-                    if not hasattr(self, '_trend_params_cache'):
-                        self._trend_params_cache = {}
-                    self._trend_params_cache[cache_key] = categorized_params
-                    
-                    # Populate dropdowns
-                    self._populate_trend_dropdowns(categorized_params)
+                    # Since your data shows COL parameters, let's categorize them properly
+                    flow_params = []
+                    voltage_params = []
+                    temp_params = []
+                    humidity_params = []
+                    fan_params = []
+
+                    for param in all_params:
+                        param_str = str(param)
+                        param_lower = param_str.lower()
+
+                        # For COL parameters, categorize them as voltage by default
+                        if param_str.upper().startswith('COL'):
+                            voltage_params.append(param)
+                        elif any(keyword in param_lower for keyword in ['flow', 'pump', 'water', 'magnetron']):
+                            flow_params.append(param)
+                        elif any(keyword in param_lower for keyword in ['volt', '_v_', '24v', '48v', '5v', 'bank', 'adc']):
+                            voltage_params.append(param)
+                        elif any(keyword in param_lower for keyword in ['temp', 'temperature']):
+                            temp_params.append(param)
+                        elif any(keyword in param_lower for keyword in ['humidity', 'humid']):
+                            humidity_params.append(param)
+                        elif any(keyword in param_lower for keyword in ['fan', 'speed']):
+                            fan_params.append(param)
+                        else:
+                            # Default unknown parameters to voltage category for display
+                            voltage_params.append(param)
+
+                    # Populate dropdown controls with actual parameters
+                    dropdown_configs = [
+                        ('comboWaterTopGraph', flow_params),
+                        ('comboWaterBottomGraph', flow_params),
+                        ('comboVoltageTopGraph', voltage_params),
+                        ('comboVoltageBottomGraph', voltage_params),
+                        ('comboTempTopGraph', temp_params),
+                        ('comboTempBottomGraph', temp_params),
+                        ('comboHumidityTopGraph', humidity_params),
+                        ('comboHumidityBottomGraph', humidity_params),
+                        ('comboFanTopGraph', fan_params),
+                        ('comboFanBottomGraph', fan_params),
+                    ]
+
+                    for combo_name, params in dropdown_configs:
+                        if hasattr(self.ui, combo_name):
+                            combo = getattr(self.ui, combo_name)
+                            combo.clear()
+                            combo.addItem("Select parameter...")
+                            if params:
+                                # Use simplified names for display
+                                for param in params[:10]:  # Limit to first 10
+                                    display_name = self._get_display_name_for_param(param)
+                                    combo.addItem(display_name)
+
+                    print(f"✓ Trend controls populated:")
+                    print(f"  - Flow parameters: {len(flow_params)}")
+                    print(f"  - Voltage parameters: {len(voltage_params)}")
+                    print(f"  - Temperature parameters: {len(temp_params)}")
+                    print(f"  - Humidity parameters: {len(humidity_params)}")
+                    print(f"  - Fan parameters: {len(fan_params)}")
 
                     # Initialize default trend graphs after controls are setup
                     QtCore.QTimer.singleShot(200, self._initialize_default_trend_displays)
@@ -1066,80 +1056,6 @@ class HALogApp:
                     print(f"Error initializing trend controls: {e}")
                     import traceback
                     traceback.print_exc()
-
-            def _categorize_parameters(self, all_params):
-                """Categorize parameters into different types"""
-                flow_params = []
-                voltage_params = []
-                temp_params = []
-                humidity_params = []
-                fan_params = []
-
-                for param in all_params:
-                    param_str = str(param)
-                    param_lower = param_str.lower()
-
-                    # For COL parameters, categorize them as voltage by default
-                    if param_str.upper().startswith('COL'):
-                        voltage_params.append(param)
-                    elif any(keyword in param_lower for keyword in ['flow', 'pump', 'water', 'magnetron']):
-                        flow_params.append(param)
-                    elif any(keyword in param_lower for keyword in ['volt', '_v_', '24v', '48v', '5v', 'bank', 'adc']):
-                        voltage_params.append(param)
-                    elif any(keyword in param_lower for keyword in ['temp', 'temperature']):
-                        temp_params.append(param)
-                    elif any(keyword in param_lower for keyword in ['humidity', 'humid']):
-                        humidity_params.append(param)
-                    elif any(keyword in param_lower for keyword in ['fan', 'speed']):
-                        fan_params.append(param)
-                    else:
-                        # Default unknown parameters to voltage category for display
-                        voltage_params.append(param)
-
-                return {
-                    'flow': flow_params,
-                    'voltage': voltage_params,
-                    'temperature': temp_params,
-                    'humidity': humidity_params,
-                    'fan_speed': fan_params
-                }
-
-            def _populate_trend_dropdowns(self, categorized_params):
-                """Populate trend dropdowns with categorized parameters"""
-                # Populate dropdown controls with actual parameters
-                dropdown_configs = [
-                    ('comboWaterTopGraph', categorized_params['flow']),
-                    ('comboWaterBottomGraph', categorized_params['flow']),
-                    ('comboVoltageTopGraph', categorized_params['voltage']),
-                    ('comboVoltageBottomGraph', categorized_params['voltage']),
-                    ('comboTempTopGraph', categorized_params['temperature']),
-                    ('comboTempBottomGraph', categorized_params['temperature']),
-                    ('comboHumidityTopGraph', categorized_params['humidity']),
-                    ('comboHumidityBottomGraph', categorized_params['humidity']),
-                    ('comboFanTopGraph', categorized_params['fan_speed']),
-                    ('comboFanBottomGraph', categorized_params['fan_speed']),
-                ]
-
-                for combo_name, params in dropdown_configs:
-                    if hasattr(self.ui, combo_name):
-                        combo = getattr(self.ui, combo_name)
-                        combo.clear()
-                        combo.addItem("Select parameter...")
-                        if params:
-                            # Show ALL parameters, not just first 10
-                            for param in sorted(params):  # Sort for consistent order
-                                display_name = self._get_display_name_for_param(param)
-                                combo.addItem(display_name)
-                            print(f"✓ {combo_name}: populated with {len(params)} parameters")
-                        else:
-                            print(f"⚠️ {combo_name}: no parameters found for this category")
-
-                print(f"✓ Trend controls populated:")
-                print(f"  - Flow parameters: {len(categorized_params['flow'])}")
-                print(f"  - Voltage parameters: {len(categorized_params['voltage'])}")
-                print(f"  - Temperature parameters: {len(categorized_params['temperature'])}")
-                print(f"  - Humidity parameters: {len(categorized_params['humidity'])}")
-                print(f"  - Fan parameters: {len(categorized_params['fan_speed'])}")
 
             def _get_display_name_for_param(self, param_name):
                 """Convert raw parameter name to user-friendly display name"""
@@ -1189,7 +1105,7 @@ class HALogApp:
                     graph_top = None
                     graph_bottom = None
 
-                    if group_name == 'flow':  # Flow/Fluid System
+                    if group_name == 'flow':  # Water System
                         top_combo = getattr(self.ui, 'comboWaterTopGraph', None)
                         bottom_combo = getattr(self.ui, 'comboWaterBottomGraph', None)
                         graph_top = getattr(self.ui, 'waterGraphTop', None)
@@ -2456,20 +2372,10 @@ Source: {result.get('source', 'unknown')} database
                     self.ui.lblTableInfo.setText("Error loading data table")
 
             def update_analysis_tab(self):
-                """Update analysis tab with professional progress and caching"""
+                """Update analysis tab with professional progress"""
                 try:
                     if not hasattr(self, "df") or self.df.empty:
                         self.ui.tableTrends.setRowCount(0)
-                        return
-
-                    # Check if we have cached analysis results
-                    data_hash = self._get_data_hash()
-                    cache_key = f"analysis_{data_hash}"
-                    
-                    if hasattr(self, '_analysis_cache') and cache_key in self._analysis_cache:
-                        print("🚀 Loading analysis from cache - instant display")
-                        cached_results = self._analysis_cache[cache_key]
-                        self._populate_trends_table(cached_results)
                         return
 
                     if len(self.df) > 10000:
@@ -2487,22 +2393,13 @@ Source: {result.get('source', 'unknown')} database
 
                             analyzer = DataAnalyzer()
                             worker = AnalysisWorker(analyzer, self.df)
-                            
-                            # Register worker with thread manager if available
-                            parent_app = self.parent()
-                            if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
-                                parent_app.thread_manager.register_thread(
-                                    worker, 
-                                    f"analysis_{int(time.time())}", 
-                                    timeout=60.0  # 1 minute timeout for analysis
-                                )
 
                             worker.analysis_progress.connect(
                                 lambda p, m: progress_dialog.setValue(p)
                             )
                             worker.analysis_finished.connect(
-                                lambda results: self._display_analysis_results_with_cache(
-                                    results, progress_dialog, cache_key
+                                lambda results: self._display_analysis_results(
+                                    results, progress_dialog
                                 )
                             )
                             worker.analysis_error.connect(
@@ -2512,36 +2409,19 @@ Source: {result.get('source', 'unknown')} database
                             )
 
                             progress_dialog.canceled.connect(worker.cancel_analysis)
-                            
-                            # Start through thread manager if available, otherwise directly
-                            if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
-                                parent_app.thread_manager.start_thread(f"analysis_{int(time.time())}")
-                            else:
-                                worker.start()
+                            worker.start()
                         except Exception as e:
                             print(f"Error creating analysis worker: {e}")
-                            self._direct_analysis_with_cache(cache_key)
+                            self._direct_analysis()
                     else:
-                        self._direct_analysis_with_cache(cache_key)
+                        self._direct_analysis()
 
                 except Exception as e:
                     print(f"Error updating analysis tab: {e}")
                     traceback.print_exc()
 
-            def _get_data_hash(self):
-                """Generate a hash of the current data for caching"""
-                import hashlib
-                try:
-                    # Create a simple hash based on data shape and key columns
-                    data_info = f"{len(self.df)}_{self.df.shape[1]}"
-                    if not self.df.empty and 'datetime' in self.df.columns:
-                        data_info += f"_{self.df['datetime'].min()}_{self.df['datetime'].max()}"
-                    return hashlib.md5(data_info.encode()).hexdigest()[:8]
-                except:
-                    return "default"
-
-            def _direct_analysis_with_cache(self, cache_key):
-                """Perform analysis directly without worker and cache results"""
+            def _direct_analysis(self):
+                """Perform analysis directly without worker"""
                 try:
                     from analyzer_data import DataAnalyzer
 
@@ -2569,13 +2449,6 @@ Source: {result.get('source', 'unknown')} database
 
                     try:
                         trends_df = analyzer.calculate_advanced_trends(analysis_df)
-                        
-                        # Cache the results for instant loading next time
-                        if not hasattr(self, '_analysis_cache'):
-                            self._analysis_cache = {}
-                        self._analysis_cache[cache_key] = trends_df
-                        print(f"📊 Analysis results cached for instant future access")
-                        
                         self._populate_trends_table(trends_df)
                     except Exception as e:
                         print(f"Error calculating trends: {e}")
@@ -2597,31 +2470,6 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error in direct analysis: {e}")
                     traceback.print_exc()
-
-            def _display_analysis_results_with_cache(self, results, progress_dialog=None, cache_key=None):
-                """Display analysis results after worker completes and cache them"""
-                try:
-                    if progress_dialog:
-                        progress_dialog.setValue(100)
-                        progress_dialog.close()
-
-                    if "trends" in results:
-                        # Cache the results for instant loading next time
-                        if not hasattr(self, '_analysis_cache'):
-                            self._analysis_cache = {}
-                        if cache_key:
-                            self._analysis_cache[cache_key] = results["trends"]
-                            print(f"📊 Analysis results cached for instant future access")
-                        
-                        self._populate_trends_table(results["trends"])
-                except Exception as e:
-                    print(f"Error displaying analysis results: {e}")
-
-            def _direct_analysis(self):
-                """Perform analysis directly without worker"""
-                # Redirect to cached version
-                cache_key = self._get_data_hash()
-                self._direct_analysis_with_cache(cache_key)
 
             def _display_analysis_results(self, results, progress_dialog=None):
                 """Display analysis results after worker completes"""
@@ -2733,7 +2581,7 @@ Source: {result.get('source', 'unknown')} database
 
                     # Fallback to hardcoded mapping for compatibility
                     parameter_name_mapping = {
-                        # Flow/Fluid System
+                        # Water System
                         "magnetronFlow": "Mag Flow",
                         "targetAndCirculatorFlow": "Flow Target",
                         "cityWaterFlow": "Flow Chiller Water",
@@ -2778,7 +2626,7 @@ Source: {result.get('source', 'unknown')} database
                 param_lower = param_name.lower()
 
                 if any(term in param_lower for term in ['flow', 'pressure', 'pump']):
-                    return "Flow System"
+                    return "Water System"
                 elif any(term in param_lower for term in ['volt', '_v_', '24v', '48v', '5v', 'mlc_adc', 'col_adc']):
                     return "Voltages"
                 elif any(term in param_lower for term in ['temp', 'temperature']):
@@ -2805,7 +2653,7 @@ Source: {result.get('source', 'unknown')} database
                     else:
                         # Hide rows that don't match the filter
                         filter_mapping = {
-                            "Flow System": "Flow System",
+                            "Water System": "Water System",
                             "Voltages": "Voltages",
                             "Temperatures": "Temperatures",
                             "Fan Speeds": "Fan Speeds",
@@ -3316,16 +3164,6 @@ Source: {result.get('source', 'unknown')} database
 
                     self.worker = FileProcessingWorker(file_path, file_size, self.db)
                     self.worker.chunk_size = 5000
-                    
-                    # Register worker with thread manager if available
-                    parent_app = self.parent()
-                    worker_name = f"file_processing_{int(time.time())}"
-                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
-                        parent_app.thread_manager.register_thread(
-                            self.worker,
-                            worker_name,
-                            timeout=300.0  # 5 minute timeout for file processing
-                        )
 
                     # Simple progress handling
                     def handle_progress_update(percentage, status_message="", lines_processed=0, total_lines=0, bytes_processed=0, total_bytes=0):
@@ -3344,11 +3182,8 @@ Source: {result.get('source', 'unknown')} database
                     # Handle cancel button
                     self.progress_dialog.canceled.connect(self.worker.cancel_processing)
 
-                    # Start processing through thread manager if available, otherwise directly
-                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
-                        parent_app.thread_manager.start_thread(worker_name)
-                    else:
-                        self.worker.start()
+                    # Start processing
+                    self.worker.start()
                 except Exception as e:
                     QtWidgets.QMessageBox.critical(
                         self,
@@ -3779,144 +3614,26 @@ Source: {result.get('source', 'unknown')} database
                     traceback.print_exc()
 
             def closeEvent(self, event):
-                """Clean up resources when closing application with professional thread management"""
+                """Clean up resources when closing application"""
                 try:
-                    print("🔄 Initiating graceful application shutdown...")
-                    
-                    # Mark shutdown in progress
-                    if hasattr(self.parent(), '_shutdown_in_progress'):
-                        self.parent()._shutdown_in_progress = True
-                    
-                    # Stop memory monitoring timer
                     if hasattr(self, "memory_timer"):
                         self.memory_timer.stop()
-                    
-                    # Stop any running worker threads gracefully
-                    if hasattr(self, "worker") and self.worker:
-                        try:
-                            self.worker.cancel_processing()
-                            # Give thread time to finish gracefully
-                            if not self.worker.wait(3000):  # Wait 3 seconds
-                                print("⚠️ Worker thread did not finish gracefully")
-                        except Exception as e:
-                            print(f"Error stopping worker thread: {e}")
-                        finally:
-                            self.worker.deleteLater()
-                            self.worker = None
-                    
-                    # Use thread manager if available
-                    parent_app = self.parent()
-                    if hasattr(parent_app, 'thread_manager') and parent_app.thread_manager:
-                        print("🔄 Shutting down all managed threads...")
-                        if not parent_app.thread_manager.shutdown_all_threads(timeout=5.0):
-                            print("⚠️ Some threads did not shutdown gracefully")
-                    
-                    # Close progress dialogs
-                    if hasattr(self, "progress_dialog") and self.progress_dialog:
-                        self.progress_dialog.close()
-                    
-                    # Vacuum database for optimal shutdown
-                    if hasattr(self, "db") and self.db:
+
+                    if hasattr(self, "db"):
                         try:
                             self.db.vacuum_database()
-                        except Exception as e:
-                            print(f"Database vacuum error during shutdown: {e}")
-                    
-                    # Memory cleanup
-                    import gc
-                    gc.collect()
-                    
-                    print("✓ Resource cleanup completed")
-                    event.accept()
-                    
-                except Exception as e:
-                    print(f"⚠️ Error during application close: {e}")
-                    # Accept the event anyway to prevent hanging
-                    event.accept()
-                finally:
-                    # Ensure parent cleanup is called
-                    parent_app = self.parent()
-                    if hasattr(parent_app, '_complete_shutdown'):
-                        try:
-                            parent_app._complete_shutdown()
-                        except Exception as e:
-                            print(f"Error in final shutdown: {e}")
+                        except:
+                            pass
 
-            def show_crash_recovery_dialog(self, crash_reason: str):
-                """Show professional crash recovery dialog"""
-                try:
-                    from crash_recovery_dialog import show_crash_recovery_dialog
-                    
-                    # Get crash info from state manager if available
-                    crash_info = {}
-                    parent_app = self.parent()
-                    if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
-                        crash_info = parent_app.app_state_manager.get_crash_info()
-                        stats = parent_app.app_state_manager.get_statistics()
-                        crash_info.update(stats)
-                    
-                    # Show recovery dialog
-                    result = show_crash_recovery_dialog(crash_reason, crash_info, self)
-                    
-                    if result['restart_requested']:
-                        print("🔄 User requested application restart")
-                        # Handle restart request
-                        self._handle_restart_request(result['recovery_options'])
-                    else:
-                        print("👋 User chose to exit application")
-                        self.close()
-                        
+                    import gc
+
+                    gc.collect()
+
+                    print("Window close event: cleaning up resources")
+                    event.accept()
                 except Exception as e:
-                    print(f"Error showing crash recovery dialog: {e}")
-                    # Fallback to simple message
-                    QtWidgets.QMessageBox.critical(
-                        self,
-                        "Application Error",
-                        f"HALbasic encountered an error: {crash_reason}\n\n"
-                        "The application will now close. Please restart to continue."
-                    )
-                    self.close()
-            
-            def _handle_restart_request(self, recovery_options: dict):
-                """Handle application restart request"""
-                try:
-                    print("🔄 Processing restart request...")
-                    
-                    # Save current state if requested
-                    if recovery_options.get('preserve_data', True):
-                        parent_app = self.parent()
-                        if hasattr(parent_app, 'app_state_manager') and parent_app.app_state_manager:
-                            # Create checkpoint with current session data
-                            session_data = {
-                                'last_file_path': getattr(self, '_last_file_path', ''),
-                                'ui_state': {},  # Could save UI state here
-                                'user_preferences': {}  # Could save preferences here
-                            }
-                            parent_app.app_state_manager.create_checkpoint('pre_restart', session_data)
-                    
-                    # Schedule restart
-                    QtCore.QTimer.singleShot(100, self._perform_restart)
-                    
-                except Exception as e:
-                    print(f"Error handling restart request: {e}")
-                    self.close()
-            
-            def _perform_restart(self):
-                """Perform the actual restart"""
-                try:
-                    print("🚀 Restarting HALbasic...")
-                    
-                    # Close current application gracefully
-                    self.close()
-                    
-                    # Restart the application
-                    import subprocess
-                    import sys
-                    subprocess.Popen([sys.executable] + sys.argv)
-                    
-                except Exception as e:
-                    print(f"Error performing restart: {e}")
-                    self.close()
+                    print(f"Error during application close: {e}")
+                    event.accept()
 
         self.window = HALogMaterialApp()
         self.update_splash_progress(80, "Finalizing interface...")
@@ -3975,7 +3692,7 @@ Source: {result.get('source', 'unknown')} database
             total_time = time.time() - startup_begin
             print(f"🚀 Gobioeng HALog startup: {total_time:.3f}s")
             print(f"   Developed by gobioeng.com")
-            print(f"   Professional LINAC Log Analysis Suite Complete")
+            print(f"   Professional LINAC Water System Monitor Complete")
 
             # Run application
             sys.exit(app.exec_())
