@@ -449,6 +449,42 @@ class DatabaseManager:
             traceback.print_exc()
             return pd.DataFrame()
 
+    def get_recent_logs(self, limit: int = 1000) -> pd.DataFrame:
+        """Get recent logs for fast startup - optimized for performance"""
+        try:
+            with self.get_connection() as conn:
+                # Get only recent records with average values for quick loading
+                query = """
+                    SELECT
+                        datetime,
+                        serial_number as serial,
+                        parameter_type as param,
+                        value as avg,
+                        unit
+                    FROM water_logs
+                    WHERE statistic_type = 'avg'
+                    ORDER BY datetime DESC
+                    LIMIT ?
+                """
+                
+                df = pd.read_sql_query(
+                    query, 
+                    conn, 
+                    params=[limit], 
+                    parse_dates=["datetime"]
+                )
+                
+                # Reverse to get chronological order
+                if not df.empty:
+                    df = df.iloc[::-1].reset_index(drop=True)
+                
+                return df
+
+        except Exception as e:
+            print(f"Error retrieving recent logs: {e}")
+            traceback.print_exc()
+            return pd.DataFrame()
+
     def get_summary_statistics(self) -> Dict:
         """Get summary statistics with optimized queries"""
         try:

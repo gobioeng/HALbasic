@@ -904,8 +904,8 @@ class HALogApp:
                             combo.clear()
                             combo.addItem("Select parameter...")
                             if params:
-                                # Use simplified names for display
-                                for param in params[:10]:  # Limit to first 10
+                                # Use simplified names for display - show all parameters
+                                for param in params:
                                     display_name = self._get_display_name_for_param(param)
                                     combo.addItem(display_name)
 
@@ -961,6 +961,9 @@ class HALogApp:
             def refresh_trend_tab(self, group_name):
                 """Refresh trend data for specific parameter group with new dropdown structure"""
                 try:
+                    # Ensure full data is loaded for trend analysis
+                    self._ensure_full_data_loaded()
+                    
                     # Check if we have any data available in the database
                     if not hasattr(self, 'df') or self.df.empty:
                         print(f"⚠️ No data available in database for {group_name}")
@@ -1769,22 +1772,41 @@ Source: {result.get('source', 'unknown')} database
                     )
 
             def load_dashboard(self):
-                """Load dashboard with professional optimizations"""
+                """Load dashboard with professional optimizations and lazy loading"""
                 try:
                     if not hasattr(self, "db"):
                         print("Database not initialized")
                         return
 
-                    # Use chunking for large datasets
+                    # First, load only summary data for faster startup
+                    start_time = time.time()
+                    
+                    # Load metadata only initially for fast startup
+                    summary_stats = self.db.get_summary_statistics()
+                    if not summary_stats:
+                        print("⚠️ No data available in database")
+                        return
+                    
+                    # Load only a sample of recent data for UI initialization (last 1000 records)
                     try:
-                        self.df = self.db.get_all_logs(chunk_size=10000)
-                    except TypeError:
-                        self.df = self.db.get_all_logs()
+                        self.df = self.db.get_recent_logs(limit=1000)
+                    except (TypeError, AttributeError):
+                        # Fallback: Load minimal data for UI setup
+                        try:
+                            self.df = self.db.get_all_logs(chunk_size=1000)
+                            if len(self.df) > 1000:
+                                self.df = self.df.tail(1000)  # Keep only last 1000 for startup
+                        except TypeError:
+                            self.df = self.db.get_all_logs()
+                            if len(self.df) > 1000:
+                                self.df = self.df.tail(1000)
 
-                    # Mark data as updated for cache invalidation
+                    # Mark that we have partial data loaded
+                    self._full_data_loaded = False
                     self._mark_data_updated()
                     
-                    print(f"📊 Dashboard loading with {len(self.df)} records")
+                    load_time = time.time() - start_time
+                    print(f"⚡ Dashboard quick-loaded with {len(self.df)} sample records in {load_time:.2f}s")
 
                     if not self.df.empty:
                         # Find correct column names dynamically
@@ -1845,6 +1867,29 @@ Source: {result.get('source', 'unknown')} database
 
                 except Exception as e:
                     print(f"Error loading dashboard: {e}")
+                    traceback.print_exc()
+                    
+            def _ensure_full_data_loaded(self):
+                """Load full dataset when needed for analysis"""
+                if hasattr(self, '_full_data_loaded') and self._full_data_loaded:
+                    return  # Already loaded
+                    
+                try:
+                    print("📊 Loading full dataset for analysis...")
+                    start_time = time.time()
+                    
+                    # Load all data now
+                    try:
+                        self.df = self.db.get_all_logs(chunk_size=10000)
+                    except TypeError:
+                        self.df = self.db.get_all_logs()
+                    
+                    self._full_data_loaded = True
+                    load_time = time.time() - start_time
+                    print(f"✅ Full dataset loaded: {len(self.df)} records in {load_time:.2f}s")
+                    
+                except Exception as e:
+                    print(f"Error loading full data: {e}")
                     traceback.print_exc()
 
             def _refresh_all_trends(self):
