@@ -49,7 +49,7 @@ class UnifiedParser:
             source = fault_data.get('source', '')
             description = fault_data.get('description', '')
 
-            if source == 'uploaded':  # HAL database
+            if source == 'hal' or source == 'uploaded':  # HAL database
                 hal_description = description
             elif source == 'tb':  # TB database
                 tb_description = description
@@ -873,7 +873,7 @@ class UnifiedParser:
                 'database': source.upper(),
                 'database_description': db_desc,
                 'type': 'Fault',
-                'hal_description': fault_data['description'] if source == 'uploaded' else '',
+                'hal_description': fault_data['description'] if source in ['hal', 'uploaded'] else '',
                 'tb_description': fault_data['description'] if source == 'tb' else ''
             }
         else:
