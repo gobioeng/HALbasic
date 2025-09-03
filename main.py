@@ -223,7 +223,7 @@ class HALogApp:
         painter.setFont(font)
         app_name_rect = QtCore.QRect(200, 50, 280, 40)  # Moved to avoid overlap
         painter.drawText(
-            app_name_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, "HALog"
+            app_name_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, "HALog — Visualize. Analyze. Optimize."
         )
 
         # Professional Typography - Secondary Text (adjusted font size)
@@ -416,7 +416,7 @@ class HALogApp:
 
                 # SECOND: Set window properties
                 self.setWindowTitle(
-                    f"HALog {APP_VERSION} • Professional LINAC Monitor • gobioeng.com"
+                    f"HALog — Visualize. Analyze. Optimize. • v{APP_VERSION} • gobioeng.com"
                 )
                 if app_icon:
                     self.setWindowIcon(app_icon)
@@ -1057,7 +1057,7 @@ class HALogApp:
 
                     all_params = list(self.df[param_column].unique())
                     print(f"🔧 Initializing trend controls with {len(all_params)} parameters")
-                    print(f"🔧 Sample parameters: {all_params[:5]}")
+                    print(f"🔧 All parameters: {all_params}")
 
                     # Since your data shows COL parameters, let's categorize them properly
                     flow_params = []
@@ -1086,6 +1086,17 @@ class HALogApp:
                         else:
                             # Default unknown parameters to voltage category for display
                             voltage_params.append(param)
+
+                    # Debug parameter categorization
+                    print(f"🔧 Parameter categorization:")
+                    print(f"   Flow: {len(flow_params)} - {flow_params}")
+                    print(f"   Voltage: {len(voltage_params)} - {voltage_params}")
+                    print(f"   Temperature: {len(temp_params)} - {temp_params}")
+                    print(f"   Humidity: {len(humidity_params)} - {humidity_params}")
+                    print(f"   Fan: {len(fan_params)} - {fan_params}")
+                    
+                    total_categorized = len(flow_params) + len(voltage_params) + len(temp_params) + len(humidity_params) + len(fan_params)
+                    print(f"   Total categorized: {total_categorized} of {len(all_params)}")
 
                     # Populate dropdown controls with actual parameters
                     dropdown_configs = [
@@ -1356,6 +1367,45 @@ class HALogApp:
 
                 except Exception as e:
                     return pd.DataFrame()
+
+            def _filter_anomalies(self, df, param_col, deviation_threshold=0.02):
+                """Filter data to show only anomalies (values that deviate from baseline by specified threshold)"""
+                try:
+                    if df.empty or 'avg' not in df.columns:
+                        return df
+                    
+                    anomalies_list = []
+                    
+                    # Group by parameter for baseline calculation
+                    for param in df[param_col].unique():
+                        param_data = df[df[param_col] == param].copy()
+                        
+                        if len(param_data) < 3:  # Need at least 3 points for meaningful baseline
+                            continue
+                            
+                        # Calculate baseline (mean of all values for this parameter)
+                        baseline = param_data['avg'].mean()
+                        
+                        # Calculate deviation percentage from baseline
+                        param_data['deviation_pct'] = abs((param_data['avg'] - baseline) / baseline)
+                        
+                        # Filter for anomalies (deviation > threshold)
+                        anomalies = param_data[param_data['deviation_pct'] > deviation_threshold]
+                        
+                        if not anomalies.empty:
+                            anomalies_list.append(anomalies)
+                    
+                    if anomalies_list:
+                        result_df = pd.concat(anomalies_list, ignore_index=True)
+                        print(f"🔍 Found {len(result_df)} anomalous data points (>{deviation_threshold*100}% deviation)")
+                        return result_df
+                    else:
+                        print(f"🔍 No anomalies found with >{deviation_threshold*100}% deviation threshold")
+                        return pd.DataFrame()
+                        
+                except Exception as e:
+                    print(f"❌ Error filtering anomalies: {e}")
+                    return df
 
             def refresh_latest_mpc(self):
                 """Load and display MPC results from database with single date selection"""
@@ -2278,10 +2328,24 @@ Source: {result.get('source', 'unknown')} database
                             self.ui.lblTableInfo.setText("No parameter column found")
                             return
 
-                        # Sort by parameter name, then by datetime (newest first) - expensive operation
-                        print("📋 Sorting data for table display...")
-                        df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
-                        display_df = df_sorted.iloc[:page_size]
+                        # Filter for anomalies and recent data (last week only)
+                        print("📋 Filtering for anomalies and recent data...")
+                        from datetime import datetime, timedelta
+                        
+                        # Filter for last week data only
+                        one_week_ago = datetime.now() - timedelta(days=7)
+                        recent_df = self.df[pd.to_datetime(self.df['datetime']) >= one_week_ago]
+                        
+                        # Filter for anomalies (2% deviation from baseline/avg)
+                        anomaly_df = self._filter_anomalies(recent_df, param_col, deviation_threshold=0.02)
+                        
+                        # Sort by parameter name, then by datetime (newest first)
+                        print("📋 Sorting anomaly data for table display...")
+                        df_sorted = anomaly_df.sort_values([param_col, 'datetime'], ascending=[True, False])
+                        
+                        # Limit to max 520 data points as requested
+                        max_points = min(520, len(df_sorted))
+                        display_df = df_sorted.iloc[:max_points]
                         
                         # Cache the sorted result
                         if not hasattr(self, '_data_cache'):
@@ -2337,82 +2401,45 @@ Source: {result.get('source', 'unknown')} database
                         "Diff (Max-Min)"
                     ])
 
-                    # Optimize table population with batch updates
+                    # Optimize table population with batch data preparation
                     self.ui.tableData.setSortingEnabled(False)  # Disable sorting during updates
                     self.ui.tableData.setUpdatesEnabled(False)  # Disable updates during population
 
-                    # Populate table rows with optimized performance
-                    for row_idx, (_, row) in enumerate(display_df.iterrows()):
+                    print(f"📊 Preparing {len(display_df)} table rows with optimized batch processing...")
+                    
+                    # Pre-process all data for better performance
+                    table_data = []
+                    for _, row in display_df.iterrows():
                         try:
-                            # DateTime
+                            # Pre-calculate all values
                             dt_str = row["datetime"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(row["datetime"]) else "N/A"
-                            dt_item = QTableWidgetItem(dt_str)
-                            dt_item.setFlags(dt_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 0, dt_item)
-
-                            # Serial Number
-                            serial_value = "Unknown"
-                            if serial_col and pd.notna(row[serial_col]):
-                                serial_value = str(row[serial_col])
-                            serial_item = QTableWidgetItem(serial_value)
-                            serial_item.setFlags(serial_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 1, serial_item)
-
-                            # Parameter Name (use enhanced name)
+                            serial_value = str(row[serial_col]) if serial_col and pd.notna(row[serial_col]) else "Unknown"
+                            
                             raw_param = str(row[param_col])
                             display_param = self._get_enhanced_parameter_name(raw_param)
-                            param_item = QTableWidgetItem(display_param)
-                            param_item.setToolTip(f"Raw parameter: {raw_param}")  # Show raw name in tooltip
-                            param_item.setFlags(param_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 2, param_item)
-
-                            # Average value
-                            avg_value = 0.0
-                            if avg_col and pd.notna(row[avg_col]):
-                                try:
-                                    avg_value = float(row[avg_col])
-                                except (ValueError, TypeError):
-                                    avg_value = 0.0
-                            avg_item = QTableWidgetItem(f"{avg_value:.4f}")
-                            avg_item.setFlags(avg_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 3, avg_item)
-
-                            # Min value
-                            min_value = 0.0
-                            if min_col and pd.notna(row[min_col]):
-                                try:
-                                    min_value = float(row[min_col])
-                                except (ValueError, TypeError):
-                                    min_value = 0.0
-                            min_item = QTableWidgetItem(f"{min_value:.4f}")
-                            min_item.setFlags(min_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 4, min_item)
-
-                            # Max value
-                            max_value = 0.0
-                            if max_col and pd.notna(row[max_col]):
-                                try:
-                                    max_value = float(row[max_col])
-                                except (ValueError, TypeError):
-                                    max_value = 0.0
-                            max_item = QTableWidgetItem(f"{max_value:.4f}")
-                            max_item.setFlags(max_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 5, max_item)
-
-                            # Difference (Max - Min)
+                            
+                            avg_value = float(row[avg_col]) if avg_col and pd.notna(row[avg_col]) else 0.0
+                            min_value = float(row[min_col]) if min_col and pd.notna(row[min_col]) else 0.0
+                            max_value = float(row[max_col]) if max_col and pd.notna(row[max_col]) else 0.0
                             diff_value = max_value - min_value
-                            diff_item = QTableWidgetItem(f"{diff_value:.4f}")
-                            diff_item.setFlags(diff_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 6, diff_item)
+                            
+                            table_data.append([
+                                dt_str, serial_value, display_param, f"{avg_value:.4f}", 
+                                f"{min_value:.4f}", f"{max_value:.4f}", f"{diff_value:.4f}", raw_param
+                            ])
+                        except Exception:
+                            # Fallback for problematic rows
+                            table_data.append(["N/A", "Unknown", "Error", "0.0000", "0.0000", "0.0000", "0.0000", ""])
 
-                        except Exception as e:
-                            print(f"Error processing row {row_idx}: {e}")
-                            # Fill row with N/A values if there's an error
-                            for col_idx in range(7):
-                                if not self.ui.tableData.item(row_idx, col_idx):
-                                    placeholder_item = QTableWidgetItem("N/A")
-                                    placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemIsEditable)
-                                    self.ui.tableData.setItem(row_idx, col_idx, placeholder_item)
+                    # Bulk populate table with pre-processed data
+                    print(f"📊 Populating table with {len(table_data)} optimized rows...")
+                    for row_idx, row_data in enumerate(table_data):
+                        for col_idx, value in enumerate(row_data[:7]):  # Only first 7 columns for table
+                            item = QTableWidgetItem(value)
+                            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                            if col_idx == 2 and len(row_data) > 7:  # Parameter column - add tooltip
+                                item.setToolTip(f"Raw parameter: {row_data[7]}")
+                            self.ui.tableData.setItem(row_idx, col_idx, item)
 
                     # Re-enable table updates and sorting
                     self.ui.tableData.setUpdatesEnabled(True)
@@ -2423,17 +2450,17 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.tableData.resizeColumnsToContents()
                         self._last_column_resize = time.time()
 
-                    # Update info label
+                    # Update info label to reflect anomaly filtering
                     total_records = len(self.df)
                     showing_records = len(display_df)
                     unique_params = self.df[param_col].nunique()
 
                     self.ui.lblTableInfo.setText(
-                        f"Showing {showing_records:,} of {total_records:,} records | "
-                        f"Unique Parameters: {unique_params} | Sorted by parameter name, then date"
+                        f"Showing {showing_records:,} anomalies (>2% deviation) from last week | "
+                        f"Total Records: {total_records:,} | Unique Parameters: {unique_params}"
                     )
 
-                    print(f"✓ Data table updated: {showing_records:,} records displayed with {unique_params} unique parameters")
+                    print(f"✓ Data table updated: {showing_records:,} anomaly records displayed (max 520) with {unique_params} unique parameters")
 
                 except Exception as e:
                     print(f"Error updating data table: {e}")
@@ -2884,16 +2911,14 @@ Source: {result.get('source', 'unknown')} database
                 """Initialize default trend displays to show graphs at startup"""
                 try:
                     print("🔄 Initializing default trend displays...")
-                    # Check if we have shortdata_parser available
+                    # Only initialize the first trend tab (fan_speed) to avoid popup issues
+                    # Other tabs will be initialized when user clicks on them
                     if hasattr(self, 'shortdata_parser') and self.shortdata_parser:
-                        # Initialize each trend group with default displays
-                        trend_groups = ['flow', 'voltage', 'temperature', 'humidity', 'fan_speed']
-                        for group in trend_groups:
-                            try:
-                                self.refresh_trend_tab(group)
-                                print(f"  ✓ {group} trend initialized")
-                            except Exception as e:
-                                print(f"  ⚠️ Failed to initialize {group} trend: {e}")
+                        try:
+                            self.refresh_trend_tab('fan_speed')
+                            print(f"  ✓ fan_speed trend initialized")
+                        except Exception as e:
+                            print(f"  ⚠️ Failed to initialize fan_speed trend: {e}")
                     else:
                         print("  ⚠️ Shortdata parser not available for trend initialization")
                 except Exception as e:
