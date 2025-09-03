@@ -118,6 +118,75 @@ class StartupPerformanceManager:
                 json.dump(data, f, indent=2)
         except Exception as e:
             print(f"Warning: Could not save data checksums: {e}")
+
+    def cache_processed_results(self, file_path: str, processed_data: Dict, summary_stats: Dict = None):
+        """Cache processed results instead of storing all raw data"""
+        try:
+            file_key = os.path.basename(file_path)
+            checksum = self.calculate_file_checksum(file_path)
+            
+            cache_data = self.load_performance_cache()
+            
+            # Store only essential processed data, not raw records
+            cache_data["processed_data"][file_key] = {
+                "checksum": checksum,
+                "processed_at": datetime.now().isoformat(),
+                "record_count": processed_data.get("record_count", 0),
+                "parameter_summary": processed_data.get("parameter_summary", {}),
+                "time_range": processed_data.get("time_range", {}),
+                "quality_stats": processed_data.get("quality_stats", {}),
+                "summary_stats": summary_stats or {}
+            }
+            
+            self.save_performance_cache(cache_data)
+            print(f"✓ Cached processed results for {file_key}")
+            
+        except Exception as e:
+            print(f"Error caching processed results: {e}")
+    
+    def get_cached_results(self, file_path: str) -> Optional[Dict]:
+        """Get cached processed results for a file"""
+        try:
+            file_key = os.path.basename(file_path)
+            current_checksum = self.calculate_file_checksum(file_path)
+            
+            cache_data = self.load_performance_cache()
+            cached_entry = cache_data.get("processed_data", {}).get(file_key)
+            
+            if cached_entry and cached_entry.get("checksum") == current_checksum:
+                self.startup_metrics["cache_hits"] += 1
+                return cached_entry
+            else:
+                self.startup_metrics["cache_misses"] += 1
+                return None
+                
+        except Exception as e:
+            print(f"Error getting cached results: {e}")
+            self.startup_metrics["cache_misses"] += 1
+            return None
+    
+    def should_skip_processing(self, file_paths: list) -> bool:
+        """Check if data processing can be skipped based on file checksums"""
+        try:
+            current_checksums = {}
+            for file_path in file_paths:
+                if os.path.exists(file_path):
+                    current_checksums[file_path] = self.calculate_file_checksum(file_path)
+            
+            stored_checksums = self.load_data_checksums()
+            
+            # Check if all files have the same checksums
+            for file_path, checksum in current_checksums.items():
+                if stored_checksums.get("checksums", {}).get(file_path) != checksum:
+                    return False
+                    
+            # All files are unchanged
+            self.startup_metrics["data_processing_skipped"] = True
+            return True
+            
+        except Exception as e:
+            print(f"Error checking file changes: {e}")
+            return False
             
     def should_reprocess_data(self, data_sources: list, force_reprocess: bool = False) -> bool:
         """Determine if data needs to be reprocessed"""

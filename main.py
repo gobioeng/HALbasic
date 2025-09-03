@@ -59,8 +59,34 @@ def setup_environment():
 
     # Configure warnings
     import warnings
-
     warnings.filterwarnings("ignore")
+    
+    # CRITICAL FIX: Configure matplotlib backend for PyInstaller builds
+    # This prevents graph display issues in compiled executables
+    try:
+        import matplotlib
+        # Force Qt5Agg backend for consistent behavior, but handle headless environments
+        current_backend = matplotlib.get_backend()
+        if current_backend.lower() != 'qt5agg':
+            try:
+                matplotlib.use('Qt5Agg', force=True)
+                print("✓ Matplotlib backend configured: Qt5Agg")
+            except ImportError as ie:
+                if 'headless' in str(ie).lower():
+                    print("ℹ️ Running in headless environment, using default backend")
+                else:
+                    print(f"⚠️ Could not set Qt5Agg backend: {ie}")
+        else:
+            print("✓ Matplotlib already using Qt5Agg backend")
+        
+        # Additional configuration for PyInstaller compatibility
+        import matplotlib.pyplot as plt
+        plt.ioff()  # Turn off interactive mode for embedded plots
+        
+    except ImportError:
+        print("⚠️ Matplotlib not available, plots will not work")
+    except Exception as e:
+        print(f"⚠️ Matplotlib configuration warning: {e}")
 
     # Ensure assets directory exists
     assets_dir = app_dir / "assets"
@@ -1916,6 +1942,48 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error refreshing trends: {e}")
 
+            def _get_file_parameter_summary(self, file_path):
+                """Get a summary of parameters in the file for caching"""
+                try:
+                    # Simple summary without loading all data
+                    from unified_parser import UnifiedParser
+                    parser = UnifiedParser()
+                    
+                    # Read just a sample of the file for parameter identification
+                    sample_df = parser.parse_linac_file(file_path, max_rows=1000)
+                    if sample_df.empty:
+                        return {}
+                    
+                    summary = {
+                        "unique_parameters": sample_df['parameter_type'].nunique() if 'parameter_type' in sample_df.columns else 0,
+                        "unique_serials": sample_df['serial_number'].nunique() if 'serial_number' in sample_df.columns else 0,
+                        "sample_parameters": sample_df['parameter_type'].unique().tolist()[:10] if 'parameter_type' in sample_df.columns else []
+                    }
+                    return summary
+                except Exception as e:
+                    print(f"Error getting parameter summary: {e}")
+                    return {}
+
+            def _get_file_time_range(self, file_path):
+                """Get time range of the file for caching"""
+                try:
+                    from unified_parser import UnifiedParser
+                    parser = UnifiedParser()
+                    
+                    # Read just beginning and end of file for time range
+                    sample_df = parser.parse_linac_file(file_path, max_rows=100)
+                    if sample_df.empty or 'datetime' not in sample_df.columns:
+                        return {}
+                    
+                    time_range = {
+                        "start_time": sample_df['datetime'].min().isoformat() if not sample_df['datetime'].isna().all() else None,
+                        "end_time": sample_df['datetime'].max().isoformat() if not sample_df['datetime'].isna().all() else None,
+                    }
+                    return time_range
+                except Exception as e:
+                    print(f"Error getting time range: {e}")
+                    return {}
+
             def clear_all_data(self):
                 """Clear all imported data from the database"""
                 try:
@@ -2771,6 +2839,23 @@ Source: {result.get('source', 'unknown')} database
                     for file_path in file_paths:
                         print(f"  - {file_path}")
 
+                    # ENHANCEMENT: Initialize performance manager for result caching
+                    from startup_performance_manager import StartupPerformanceManager
+                    perf_manager = StartupPerformanceManager()
+                    
+                    # Check if we can use cached results for unchanged files
+                    files_to_process = []
+                    cached_results = {}
+                    
+                    for file_path in file_paths:
+                        cached_result = perf_manager.get_cached_results(file_path)
+                        if cached_result:
+                            cached_results[file_path] = cached_result
+                            print(f"📋 Using cached results for {os.path.basename(file_path)}")
+                        else:
+                            files_to_process.append(file_path)
+                            print(f"🔄 Will process {os.path.basename(file_path)}")
+
                     # Create progress dialog for multi-file upload
                     from progress_dialog import ProgressDialog
                     
@@ -2781,21 +2866,30 @@ Source: {result.get('source', 'unknown')} database
                     self.progress_dialog.set_phase("uploading", 0)
                     QtWidgets.QApplication.processEvents()
 
-                    # Process files sequentially with proper memory management
+                    # Process files sequentially with proper memory management and caching
                     total_records_imported = 0
                     successful_imports = 0
                     
-                    for i, file_path in enumerate(file_paths):
+                    # Use cached results count for already processed files
+                    for cached_file, cached_data in cached_results.items():
+                        total_records_imported += cached_data.get("record_count", 0)
+                        successful_imports += 1
+                    
+                    # Process only new/changed files
+                    for i, file_path in enumerate(files_to_process):
                         try:
                             file_size = os.path.getsize(file_path)
                             filename = os.path.basename(file_path)
                             
-                            # Update progress for current file
-                            file_progress = int((i / len(file_paths)) * 100)
+                            # Calculate progress including cached files
+                            total_files = len(file_paths)
+                            files_completed = len(cached_results) + i
+                            file_progress = int((files_completed / total_files) * 85)
+                            
                             self.progress_dialog.update_progress(
                                 file_progress, 
-                                f"Processing file {i+1}/{len(file_paths)}: {filename}",
-                                i, len(file_paths)
+                                f"Processing file {files_completed+1}/{total_files}: {filename}",
+                                files_completed, total_files
                             )
                             QtWidgets.QApplication.processEvents()
                             
@@ -2804,9 +2898,10 @@ Source: {result.get('source', 'unknown')} database
                                 print("Multi-file upload cancelled by user")
                                 return
                             
-                            print(f"Processing file {i+1}/{len(file_paths)}: {filename} ({file_size} bytes)")
+                            print(f"Processing file {files_completed+1}/{total_files}: {filename} ({file_size} bytes)")
 
                             filename_lower = filename.lower()
+                            records = 0
 
                             # Check if it's a shortdata file (sample only)
                             if 'shortdata' in filename_lower:
@@ -2833,12 +2928,22 @@ Source: {result.get('source', 'unknown')} database
                                 if records > 0:
                                     total_records_imported += records
                                     successful_imports += 1
+                            
+                            # ENHANCEMENT: Cache processed results for future use
+                            if records > 0:
+                                processed_data = {
+                                    "record_count": records,
+                                    "file_size": file_size,
+                                    "parameter_summary": self._get_file_parameter_summary(file_path),
+                                    "time_range": self._get_file_time_range(file_path)
+                                }
+                                perf_manager.cache_processed_results(file_path, processed_data)
                                     
                             # Update progress after each file
-                            completed_progress = int(((i + 1) / len(file_paths)) * 85)  # Leave 15% for finalization
+                            completed_progress = int(((files_completed + 1) / total_files) * 85)  # Leave 15% for finalization
                             self.progress_dialog.update_progress(
                                 completed_progress,
-                                f"Completed {filename} - {successful_imports}/{i+1} files processed successfully"
+                                f"Completed {filename} - {successful_imports}/{files_completed+1} files processed successfully"
                             )
                             QtWidgets.QApplication.processEvents()
                             
