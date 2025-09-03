@@ -58,7 +58,7 @@ class MinimalisticSplashScreen(QSplashScreen):
         painter.drawRoundedRect(0, 0, pixmap.width()-1, pixmap.height()-1, 8, 8)
         
         # Logo with shadow
-        logo_size = 64
+        logo_size = 85
         logo_x = (pixmap.width() - logo_size) // 2
         logo_y = 30
         
@@ -70,17 +70,7 @@ class MinimalisticSplashScreen(QSplashScreen):
             shadow_x = logo_x + 2
             shadow_y = logo_y + 2
             
-            # Create shadow effect
-            shadow_image = logo_pixmap.toImage()
-            for y in range(shadow_image.height()):
-                for x in range(shadow_image.width()):
-                    color = QColor(shadow_image.pixel(x, y))
-                    if color.alpha() > 0:
-                        # Make it a semi-transparent black shadow
-                        shadow_image.setPixelColor(x, y, QColor(0, 0, 0, 60))
             
-            shadow_pixmap = QPixmap.fromImage(shadow_image)
-            painter.drawPixmap(shadow_x, shadow_y, shadow_pixmap)
             
             # Draw main logo
             painter.drawPixmap(logo_x, logo_y, logo_pixmap)
@@ -99,11 +89,11 @@ class MinimalisticSplashScreen(QSplashScreen):
         
         # App name
         painter.setPen(QColor(60, 60, 60))
-        font = QFont("Segoe UI", 18, QFont.Light)
+        font = QFont("Helvetica", 15, QFont.Light)
         painter.setFont(font)
         name_y = logo_y + logo_size + 20
         name_rect = QRect(0, name_y, pixmap.width(), 30)
-        painter.drawText(name_rect, Qt.AlignCenter, "HALog")
+        painter.drawText(name_rect, Qt.AlignCenter, "HA[Log]")
         
         # Subtitle
         painter.setPen(QColor(120, 120, 120))
