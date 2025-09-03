@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "created_at": "2025-09-03T07:28:36.752032",
+  "processed_data": {},
+  "tab_cache": {},
+  "last_optimization": null,
+  "startup_history": [
+    {
+      "startup_time": 2.5,
+      "timestamp": "2025-09-03T07:28:36.752041",
+      "data_processing_skipped": false
+    }
+  ],
+  "last_updated": "2025-09-03T07:28:36.752044"
+}

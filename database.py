@@ -1,6 +1,7 @@
 """
 Enhanced Database Manager - Gobioeng HALog
 Provides optimized database operations for LINAC water system data
+Enhanced with backup and recovery capabilities
 """
 
 import sqlite3
@@ -14,13 +15,80 @@ from contextlib import contextmanager
 
 
 class DatabaseManager:
-    """Enhanced database manager with batch operations and optimized queries"""
+    """Enhanced database manager with batch operations, optimized queries, and backup support"""
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        # Import backup manager
+        from database_backup_manager import DatabaseBackupManager
+        
+        # Initialize backup manager first
+        self.backup_manager = DatabaseBackupManager()
+        
+        # Use backup manager's database path if none specified
+        if db_path is None:
+            self.db_path = self.backup_manager.get_main_db_path()
+        else:
+            self.db_path = db_path
+            
         self.connection_pool = {}
         self.prepared_statements = {}
+        
+        # Setup crash recovery and backup system
+        self._setup_database_resilience()
+        
+        # Initialize database
         self.init_db()
+        
+    def _setup_database_resilience(self):
+        """Setup database backup and crash recovery system"""
+        try:
+            # Ensure backup system is ready
+            self.backup_manager.setup_crash_recovery()
+            
+            # Check if database file exists and is valid
+            if os.path.exists(self.db_path):
+                if not self._verify_database_health():
+                    print("⚠️ Database corruption detected!")
+                    self._handle_database_corruption()
+            
+            print("✓ Database resilience system initialized")
+        except Exception as e:
+            print(f"Warning: Could not setup database resilience: {e}")
+            
+    def _verify_database_health(self) -> bool:
+        """Verify database file integrity and accessibility"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA integrity_check")
+                result = cursor.fetchone()
+                if result[0] != "ok":
+                    return False
+                    
+                # Try a simple query
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
+                return True
+        except Exception as e:
+            print(f"Database health check failed: {e}")
+            return False
+            
+    def _handle_database_corruption(self):
+        """Handle database corruption with user prompt for recovery"""
+        try:
+            backup_filename = self.backup_manager.handle_database_corruption()
+            
+            if backup_filename:
+                # For now, automatically restore the most recent backup
+                # In a GUI environment, this would show a dialog
+                print(f"🔄 Attempting automatic recovery from backup: {backup_filename}")
+                if self.backup_manager.restore_backup(backup_filename):
+                    print("✅ Database successfully restored from backup")
+                else:
+                    print("❌ Failed to restore database from backup")
+            else:
+                print("❌ No backup available for recovery")
+        except Exception as e:
+            print(f"Error handling database corruption: {e}")
 
     def init_db(self):
         """Initialize database with enhanced schema and performance optimizations"""
@@ -540,9 +608,41 @@ class DatabaseManager:
             print(f"Error getting record count: {e}")
             return 0
 
+    def create_backup(self) -> bool:
+        """Create a backup of the current database"""
+        try:
+            return self.backup_manager.create_backup(self.db_path)
+        except Exception as e:
+            print(f"Error creating database backup: {e}")
+            return False
+            
+    def get_available_backups(self) -> list:
+        """Get list of available backup files"""
+        try:
+            return self.backup_manager.get_available_backups()
+        except Exception as e:
+            print(f"Error getting backup list: {e}")
+            return []
+            
+    def restore_from_backup(self, backup_filename: str) -> bool:
+        """Restore database from specified backup"""
+        try:
+            success = self.backup_manager.restore_backup(backup_filename)
+            if success:
+                # Reinitialize after restore
+                self.init_db()
+            return success
+        except Exception as e:
+            print(f"Error restoring from backup: {e}")
+            return False
+
     def __del__(self):
         """Cleanup database connections on object destruction"""
         try:
+            # Create backup before closing if database was modified
+            if hasattr(self, 'backup_manager') and os.path.exists(self.db_path):
+                self.backup_manager.create_backup(self.db_path)
+                
             # Close all pooled connections
             for thread_id, conn in self.connection_pool.items():
                 try:
