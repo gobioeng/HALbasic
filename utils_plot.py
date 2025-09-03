@@ -42,6 +42,77 @@ class InteractivePlotManager:
         self.canvas.mpl_connect('button_press_event', self._handle_button_press)
         self.canvas.mpl_connect('button_release_event', self._handle_button_release)
         self.canvas.mpl_connect('motion_notify_event', self._handle_motion)
+        self.canvas.mpl_connect('key_press_event', self._handle_key_press)
+
+    def _handle_key_press(self, event):
+        """Handle keyboard shortcuts for time scale control"""
+        if event.inaxes is None:
+            return
+            
+        ax = event.inaxes
+        
+        # Time scale shortcuts
+        if event.key == 'h':  # Zoom to last hour
+            self._zoom_to_time_range(ax, hours=1)
+        elif event.key == 'd':  # Zoom to last day
+            self._zoom_to_time_range(ax, hours=24)
+        elif event.key == 'w':  # Zoom to last week
+            self._zoom_to_time_range(ax, hours=24*7)
+        elif event.key == 'm':  # Zoom to last month
+            self._zoom_to_time_range(ax, hours=24*30)
+        elif event.key == 'r':  # Reset view
+            self.reset_view()
+        elif event.key == 'f':  # Fit all data
+            self._fit_all_data(ax)
+            
+    def _zoom_to_time_range(self, ax, hours=24):
+        """Zoom to show last N hours of data"""
+        try:
+            # Get the latest time from all lines in the axis
+            latest_time = None
+            for line in ax.get_lines():
+                xdata = line.get_xdata()
+                if len(xdata) > 0:
+                    # Assume x-axis is time data
+                    line_latest = max(xdata)
+                    if latest_time is None or line_latest > latest_time:
+                        latest_time = line_latest
+                        
+            if latest_time is not None:
+                # Calculate time range (hours in matplotlib date units)
+                hours_in_days = hours / 24.0
+                start_time = latest_time - hours_in_days
+                
+                ax.set_xlim([start_time, latest_time])
+                self.canvas.draw()
+                
+        except Exception as e:
+            print(f"Error zooming to time range: {e}")
+            
+    def _fit_all_data(self, ax):
+        """Fit all data in the view"""
+        try:
+            all_x = []
+            all_y = []
+            
+            for line in ax.get_lines():
+                xdata = line.get_xdata()
+                ydata = line.get_ydata()
+                if len(xdata) > 0 and len(ydata) > 0:
+                    all_x.extend(xdata)
+                    all_y.extend(ydata)
+                    
+            if all_x and all_y:
+                # Add 5% margin
+                x_margin = (max(all_x) - min(all_x)) * 0.05
+                y_margin = (max(all_y) - min(all_y)) * 0.05
+                
+                ax.set_xlim([min(all_x) - x_margin, max(all_x) + x_margin])
+                ax.set_ylim([min(all_y) - y_margin, max(all_y) + y_margin])
+                self.canvas.draw()
+                
+        except Exception as e:
+            print(f"Error fitting all data: {e}")
 
     def _handle_zoom(self, event):
         """Handle mouse wheel zoom"""
@@ -215,6 +286,62 @@ class InteractivePlotManager:
                 ax.set_ylim(view['ylim'])
 
         self.canvas.draw()
+
+
+def _zoom_to_hours(canvas, axes, hours):
+    """Helper function to zoom to specific time range"""
+    try:
+        import matplotlib.dates as mdates
+        
+        for ax in axes:
+            # Get the latest time from all lines in the axis
+            latest_time = None
+            for line in ax.get_lines():
+                xdata = line.get_xdata()
+                if len(xdata) > 0:
+                    line_latest = max(xdata)
+                    if latest_time is None or line_latest > latest_time:
+                        latest_time = line_latest
+                        
+            if latest_time is not None:
+                # Calculate time range (hours in matplotlib date units)
+                hours_in_days = hours / 24.0
+                start_time = latest_time - hours_in_days
+                
+                ax.set_xlim([start_time, latest_time])
+                
+        canvas.draw()
+        
+    except Exception as e:
+        print(f"Error zooming to time range: {e}")
+
+
+def _fit_all_data(canvas, axes):
+    """Helper function to fit all data in view"""
+    try:
+        for ax in axes:
+            all_x = []
+            all_y = []
+            
+            for line in ax.get_lines():
+                xdata = line.get_xdata()
+                ydata = line.get_ydata()
+                if len(xdata) > 0 and len(ydata) > 0:
+                    all_x.extend(xdata)
+                    all_y.extend(ydata)
+                    
+            if all_x and all_y:
+                # Add 5% margin
+                x_margin = (max(all_x) - min(all_x)) * 0.05
+                y_margin = (max(all_y) - min(all_y)) * 0.05
+                
+                ax.set_xlim([min(all_x) - x_margin, max(all_x) + x_margin])
+                ax.set_ylim([min(all_y) - y_margin, max(all_y) + y_margin])
+                
+        canvas.draw()
+        
+    except Exception as e:
+        print(f"Error fitting all data: {e}")
 
 
 class PlotUtils:
@@ -938,9 +1065,45 @@ def plot_trend(widget, df: pd.DataFrame, title_suffix: str = ""):
     # Create canvas first
     canvas = FigureCanvas(fig)
 
-    # Add navigation toolbar
+    # Add enhanced navigation toolbar with time scale controls
     toolbar = NavigationToolbar2QT(canvas, widget)
-    layout.addWidget(toolbar)
+    
+    # Add custom time scale buttons to toolbar
+    try:
+        from PyQt5.QtWidgets import QAction, QPushButton, QHBoxLayout, QWidget
+        from PyQt5.QtCore import Qt
+        
+        # Create custom toolbar container
+        toolbar_container = QWidget()
+        toolbar_layout = QHBoxLayout(toolbar_container)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add original toolbar
+        toolbar_layout.addWidget(toolbar)
+        
+        # Add time scale buttons
+        time_buttons = [
+            ("1H", lambda: _zoom_to_hours(canvas, axes, 1), "Last Hour"),
+            ("1D", lambda: _zoom_to_hours(canvas, axes, 24), "Last Day"), 
+            ("1W", lambda: _zoom_to_hours(canvas, axes, 24*7), "Last Week"),
+            ("1M", lambda: _zoom_to_hours(canvas, axes, 24*30), "Last Month"),
+            ("All", lambda: _fit_all_data(canvas, axes), "Fit All Data")
+        ]
+        
+        for text, callback, tooltip in time_buttons:
+            btn = QPushButton(text)
+            btn.setFixedSize(30, 30)
+            btn.setToolTip(tooltip)
+            btn.clicked.connect(callback)
+            btn.setStyleSheet("QPushButton { font-size: 8px; margin: 1px; }")
+            toolbar_layout.addWidget(btn)
+            
+        layout.addWidget(toolbar_container)
+        
+    except Exception as e:
+        print(f"Could not add time scale buttons: {e}")
+        # Fallback to regular toolbar
+        layout.addWidget(toolbar)
 
     axes = []  # Store axes for interactive manager
 
