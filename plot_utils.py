@@ -25,12 +25,20 @@ class PlotWidget(QWidget):
         self.setMinimumHeight(300)
         
         try:
-            self.figure = Figure(figsize=(10, 6), dpi=100)
+            # FIXED: Smaller figure size for embedded use
+            self.figure = Figure(figsize=(8, 4), dpi=80)
             self.canvas = FigureCanvas(self.figure)
+            
+            # CRITICAL: Ensure proper parent-child relationship to prevent popup windows
+            self.canvas.setParent(self)
             self.layout.addWidget(self.canvas)
             
             # Set professional style
-            plt.style.use('seaborn-v0_8-whitegrid')
+            try:
+                plt.style.use('seaborn-v0_8-whitegrid')
+            except:
+                # Fallback if seaborn style not available
+                plt.style.use('default')
             
         except Exception as e:
             error_label = QLabel(f"Plotting initialization failed: {str(e)}")
@@ -227,8 +235,12 @@ class DualPlotWidget(QWidget):
         self.setMinimumHeight(500)
         
         try:
-            self.figure = Figure(figsize=(12, 8), dpi=100)
+            # FIXED: Better size for embedded use
+            self.figure = Figure(figsize=(10, 6), dpi=80)
             self.canvas = FigureCanvas(self.figure)
+            
+            # CRITICAL: Ensure proper parent-child relationship
+            self.canvas.setParent(self)
             self.layout.addWidget(self.canvas)
         except Exception as e:
             error_label = QLabel(f"Dual plot initialization failed: {str(e)}")
@@ -407,8 +419,8 @@ def apply_professional_style():
             color=['#1976D2', '#388E3C', '#D32F2F', '#FF9800', '#9C27B0', '#607D8B']
         )
         
-        # Typography
-        plt.rcParams['font.family'] = 'DejaVu Sans'
+        # Typography - IMPROVED: Using Calibri font for better readability
+        plt.rcParams['font.family'] = ['Calibri', 'DejaVu Sans', 'Arial']  # Calibri as primary choice
         plt.rcParams['font.size'] = 10
         plt.rcParams['axes.titlesize'] = 14
         plt.rcParams['axes.labelsize'] = 12

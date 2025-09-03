@@ -349,7 +349,7 @@ class PlotUtils:
 
     @staticmethod
     def setup_professional_style():
-        """Setup professional plotting style"""
+        """Setup professional plotting style with Calibri font"""
         plt.rcParams.update({
             'figure.facecolor': 'white',
             'axes.facecolor': 'white',
@@ -358,7 +358,7 @@ class PlotUtils:
             'axes.grid': True,
             'grid.color': '#f0f0f0',
             'grid.linewidth': 0.5,
-            'font.family': 'sans-serif',
+            'font.family': ['Calibri', 'sans-serif', 'Arial'],  # Calibri as primary choice
             'font.size': 10,
             'axes.titlesize': 12,
             'axes.labelsize': 10,
@@ -711,9 +711,15 @@ class PlotUtils:
     def _plot_parameter_data_single(widget, data, parameter_name):
         """Plot single parameter data with compressed timeline for distant dates"""
         try:
+            # IMPORTANT: Ensure the widget has a parent to prevent popup windows
+            if widget.parent() is None:
+                print(f"Warning: Graph widget for {parameter_name} has no parent - this may cause popup windows")
+            
             # Clear existing layout
             for i in reversed(range(widget.layout().count() if widget.layout() else 0)):
-                widget.layout().itemAt(i).widget().setParent(None)
+                child = widget.layout().itemAt(i).widget()
+                if child:
+                    child.setParent(None)
 
             if widget.layout() is None:
                 from PyQt5.QtWidgets import QVBoxLayout
@@ -722,8 +728,12 @@ class PlotUtils:
             layout = widget.layout()
 
             # Create matplotlib figure with enhanced styling
-            fig = Figure(figsize=(12, 4), dpi=100, facecolor='white')
+            # FIXED: Smaller figure size to fit better in embedded widgets
+            fig = Figure(figsize=(8, 3), dpi=80, facecolor='white')
             canvas = FigureCanvas(fig)
+            
+            # CRITICAL: Set the canvas parent to prevent popup windows
+            canvas.setParent(widget)
             layout.addWidget(canvas)
 
             ax = fig.add_subplot(111)

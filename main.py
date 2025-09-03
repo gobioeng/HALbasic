@@ -3610,11 +3610,18 @@ Source: {result.get('source', 'unknown')} database
             app.setApplicationVersion(APP_VERSION)
             app.setOrganizationName("gobioeng.com")
 
-            # Set professional font
+            # Set professional font - IMPROVED: Using Calibri for better readability
             try:
-                font = QtGui.QFont("Segoe UI", 9)  # Slightly smaller for better data focus
+                font = QtGui.QFont("Calibri", 10)  # Changed from Segoe UI to Calibri, size 10 for better readability
+                if not font.exactMatch():
+                    # Fallback fonts if Calibri not available
+                    font = QtGui.QFont("Segoe UI", 10)
+                    if not font.exactMatch():
+                        font = QtGui.QFont("Arial", 10)
                 app.setFont(font)
-            except:
+                print(f"✓ Font set to: {font.family()}")
+            except Exception as e:
+                print(f"Warning: Could not set font: {e}")
                 pass
 
             # Create HALog app instance and splash
@@ -3631,7 +3638,7 @@ Source: {result.get('source', 'unknown')} database
             # Finalize startup
             self.update_splash_progress(90, "Finalizing HALog...")
 
-            # Schedule window display with smooth transition
+            # Schedule window display with smooth transition - OPTIMIZED for instant launch
             def finish_startup():
                 if splash:
                     splash.close()
@@ -3639,7 +3646,7 @@ Source: {result.get('source', 'unknown')} database
                 window.raise_()
                 window.activateWindow()
 
-            QtCore.QTimer.singleShot(600, finish_startup)  # Faster for better UX
+            QtCore.QTimer.singleShot(300, finish_startup)  # Reduced from 600ms to 300ms for faster startup
 
             # Log startup timing
             total_time = time.time() - startup_begin
@@ -3704,11 +3711,11 @@ def main():
         except Exception as e:
             print(f"Warning: Could not set application icon: {e}")
 
-        # Professional styling with optimized processing
+        # Professional styling with optimized processing and Calibri font
         app.setStyleSheet(
             """
             QApplication {
-                font-family: 'Segoe UI', 'Roboto', 'Google Sans', Arial, sans-serif;
+                font-family: 'Calibri', 'Segoe UI', 'Roboto', 'Google Sans', Arial, sans-serif;
                 font-size: 11px;
                 font-weight: 400;
             }
