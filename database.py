@@ -58,6 +58,9 @@ class DatabaseManager:
             """
             )
 
+            # Create optimized indices
+            self._create_indices(conn)
+
             # Create metadata table
             conn.execute(
                 """
@@ -71,28 +74,6 @@ class DatabaseManager:
                 )
             """
             )
-
-            # Create anomalies table for performance optimization
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS anomalies (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    datetime TEXT NOT NULL,
-                    serial_number TEXT NOT NULL,
-                    parameter_type TEXT NOT NULL,
-                    statistic_type TEXT NOT NULL,
-                    value REAL NOT NULL,
-                    average_value REAL NOT NULL,
-                    deviation_percentage REAL NOT NULL,
-                    anomaly_type TEXT NOT NULL,
-                    detection_method TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """
-            )
-
-            # Create optimized indices
-            self._create_indices(conn)
 
             conn.commit()
 
@@ -128,19 +109,6 @@ class DatabaseManager:
             (
                 "idx_combined",
                 "CREATE INDEX IF NOT EXISTS idx_combined ON water_logs(datetime, serial_number, parameter_type, statistic_type)",
-            ),
-            # Anomalies table indices
-            (
-                "idx_anomalies_datetime",
-                "CREATE INDEX IF NOT EXISTS idx_anomalies_datetime ON anomalies(datetime)",
-            ),
-            (
-                "idx_anomalies_parameter",
-                "CREATE INDEX IF NOT EXISTS idx_anomalies_parameter ON anomalies(parameter_type)",
-            ),
-            (
-                "idx_anomalies_deviation",
-                "CREATE INDEX IF NOT EXISTS idx_anomalies_deviation ON anomalies(deviation_percentage)",
             ),
         ]
 
@@ -570,100 +538,6 @@ class DatabaseManager:
                 return result[0] if result else 0
         except Exception as e:
             print(f"Error getting record count: {e}")
-            return 0
-
-    def store_anomalies(self, anomalies_df: pd.DataFrame) -> bool:
-        """Store detected anomalies in the anomalies table for quick retrieval"""
-        try:
-            if anomalies_df.empty:
-                return True
-                
-            with self.get_connection() as conn:
-                # Clear existing anomalies to avoid duplicates
-                conn.execute("DELETE FROM anomalies")
-                
-                # Prepare anomaly records
-                anomaly_records = []
-                for _, row in anomalies_df.iterrows():
-                    # Calculate deviation percentage if not present
-                    if 'deviation_percentage' not in row:
-                        # Try to calculate it from available data
-                        avg_val = row.get('avg', row.get('average', row.get('value', 0)))
-                        if avg_val != 0:
-                            # This is a simplified calculation - in practice you'd want the true average
-                            deviation = 2.0  # Default to threshold
-                        else:
-                            deviation = 0.0
-                    else:
-                        deviation = row['deviation_percentage']
-                    
-                    anomaly_record = (
-                        str(row.get('datetime', '')),  # Convert to string
-                        row.get('serial', row.get('serial_number', '')),
-                        row.get('param', row.get('parameter_type', '')),
-                        row.get('stat_type', row.get('statistic_type', 'avg')),
-                        row.get('avg', row.get('value', 0)),
-                        row.get('avg', row.get('value', 0)),  # average_value - simplified
-                        deviation,
-                        'percentage_deviation',
-                        'percentage_threshold'
-                    )
-                    anomaly_records.append(anomaly_record)
-                
-                # Batch insert anomalies
-                conn.executemany(
-                    """
-                    INSERT INTO anomalies (
-                        datetime, serial_number, parameter_type, statistic_type,
-                        value, average_value, deviation_percentage, anomaly_type, detection_method
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    anomaly_records
-                )
-                
-                print(f"✓ Stored {len(anomaly_records)} anomalous records")
-                return True
-                
-        except Exception as e:
-            print(f"Error storing anomalies: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-    
-    def get_anomalies(self, limit: Optional[int] = None) -> pd.DataFrame:
-        """Retrieve anomalous records for display in data table"""
-        try:
-            with self.get_connection() as conn:
-                query = """
-                    SELECT 
-                        datetime,
-                        serial_number as serial,
-                        parameter_type as param,
-                        statistic_type as stat_type,
-                        value as avg,
-                        deviation_percentage,
-                        anomaly_type
-                    FROM anomalies
-                    ORDER BY datetime DESC, deviation_percentage DESC
-                """
-                
-                if limit:
-                    query += f" LIMIT {limit}"
-                
-                return pd.read_sql_query(query, conn, parse_dates=['datetime'])
-                
-        except Exception as e:
-            print(f"Error retrieving anomalies: {e}")
-            return pd.DataFrame()
-    
-    def get_anomaly_count(self) -> int:
-        """Get total count of anomalous records"""
-        try:
-            with self.get_connection() as conn:
-                result = conn.execute("SELECT COUNT(*) FROM anomalies").fetchone()
-                return result[0] if result else 0
-        except Exception as e:
-            print(f"Error getting anomaly count: {e}")
             return 0
 
     def __del__(self):

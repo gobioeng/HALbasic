@@ -833,29 +833,6 @@ class Ui_MainWindow(object):
         layout = QVBoxLayout(self.tabDataTable)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        # Add controls for anomaly filtering
-        controls_group = QGroupBox("Data View Controls")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        controls_layout.setContentsMargins(16, 16, 16, 16)
-        
-        controls_layout.addWidget(QLabel("View Mode:"))
-        self.comboDataViewMode = QComboBox()
-        self.comboDataViewMode.setMinimumWidth(200)
-        self.comboDataViewMode.addItems([
-            "Anomalies Only (>2% deviation)",
-            "All Data"
-        ])
-        self.comboDataViewMode.setCurrentIndex(0)  # Default to anomalies
-        controls_layout.addWidget(self.comboDataViewMode)
-        
-        self.btnRefreshDataTable = QPushButton("Refresh Data")
-        self.btnRefreshDataTable.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshDataTable)
-        
-        controls_layout.addStretch()
-        layout.addWidget(controls_group)
-
         self.lblTableInfo = QLabel("No data available")
         self.lblTableInfo.setWordWrap(True)
         layout.addWidget(self.lblTableInfo)
@@ -1281,15 +1258,49 @@ class Ui_MainWindow(object):
             }
         """)
         results_layout.addWidget(self.txtFaultResult)
+<<<<<<< HEAD
+=======
+
+        # Add HAL and TB Description text boxes
+        descriptions_layout = QHBoxLayout()
+        descriptions_layout.setSpacing(12)
         
-        # Add User Notes section - ENLARGED
+        # HAL Description box
+        hal_group = QGroupBox("HAL Description")
+        hal_layout = QVBoxLayout(hal_group)
+        hal_layout.setContentsMargins(8, 8, 8, 8)
+        
+        self.txtHALDescription = QTextEdit()
+        self.txtHALDescription.setReadOnly(True)
+        self.txtHALDescription.setMaximumHeight(120)
+        self.txtHALDescription.setPlaceholderText("HAL fault description will appear here...")
+        hal_layout.addWidget(self.txtHALDescription)
+        
+        # TB Description box
+        tb_group = QGroupBox("TB Description")
+        tb_layout = QVBoxLayout(tb_group)
+        tb_layout.setContentsMargins(8, 8, 8, 8)
+        
+        self.txtTBDescription = QTextEdit()
+        self.txtTBDescription.setReadOnly(True)
+        self.txtTBDescription.setMaximumHeight(120)
+        self.txtTBDescription.setPlaceholderText("TB fault description will appear here...")
+        tb_layout.addWidget(self.txtTBDescription)
+        
+        descriptions_layout.addWidget(hal_group)
+        descriptions_layout.addWidget(tb_group)
+        
+        results_layout.addLayout(descriptions_layout)
+>>>>>>> parent of 9f2a620 (Merge pull request #4 from gobioeng/copilot/fix-1391bda7-5a3d-4358-a1b8-82b769060160)
+        
+        # Add User Notes section
         notes_group = QGroupBox("User Notes")
         notes_layout = QVBoxLayout(notes_group)
         notes_layout.setContentsMargins(8, 8, 8, 8)
         
-        # Note display area - BIGGER
+        # Note display area
         self.txtUserNote = QTextEdit()
-        self.txtUserNote.setMinimumHeight(150)  # Increased from 100
+        self.txtUserNote.setMaximumHeight(100)
         self.txtUserNote.setPlaceholderText("Add your own notes about this fault code here...")
         notes_layout.addWidget(self.txtUserNote)
         

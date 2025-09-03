@@ -879,12 +879,6 @@ class HALogApp:
                     self.ui.btnClearDB.clicked.connect(self.clear_database)
                     self.ui.btnRefreshData.clicked.connect(self.load_dashboard)
 
-                    # DATA TABLE CONTROLS
-                    if hasattr(self.ui, 'comboDataViewMode'):
-                        self.ui.comboDataViewMode.currentIndexChanged.connect(self._on_data_view_mode_changed)
-                    if hasattr(self.ui, 'btnRefreshDataTable'):
-                        self.ui.btnRefreshDataTable.clicked.connect(self._refresh_data_table)
-
                     # Legacy trend controls (keep for backward compatibility)
                     if hasattr(self.ui, 'comboTrendSerial'):
                         self.ui.comboTrendSerial.currentIndexChanged.connect(self.update_trend)
@@ -1651,19 +1645,29 @@ Source: {result.get('source', 'unknown')} database
 
                         self.ui.txtFaultResult.setText(formatted_result)
 
-                        # Update combined description box based on source
-                        if hasattr(self.ui, 'txtFaultDescription'):
-                            description_text = f"**{result.get('source', 'Unknown').upper()} Database**\n\n{result['description']}"
-                            self.ui.txtFaultDescription.setText(description_text)
+                        # Update individual description boxes based on source
+                        if hasattr(self.ui, 'txtHALDescription'):
+                            if result.get('source') == 'uploaded':
+                                self.ui.txtHALDescription.setText(result['description'])
+                            else:
+                                self.ui.txtHALDescription.setText("No HAL description available for this code")
+
+                        if hasattr(self.ui, 'txtTBDescription'):
+                            if result.get('source') == 'tb':
+                                self.ui.txtTBDescription.setText(result['description'])
+                            else:
+                                self.ui.txtTBDescription.setText("No TB description available for this code")
                         
                         # Load and display existing note for this fault code
                         self._load_fault_note(code)
                     else:
                         self.ui.txtFaultResult.setText(f"❌ Fault code '{code}' not found in the loaded databases.\n\nLoaded databases: {', '.join(self.fault_parser.get_fault_code_statistics()['sources'])}")
 
-                        # Clear combined description box
-                        if hasattr(self.ui, 'txtFaultDescription'):
-                            self.ui.txtFaultDescription.setText("Fault code not found")
+                        # Clear individual description boxes
+                        if hasattr(self.ui, 'txtHALDescription'):
+                            self.ui.txtHALDescription.setText("Fault code not found")
+                        if hasattr(self.ui, 'txtTBDescription'):
+                            self.ui.txtTBDescription.setText("Fault code not found")
                         
                         # Clear notes area
                         self._clear_fault_note_display()
@@ -1704,9 +1708,11 @@ Source: {result.get('source', 'unknown')} database
 
                         self.ui.txtFaultResult.setText(formatted_results)
 
-                        # Clear combined description box for description search
-                        if hasattr(self.ui, 'txtFaultDescription'):
-                            self.ui.txtFaultDescription.setText("Multiple results found - use specific fault code search")
+                        # Clear individual description boxes for description search
+                        if hasattr(self.ui, 'txtHALDescription'):
+                            self.ui.txtHALDescription.setText("Multiple results found - use specific fault code search")
+                        if hasattr(self.ui, 'txtTBDescription'):
+                            self.ui.txtTBDescription.setText("Multiple results found - use specific fault code search")
                         
                         # Clear notes area for multiple results
                         self._clear_fault_note_display()
@@ -2236,8 +2242,8 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error updating trend combos: {e}")
 
-            def update_data_table(self, page_size=None, show_all_data=False):
-                """Update data table with optimized performance - shows anomalies by default"""
+            def update_data_table(self, page_size=None):
+                """Update data table with optimized performance for large datasets"""
                 try:
                     from PyQt5.QtWidgets import QTableWidgetItem
                     from PyQt5.QtCore import Qt
@@ -2248,102 +2254,57 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.lblTableInfo.setText("No data available")
                         return
 
-                    # Determine what data to show: anomalies only (default) or all data
-                    if not show_all_data:
-                        # Check if we have cached anomalies in database
-                        try:
-                            anomalies_df = self.db.get_anomalies(limit=1000)  # Limit for performance
-                            if not anomalies_df.empty:
-                                display_df = anomalies_df
-                                self.ui.lblTableInfo.setText(
-                                    f"Showing {len(display_df)} anomalous records "
-                                    f"(>2% deviation from average) - "
-                                    f"Total anomalies: {self.db.get_anomaly_count()}"
-                                )
-                                print("📋 Using cached anomalies from database (performance optimization)")
-                            else:
-                                # Detect anomalies on-the-fly if not cached
-                                print("🔍 Detecting anomalies on-the-fly...")
-                                from data_analyzer import DataAnalyzer
-                                analyzer = DataAnalyzer()
-                                anomalies_df = analyzer.detect_percentage_deviation_anomalies(self.df, 2.0)
-                                
-                                if not anomalies_df.empty:
-                                    # Store anomalies in database for future use
-                                    self.db.store_anomalies(anomalies_df)
-                                    display_df = anomalies_df.iloc[:1000]  # Limit display
-                                    self.ui.lblTableInfo.setText(
-                                        f"Showing {len(display_df)} anomalous records "
-                                        f"(>2% deviation from average) - "
-                                        f"Total detected: {len(anomalies_df)}"
-                                    )
-                                else:
-                                    # No anomalies found, show recent data
-                                    display_df = self.df.iloc[:100]
-                                    self.ui.lblTableInfo.setText(
-                                        "No anomalies detected (>2% deviation). Showing recent 100 records."
-                                    )
-                        except Exception as e:
-                            print(f"Error retrieving anomalies: {e}")
-                            # Fallback to recent data
-                            display_df = self.df.iloc[:100]
-                            self.ui.lblTableInfo.setText("Error detecting anomalies. Showing recent 100 records.")
-                    else:
-                        # Show all data with pagination
-                        if page_size is None:
-                            total_records = len(self.df)
-                            if total_records > 50000:
-                                page_size = 500   # Very large datasets: show only 500 rows
-                            elif total_records > 10000:
-                                page_size = 1000  # Large datasets: show 1000 rows  
-                            elif total_records > 1000:
-                                page_size = 2000  # Medium datasets: show 2000 rows
-                            else:
-                                page_size = total_records  # Small datasets: show all
-
-                        # Use cached sorted data if available and not stale
-                        cache_key = 'sorted_data_table'
-                        if (hasattr(self, '_data_cache') and 
-                            cache_key in self._data_cache and 
-                            self._data_cache[cache_key]['timestamp'] > getattr(self, '_last_data_update', 0)):
-                            display_df = self._data_cache[cache_key]['data']
-                            param_col = self._data_cache[cache_key]['param_col']
-                            print("📋 Using cached sorted data for table (performance optimization)")
+                    # Smart page sizing based on dataset size
+                    if page_size is None:
+                        total_records = len(self.df)
+                        if total_records > 50000:
+                            page_size = 500   # Very large datasets: show only 500 rows
+                        elif total_records > 10000:
+                            page_size = 1000  # Large datasets: show 1000 rows  
+                        elif total_records > 1000:
+                            page_size = 2000  # Medium datasets: show 2000 rows
                         else:
-                            print(f"🔍 DataFrame columns: {list(self.df.columns)}")
-                            print(f"🔍 DataFrame shape: {self.df.shape}")
+                            page_size = total_records  # Small datasets: show all
 
-                            # Find parameter column
-                            param_col = None
-                            for col in ['param', 'parameter_type', 'parameter_name']:
-                                if col in self.df.columns:
-                                    param_col = col
-                                    break
-                            
-                            print(f"🔍 Using parameter column: '{param_col}'")
+                    # Use cached sorted data if available and not stale
+                    cache_key = 'sorted_data_table'
+                    if (hasattr(self, '_data_cache') and 
+                        cache_key in self._data_cache and 
+                        self._data_cache[cache_key]['timestamp'] > getattr(self, '_last_data_update', 0)):
+                        display_df = self._data_cache[cache_key]['data']
+                        param_col = self._data_cache[cache_key]['param_col']
+                        print("📋 Using cached sorted data for table (performance optimization)")
+                    else:
+                        print(f"🔍 DataFrame columns: {list(self.df.columns)}")
+                        print(f"🔍 DataFrame shape: {self.df.shape}")
 
-                            if not param_col:
-                                self.ui.tableData.setRowCount(0)
-                                self.ui.lblTableInfo.setText("No parameter column found")
-                                return
+                        # Find parameter column
+                        param_col = None
+                        for col in ['param', 'parameter_type', 'parameter_name']:
+                            if col in self.df.columns:
+                                param_col = col
+                                break
+                        
+                        print(f"🔍 Using parameter column: '{param_col}'")
 
-                            # Sort by parameter name, then by datetime (newest first) - expensive operation
-                            print("📋 Sorting data for table display...")
-                            df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
-                            display_df = df_sorted.iloc[:page_size]
-                            
-                            # Cache the sorted result
-                            if not hasattr(self, '_data_cache'):
-                                self._data_cache = {}
-                            self._data_cache[cache_key] = {
-                                'data': display_df,
-                                'param_col': param_col,
-                                'timestamp': time.time()
-                            }
+                        if not param_col:
+                            self.ui.tableData.setRowCount(0)
+                            self.ui.lblTableInfo.setText("No parameter column found")
+                            return
 
-                        self.ui.lblTableInfo.setText(
-                            f"Showing {len(display_df)} of {len(self.df)} total records (all data mode)"
-                        )
+                        # Sort by parameter name, then by datetime (newest first) - expensive operation
+                        print("📋 Sorting data for table display...")
+                        df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
+                        display_df = df_sorted.iloc[:page_size]
+                        
+                        # Cache the sorted result
+                        if not hasattr(self, '_data_cache'):
+                            self._data_cache = {}
+                        self._data_cache[cache_key] = {
+                            'data': display_df,
+                            'param_col': param_col,
+                            'timestamp': time.time()
+                        }
 
                     # Find column mappings with better fallbacks (cached)
                     if not hasattr(self, '_column_mapping_cache'):
@@ -2351,20 +2312,13 @@ Source: {result.get('source', 'unknown')} database
                         avg_col = None
                         min_col = None 
                         max_col = None
-                        param_col = None
-                        
-                        # Find parameter column first (use display_df columns)
-                        for col in ['param', 'parameter_type', 'parameter_name']:
-                            if col in display_df.columns:
-                                param_col = col
-                                break
                         
                         # Map columns
-                        for col in display_df.columns:
+                        for col in self.df.columns:
                             col_lower = col.lower()
                             if col_lower in ['serial', 'serial_number']:
                                 serial_col = col
-                            elif col_lower in ['avg', 'average', 'avg_value', 'value']:
+                            elif col_lower in ['avg', 'average', 'avg_value']:
                                 avg_col = col
                             elif col_lower in ['min', 'min_value', 'minimum']:
                                 min_col = col
@@ -2375,8 +2329,7 @@ Source: {result.get('source', 'unknown')} database
                             'serial_col': serial_col,
                             'avg_col': avg_col,
                             'min_col': min_col,
-                            'max_col': max_col,
-                            'param_col': param_col
+                            'max_col': max_col
                         }
                     
                     # Use cached column mappings
@@ -2384,7 +2337,6 @@ Source: {result.get('source', 'unknown')} database
                     avg_col = self._column_mapping_cache['avg_col']
                     min_col = self._column_mapping_cache['min_col']
                     max_col = self._column_mapping_cache['max_col']
-                    param_col = self._column_mapping_cache['param_col'] or param_col
 
                     # Set table size and headers (match main_window.py which expects 7 columns)
                     self.ui.tableData.setRowCount(len(display_df))
@@ -2414,14 +2366,14 @@ Source: {result.get('source', 'unknown')} database
 
                             # Serial Number
                             serial_value = "Unknown"
-                            if serial_col and serial_col in row and pd.notna(row[serial_col]):
+                            if serial_col and pd.notna(row[serial_col]):
                                 serial_value = str(row[serial_col])
                             serial_item = QTableWidgetItem(serial_value)
                             serial_item.setFlags(serial_item.flags() & ~Qt.ItemIsEditable)
                             self.ui.tableData.setItem(row_idx, 1, serial_item)
 
                             # Parameter Name (use enhanced name)
-                            raw_param = str(row[param_col]) if param_col and param_col in row else "Unknown"
+                            raw_param = str(row[param_col])
                             display_param = self._get_enhanced_parameter_name(raw_param)
                             param_item = QTableWidgetItem(display_param)
                             param_item.setToolTip(f"Raw parameter: {raw_param}")  # Show raw name in tooltip
@@ -2430,7 +2382,7 @@ Source: {result.get('source', 'unknown')} database
 
                             # Average value
                             avg_value = 0.0
-                            if avg_col and avg_col in row and pd.notna(row[avg_col]):
+                            if avg_col and pd.notna(row[avg_col]):
                                 try:
                                     avg_value = float(row[avg_col])
                                 except (ValueError, TypeError):
@@ -2441,7 +2393,7 @@ Source: {result.get('source', 'unknown')} database
 
                             # Min value
                             min_value = 0.0
-                            if min_col and min_col in row and pd.notna(row[min_col]):
+                            if min_col and pd.notna(row[min_col]):
                                 try:
                                     min_value = float(row[min_col])
                                 except (ValueError, TypeError):
@@ -2452,7 +2404,7 @@ Source: {result.get('source', 'unknown')} database
 
                             # Max value
                             max_value = 0.0
-                            if max_col and max_col in row and pd.notna(row[max_col]):
+                            if max_col and pd.notna(row[max_col]):
                                 try:
                                     max_value = float(row[max_col])
                                 except (ValueError, TypeError):
@@ -2485,7 +2437,17 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.tableData.resizeColumnsToContents()
                         self._last_column_resize = time.time()
 
-                    print(f"✓ Data table updated: {len(display_df):,} records displayed")
+                    # Update info label
+                    total_records = len(self.df)
+                    showing_records = len(display_df)
+                    unique_params = self.df[param_col].nunique()
+
+                    self.ui.lblTableInfo.setText(
+                        f"Showing {showing_records:,} of {total_records:,} records | "
+                        f"Unique Parameters: {unique_params} | Sorted by parameter name, then date"
+                    )
+
+                    print(f"✓ Data table updated: {showing_records:,} records displayed with {unique_params} unique parameters")
 
                 except Exception as e:
                     print(f"Error updating data table: {e}")
@@ -2862,44 +2824,6 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error filtering analysis results: {e}")
 
-            def _on_data_view_mode_changed(self):
-                """Handle data view mode change between anomalies and all data"""
-                try:
-                    if not hasattr(self.ui, 'comboDataViewMode'):
-                        return
-                        
-                    current_mode = self.ui.comboDataViewMode.currentIndex()
-                    show_all_data = (current_mode == 1)  # 1 = "All Data", 0 = "Anomalies Only"
-                    
-                    print(f"Data view mode changed to: {'All Data' if show_all_data else 'Anomalies Only'}")
-                    self.update_data_table(show_all_data=show_all_data)
-                    
-                except Exception as e:
-                    print(f"Error handling data view mode change: {e}")
-            
-            def _refresh_data_table(self):
-                """Refresh data table based on current view mode"""
-                try:
-                    # Clear any cached anomalies to force refresh
-                    if hasattr(self, 'db') and self.db:
-                        # Clear cached anomalies to force recalculation
-                        try:
-                            with self.db.get_connection() as conn:
-                                conn.execute("DELETE FROM anomalies")
-                            print("Cleared cached anomalies for fresh calculation")
-                        except Exception as e:
-                            print(f"Error clearing anomalies cache: {e}")
-                    
-                    # Clear data cache as well
-                    if hasattr(self, '_data_cache'):
-                        self._data_cache.clear()
-                    
-                    # Trigger refresh
-                    self._on_data_view_mode_changed()
-                    
-                except Exception as e:
-                    print(f"Error refreshing data table: {e}")
-
             def on_tab_changed(self, index):
                 """Handle tab changes with optimized performance and caching"""
                 try:
@@ -2936,11 +2860,7 @@ Source: {result.get('source', 'unknown')} database
                         if index == 1:  # Trends tab
                             self.update_trend()
                         elif index == 2:  # Data Table tab
-                            # Use the appropriate mode for data table
-                            show_all_data = False  # Default to anomalies
-                            if hasattr(self.ui, 'comboDataViewMode'):
-                                show_all_data = (self.ui.comboDataViewMode.currentIndex() == 1)
-                            self.update_data_table(show_all_data=show_all_data)
+                            self.update_data_table()
                         elif index == 3:  # Analysis tab
                             self.update_analysis_tab()
                         
