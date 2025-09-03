@@ -1,235 +1,134 @@
 """
-Enhanced Splash Screen and Bootstrap - Gobioeng HALog
-Professional splash screen with animated loading and resource handling
-Consolidated bootstrap functionality
+Minimalistic Splash Screen - HALog
+Clean, modern splash screen with progress bar, logo with shadow, app name and version
 Developer: Tanmay Pandey
 Company: gobioeng.com
 """
 
-from PyQt5.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QProgressBar, QWidget
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRect  # Explicitly import QRect
-from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QLinearGradient, QBrush, QImage, QPen
-from resource_helper import resource_path, generate_icon
+from PyQt5.QtWidgets import QSplashScreen, QProgressBar, QLabel
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRect
+from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QBrush, QPen
+from resource_helper import resource_path, load_splash_icon
 import time
-import os
 
 
-class BootstrapSplashWidget(QWidget):
+class MinimalisticSplashScreen(QSplashScreen):
     """
-    Bootstrap splash screen component for lightweight initialization
-    Developed by Tanmay Pandey - gobioeng.com
+    Minimalistic splash screen with clean design
+    Features: Logo with shadow, app name, version, progress bar
     """
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-        self.setFixedSize(500, 350)
-        self.setStyleSheet("background: #2c3e50;")
-        self.setupUI()
-
-    def setupUI(self):
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignCenter)
-
-        # --- App logo from assets (robust path) ---
-        self.logo_label = QLabel()
-        logo_pix = QPixmap(resource_path("linac_logo.ico"))
-        if not logo_pix.isNull():
-            # Process logo to remove white background
-            processed_logo = self._remove_white_background(logo_pix, 80)
-            self.logo_label.setPixmap(processed_logo)
-        else:
-            self.logo_label.setText("🏥")
-            self.logo_label.setStyleSheet("font-size: 64px; color: gold;")
-        self.logo_label.setAlignment(Qt.AlignCenter)
-        # Remove all background styling completely
-        self.logo_label.setStyleSheet("background: transparent; border: none; margin: 0; padding: 0;")
-        layout.addWidget(self.logo_label)
-
-        # App name
-        app_name = QLabel("Gobioeng HALog")
-        app_name.setFont(QFont("Arial", 22, QFont.Bold))
-        app_name.setStyleSheet("color: #ecf0f1; margin-top:8px;")
-        app_name.setAlignment(Qt.AlignCenter)
-        layout.addWidget(app_name)
-
-        # Version
-        version = QLabel("Version 0.0.1 beta")
-        version.setFont(QFont("Arial", 12))
-        version.setStyleSheet("color: #bdc3c7; margin-bottom:8px;")
-        version.setAlignment(Qt.AlignCenter)
-        layout.addWidget(version)
-
-        # Tagline
-        tagline = QLabel("LINAC LOG ANALYSIS TOOL")
-        tagline.setFont(QFont("Arial", 11))
-        tagline.setStyleSheet("color: #95a5a6; margin-bottom:12px;")
-        tagline.setAlignment(Qt.AlignCenter)
-        layout.addWidget(tagline)
-
-        # Designer/company footer with proper attribution
-        designer = QLabel(
-            "Designed & Developed by <b>Tanmay Pandey</b> • "
-            "<a href='https://gobioeng.com'>gobioeng.com</a>"
-        )
-        designer.setOpenExternalLinks(True)
-        designer.setFont(QFont("Arial", 11))
-        designer.setStyleSheet("color: #ecf0f1; margin-top:24px;")
-        designer.setAlignment(Qt.AlignCenter)
-        layout.addWidget(designer)
-
-    def _remove_white_background(self, pixmap: QPixmap, size: int) -> QPixmap:
-        """Replace white background from logo with transparent background"""
-        # Scale first
-        scaled_pixmap = pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-        # Convert to image for pixel manipulation
-        image = scaled_pixmap.toImage().convertToFormat(QImage.Format_ARGB32)
-
-        # Replace white/light pixels with transparent - more aggressive approach
-        for x in range(image.width()):
-            for y in range(image.height()):
-                color = QColor(image.pixel(x, y))
-
-                # Extremely aggressive white background removal
-                # Check for any light colors that could appear as white background
-                if (color.lightness() > 180 or  # Much lower threshold
-                    (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
-                    (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
-                    (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
-                    # Make it completely transparent
-                    image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
-
-        return QPixmap.fromImage(image)
-
-
-class SplashScreen(QSplashScreen):
     finished = pyqtSignal()
 
-    def __init__(self, app_version="0.0.1"):
-        # Create pixmap for the splash screen
-        pixmap = QPixmap(500, 350)
+    def __init__(self, app_version="1.0.0"):
+        # Create clean splash screen
+        pixmap = QPixmap(400, 250)  # Smaller, more compact size
         super().__init__(pixmap)
+        
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-        self.start_time = time.time()
         self.app_version = app_version
-        self.minimum_display_time = 2.5  # seconds
-
-        # Create a timer for animations
+        self.start_time = time.time()
+        self.minimum_display_time = 2.0
+        
+        # Animation timer
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self.update_animation)
         self.animation_timer.setInterval(100)
         self.animation_step = 0
-
+        
         self.setupUI()
         self.animation_timer.start()
 
     def setupUI(self):
-        # Get the pixmap for customization
+        """Setup minimalistic UI with logo, shadow, name, version, and progress bar"""
         pixmap = self.pixmap()
         pixmap.fill(Qt.transparent)
-
-        # Create a painter for drawing on the pixmap
+        
         painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        # Windows system background color gradient - matches native Windows
-        gradient = QLinearGradient(0, 0, 0, pixmap.height())
-        gradient.setColorAt(0, QColor("#f0f0f0"))  # Windows system background
-        gradient.setColorAt(0.5, QColor("#e8e8e8"))  # Slightly darker
-        gradient.setColorAt(1, QColor("#e0e0e0"))  # Even more subtle
-        painter.fillRect(pixmap.rect(), QBrush(gradient))
-
-        # Subtle border matching Windows style
-        painter.setPen(QPen(QColor("#d0d0d0"), 1))
-        painter.drawRect(0, 0, pixmap.width() - 1, pixmap.height() - 1)
-
-        # Modern logo placement - centered and larger
-        logo_size = 80
-        logo_x = (pixmap.width() - logo_size) // 2
-        logo_y = 60
-
-        logo_path = resource_path("linac_logo.ico")
-        if os.path.exists(logo_path):
-            logo_pixmap = QPixmap(logo_path)
-
-            # Scale the original logo
-            scaled_logo = logo_pixmap.scaled(logo_size, logo_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-            # Convert white/light pixels to transparent - very aggressive removal
-            image = scaled_logo.toImage().convertToFormat(QImage.Format_ARGB32)
-            for x in range(image.width()):
-                for y in range(image.height()):
-                    color = QColor(image.pixel(x, y))
-
-                    # Extremely aggressive white background removal
-                    # Check for any light colors that could appear as white background
-                    if (color.lightness() > 180 or  # Much lower threshold
-                        (color.red() > 200 and color.green() > 200 and color.blue() > 200) or  # Lower RGB threshold
-                        (color.saturation() < 40 and color.lightness() > 150) or  # Broader grayscale detection
-                        (color.red() > color.blue() + 50 and color.green() > color.blue() + 50)):  # Remove yellow-ish backgrounds
-                        # Direct RGB check for white-ish colors
-                        image.setPixel(x, y, QColor(0, 0, 0, 0).rgba())
-
-            # Convert back to pixmap and draw directly
-            processed_logo = QPixmap.fromImage(image)
-
-            # Draw the processed logo directly onto the splash screen
-            painter.drawPixmap(logo_x, logo_y, processed_logo)
-        else:
-            # Generate modern icon as fallback
-            fallback_icon = generate_icon(logo_size)
-            painter.drawPixmap(logo_x, logo_y, fallback_icon)
-
-        # Main application title - Word 2024 style typography
-        painter.setPen(QColor("#323130"))  # Word 2024 text color
-        font = QFont("Segoe UI", 28, QFont.Light)  # Segoe UI like Word
-        painter.setFont(font)
-        title_y = logo_y + logo_size + 30
-        title_rect = QRect(0, title_y, pixmap.width(), 40)
-        painter.drawText(title_rect, Qt.AlignCenter, "HALog")
-
-        # Subtitle with clean typography
-        painter.setPen(QColor("#605e5c"))  # Subtle gray
-        font = QFont("Segoe UI", 14, QFont.Normal)
-        painter.setFont(font)
-        subtitle_y = title_y + 45
-        subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 25)
-        painter.drawText(subtitle_rect, Qt.AlignCenter, "LINAC LOG ANALYSIS TOOL")
-
-        # Version info in a clean, minimal way
-        painter.setPen(QColor("#8a8886"))  # Light gray
-        font = QFont("Segoe UI", 11, QFont.Normal)
-        painter.setFont(font)
-        version_y = subtitle_y + 35
-        version_rect = QRect(0, version_y, pixmap.width(), 20)
-        painter.drawText(version_rect, Qt.AlignCenter, f"Version {self.app_version}")
-
-        # Progress bar area (modern flat design)
-        progress_y = pixmap.height() - 80
-        progress_width = 200
-        progress_x = (pixmap.width() - progress_width) // 2
-
-        # Progress bar background
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        
+        # Clean white background with subtle rounded corners
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#d8d8d8"))  # Matching system background
-        painter.drawRoundedRect(progress_x, progress_y, progress_width, 6, 3, 3)
-
-        # Branding footer - very subtle like Word 2024
-        painter.setPen(QColor("#a19f9d"))  # Very light gray
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+        painter.drawRoundedRect(0, 0, pixmap.width(), pixmap.height(), 8, 8)
+        
+        # Subtle border
+        painter.setPen(QPen(QColor(220, 220, 220), 1))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(0, 0, pixmap.width()-1, pixmap.height()-1, 8, 8)
+        
+        # Logo with shadow
+        logo_size = 64
+        logo_x = (pixmap.width() - logo_size) // 2
+        logo_y = 30
+        
+        # Load logo
+        try:
+            logo_pixmap = load_splash_icon(logo_size)
+            
+            # Draw shadow first (offset by 2px)
+            shadow_x = logo_x + 2
+            shadow_y = logo_y + 2
+            
+            # Create shadow effect
+            shadow_image = logo_pixmap.toImage()
+            for y in range(shadow_image.height()):
+                for x in range(shadow_image.width()):
+                    color = QColor(shadow_image.pixel(x, y))
+                    if color.alpha() > 0:
+                        # Make it a semi-transparent black shadow
+                        shadow_image.setPixelColor(x, y, QColor(0, 0, 0, 60))
+            
+            shadow_pixmap = QPixmap.fromImage(shadow_image)
+            painter.drawPixmap(shadow_x, shadow_y, shadow_pixmap)
+            
+            # Draw main logo
+            painter.drawPixmap(logo_x, logo_y, logo_pixmap)
+            
+        except Exception as e:
+            print(f"Error loading logo: {e}")
+            # Fallback: simple circle with "HA"
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(QColor(33, 150, 243)))  # Blue
+            painter.drawEllipse(logo_x, logo_y, logo_size, logo_size)
+            
+            painter.setPen(QColor(255, 255, 255))
+            font = QFont("Arial", 18, QFont.Bold)
+            painter.setFont(font)
+            painter.drawText(logo_x, logo_y, logo_size, logo_size, Qt.AlignCenter, "HA")
+        
+        # App name
+        painter.setPen(QColor(60, 60, 60))
+        font = QFont("Segoe UI", 18, QFont.Light)
+        painter.setFont(font)
+        name_y = logo_y + logo_size + 20
+        name_rect = QRect(0, name_y, pixmap.width(), 30)
+        painter.drawText(name_rect, Qt.AlignCenter, "HALog")
+        
+        # Subtitle
+        painter.setPen(QColor(120, 120, 120))
+        font = QFont("Segoe UI", 10, QFont.Normal)
+        painter.setFont(font)
+        subtitle_y = name_y + 35
+        subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 20)
+        painter.drawText(subtitle_rect, Qt.AlignCenter, "LINAC Log Analysis Tool")
+        
+        # Version
+        painter.setPen(QColor(150, 150, 150))
         font = QFont("Segoe UI", 9, QFont.Normal)
         painter.setFont(font)
-        branding_y = pixmap.height() - 25
-        branding_rect = QRect(0, branding_y, pixmap.width(), 20)
-        painter.drawText(branding_rect, Qt.AlignCenter, "Powered by gobioeng.com")
-
-        # Finish painting
+        version_y = subtitle_y + 25
+        version_rect = QRect(0, version_y, pixmap.width(), 15)
+        painter.drawText(version_rect, Qt.AlignCenter, f"Version {self.app_version}")
+        
         painter.end()
-
-        # Set the modified pixmap back
         self.setPixmap(pixmap)
-
-        # Modern progress bar widget
+        
+        # Progress bar
+        progress_y = pixmap.height() - 40
+        progress_width = 200
+        progress_x = (pixmap.width() - progress_width) // 2
+        
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setGeometry(progress_x, progress_y, progress_width, 6)
         self.progress_bar.setRange(0, 100)
@@ -237,65 +136,70 @@ class SplashScreen(QSplashScreen):
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: none;
-                background-color: #d8d8d8;
+                background-color: #f0f0f0;
                 border-radius: 3px;
-                text-align: center;
             }
             QProgressBar::chunk {
-                background-color: #0078d4;  /* Microsoft blue */
+                background-color: #2196f3;
                 border-radius: 3px;
             }
         """)
         self.progress_bar.setTextVisible(False)
-
-        # Modern status label
+        
+        # Status label
         self.status_label = QLabel(self)
-        self.status_label.setGeometry(0, pixmap.height() - 55, pixmap.width(), 20)
+        self.status_label.setGeometry(0, progress_y + 15, pixmap.width(), 20)
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
             QLabel {
-                color: #605e5c;
+                color: #888;
                 font-family: 'Segoe UI';
-                font-size: 11px;
+                font-size: 9px;
                 background: transparent;
             }
         """)
         self.status_label.setText("Initializing...")
 
     def update_animation(self):
+        """Simple animation for status text"""
         self.animation_step += 1
-
-        # Update dots in status label for animation effect
+        
+        # Animate dots
         dots = "." * (self.animation_step % 4)
         message = self.status_label.text().rstrip(".")
-        if message.endswith("ing"):
+        if not message.endswith("!"):
             self.status_label.setText(f"{message}{dots}")
-
-        # Update progress with a smooth animation
+        
+        # Auto-increment progress
         current_value = self.progress_bar.value()
-        if current_value < 95:  # Cap at 95% until explicitly completed
+        if current_value < 95:
             self.progress_bar.setValue(min(current_value + 1, 95))
 
     def update_status(self, message, progress_value=None):
+        """Update status message and progress"""
         self.status_label.setText(message)
         if progress_value is not None:
             self.progress_bar.setValue(progress_value)
 
     def finish(self, main_window):
-        # Ensure minimum display time
+        """Finish splash screen with minimum display time"""
         elapsed = time.time() - self.start_time
         if elapsed < self.minimum_display_time:
             QTimer.singleShot(
                 int((self.minimum_display_time - elapsed) * 1000),
-                lambda: self._do_finish(main_window),
+                lambda: self._do_finish(main_window)
             )
         else:
             self._do_finish(main_window)
 
     def _do_finish(self, main_window):
+        """Complete the splash screen"""
         self.animation_timer.stop()
         self.update_status("Ready!", 100)
-
-        # Short delay before hiding splash
         QTimer.singleShot(300, lambda: super().finish(main_window))
         self.finished.emit()
+
+
+# For backward compatibility with existing imports
+SplashScreen = MinimalisticSplashScreen
+BootstrapSplashWidget = MinimalisticSplashScreen

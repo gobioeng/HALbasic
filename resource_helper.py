@@ -27,7 +27,7 @@ from PyQt5.QtCore import QSize, Qt, QRect
 def resource_path(relative_path):
     """
     Failsafe way to find assets in dev, PyInstaller (internal/onedir), and any folder structure.
-    Usage: resource_path('linac_logo.ico')
+    Usage: resource_path('halogo.ico')
     Developer: Tanmay Pandey
     """
     # Check PyInstaller _MEIPASS
@@ -81,7 +81,7 @@ def load_splash_icon(size=120):
     print(f"Loading splash icon with size: {size}")
 
     # Try PNG files first (highest quality) - prioritize by resolution
-    png_files = ["linac_logo_256.png", "linac_logo_100.png", "linac_logo.png"]
+    png_files = ["halogo_256.png", "halogo_100.png", "halogo.png"]
 
     for png_name in png_files:
         png_path = resource_path(png_name)
@@ -99,7 +99,7 @@ def load_splash_icon(size=120):
                 )
 
     # Try ICO files with size preference
-    ico_files = ["linac_logo_256.ico", "linac_logo_100.ico", "linac_logo.ico"]
+    ico_files = ["halogo_256.ico", "halogo_100.ico", "halogo.ico"]
 
     for ico_name in ico_files:
         ico_path = resource_path(ico_name)
@@ -205,12 +205,12 @@ def load_direct_icon(size=120):
 
     # List of possible icon files in order of preference
     icon_files = [
-        "linac_logo_256.png",
-        "linac_logo_256.ico",
-        "linac_logo_100.png",
-        "linac_logo_100.ico",
-        "linac_logo.png",
-        "linac_logo.ico",
+        "halogo_256.png",
+        "halogo_256.ico",
+        "halogo_100.png",
+        "halogo_100.ico",
+        "halogo.png",
+        "halogo.ico",
     ]
 
     for icon_file in icon_files:
@@ -355,10 +355,10 @@ def get_app_icon():
 
     # Try high-resolution files first
     for icon_file in [
-        "linac_logo_256.png",
-        "linac_logo_256.ico",
-        "linac_logo.png",
-        "linac_logo.ico",
+        "halogo_256.png",
+        "halogo_256.ico",
+        "halogo.png",
+        "halogo.ico",
     ]:
         icon_path = resource_path(icon_file)
         if os.path.exists(icon_path):
@@ -445,7 +445,7 @@ def ensure_app_icon():
     Ensure the application icon exists, generating if necessary
     Developed by Tanmay Pandey - gobioeng.com
     """
-    icon_files = ["linac_logo_256.png", "linac_logo.png", "linac_logo.ico"]
+    icon_files = ["halogo_256.png", "halogo.png", "halogo.ico"]
 
     for icon_file in icon_files:
         icon_path = Path(resource_path(icon_file))
@@ -456,7 +456,7 @@ def ensure_app_icon():
     assets_dir = Path(__file__).parent / "assets"
     assets_dir.mkdir(exist_ok=True)
 
-    fallback_path = assets_dir / "linac_logo_generated.png"
+    fallback_path = assets_dir / "halogo_generated.png"
     if not fallback_path.exists():
         generate_icon(256, high_quality=True).save(str(fallback_path))
         print(f"Created high-visibility fallback icon: {fallback_path}")

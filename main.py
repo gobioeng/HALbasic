@@ -89,12 +89,12 @@ def test_icon_loading():
 
     # Check available files
     icon_files = [
-        "linac_logo_256.png",
-        "linac_logo_256.ico",
-        "linac_logo_100.png",
-        "linac_logo_100.ico",
-        "linac_logo.png",
-        "linac_logo.ico",
+        "halogo_256.png",
+        "halogo_256.ico", 
+        "halogo_100.png",
+        "halogo_100.ico",
+        "halogo.png",
+        "halogo.ico",
     ]
 
     print("Available icon files:")
@@ -125,7 +125,6 @@ class HALogApp:
         self.splash = None
         self.window = None
         self.splash_progress = 0
-        self.splash_animation_timer = None
         self.min_splash_time = 2000  # Reduced for better UX
         self.load_times = {}
         self.app_version = APP_VERSION
@@ -134,232 +133,30 @@ class HALogApp:
 
     def create_splash(self):
         """
-        Create professional splash screen with optimized layout
-        Gobioeng HALog Implementation
-        Developer: gobioeng.com
+        Create minimalistic splash screen using the new design
         """
-        # Import everything explicitly
-        QtWidgets = lazy_import("PyQt5.QtWidgets")
-        QtGui = lazy_import("PyQt5.QtGui")
-        QtCore = lazy_import("PyQt5.QtCore")
-
-        # Create a splash screen with optimized size
-        pixmap = QtGui.QPixmap(500, 320)  # Reduced height for better proportions
-        self.splash = QtWidgets.QSplashScreen(pixmap)
-        self.splash.setWindowFlags(
-            QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint
-        )
-
-        # Get the pixmap for customization
-        pixmap = self.splash.pixmap()
-        pixmap.fill(QtCore.Qt.transparent)
-
-        # Create a painter for drawing on the pixmap
-        painter = QtGui.QPainter(pixmap)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, True)
-        painter.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
-        painter.setRenderHint(QtGui.QPainter.HighQualityAntialiasing, True)
-
-        # Solid gray background as requested
-        gray_color = QtGui.QColor("#808080")  # Medium gray
-        painter.fillRect(pixmap.rect(), QtGui.QBrush(gray_color))
-
-        # Load OPTIMIZED ICON with proper spacing
-        try:
-            from resource_helper import load_splash_icon
-
-            # Load with optimized size for splash screen (100px)
-            logo_pixmap = load_splash_icon(100)
-
-            # Create card-like container for icon
-            card_x = 30
-            card_y = 30
-            card_size = 140  # Smaller card for better proportion
-
-            # Draw elevation shadow
-            for i in range(6):  # Reduced shadow layers
-                shadow_color = QtGui.QColor(0, 0, 0, 15 - i * 2)
-                painter.setBrush(QtGui.QBrush(shadow_color))
-                painter.setPen(QtCore.Qt.NoPen)
-                painter.drawRoundedRect(
-                    card_x + i, card_y + i, card_size, card_size, 12, 12
-                )
-
-            # Draw card background
-            painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255, 250)))
-            painter.setPen(QtCore.Qt.NoPen)
-            painter.drawRoundedRect(card_x, card_y, card_size, card_size, 12, 12)
-
-            # Position icon in center of card
-            icon_x = card_x + (card_size - logo_pixmap.width()) // 2
-            icon_y = card_y + (card_size - logo_pixmap.height()) // 2
-
-            painter.drawPixmap(icon_x, icon_y, logo_pixmap)
-
-            print(f"Icon loaded successfully: {logo_pixmap.size()}")
-
-        except Exception as e:
-            print(f"Error loading icon: {e}")
-            # Fallback to generated icon
-            from resource_helper import generate_icon
-
-            fallback_icon = generate_icon(100, high_quality=True, color="#1976D2")
-
-            # Draw card for fallback too
-            card_x, card_y, card_size = 30, 30, 140
-            painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255, 250)))
-            painter.setPen(QtCore.Qt.NoPen)
-            painter.drawRoundedRect(card_x, card_y, card_size, card_size, 12, 12)
-
-            icon_x = card_x + (card_size - fallback_icon.width()) // 2
-            icon_y = card_y + (card_size - fallback_icon.height()) // 2
-            painter.drawPixmap(icon_x, icon_y, fallback_icon)
-            print("Using generated fallback icon")
-
-        # Professional Typography - Primary Text (adjusted font size)
-        painter.setPen(QtGui.QColor("#FFFFFF"))  # White text on gray background
-        font = QtGui.QFont("Segoe UI", 18, QtGui.QFont.Medium)  # Reduced from 28px
-        painter.setFont(font)
-        app_name_rect = QtCore.QRect(200, 50, 280, 40)  # Moved to avoid overlap
-        painter.drawText(
-            app_name_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, "HALog"
-        )
-
-        # Professional Typography - Secondary Text (adjusted font size)
-        painter.setPen(QtGui.QColor("#F0F0F0"))  # Light gray for contrast
-        font = QtGui.QFont("Segoe UI", 12, QtGui.QFont.Normal)  # Slightly smaller
-        painter.setFont(font)
-        version_rect = QtCore.QRect(200, 90, 280, 25)
-        painter.drawText(
-            version_rect,
-            QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter,
-            f"Version {self.app_version} beta",
-        )
-
-        # Professional Typography - Body Text (adjusted font size)
-        painter.setPen(QtGui.QColor("#E0E0E0"))  # Light gray for contrast
-        font = QtGui.QFont("Segoe UI", 10, QtGui.QFont.Normal)  # Standardized size
-        painter.setFont(font)
-        tagline_rect = QtCore.QRect(30, 180, 440, 20)  # Better positioning
-        painter.drawText(
-            tagline_rect,
-            QtCore.Qt.AlignCenter,
-            "Professional LINAC Water System Monitor",
-        )
-
-        # Professional Typography - Caption (Developer Credit) (adjusted font size)
-        painter.setPen(QtGui.QColor("#D0D0D0"))
-        font = QtGui.QFont("Segoe UI", 9, QtGui.QFont.Normal)  # Standardized size
-        painter.setFont(font)
-        developer_rect = QtCore.QRect(30, 260, 440, 18)  # Adjusted for reduced height
-        painter.drawText(
-            developer_rect, QtCore.Qt.AlignCenter, "Developed by gobioeng.com"
-        )
-
-        # Professional Typography - Caption (Company) (adjusted font size)
-        painter.setPen(QtGui.QColor("#C0C0C0"))
-        font = QtGui.QFont("Segoe UI", 8, QtGui.QFont.Normal)  # Smaller for footer
-        painter.setFont(font)
-        company_rect = QtCore.QRect(30, 278, 440, 16)  # Adjusted for reduced height
-        painter.drawText(
-            company_rect,
-            QtCore.Qt.AlignCenter,
-            "© 2025 gobioeng.com - All Rights Reserved",
-        )
-
-        # Finish painting
-        painter.end()
-
-        # Set the modified pixmap back
-        self.splash.setPixmap(pixmap)
-
-        # Professional Progress Bar
-        self.progress_bar = QtWidgets.QProgressBar(self.splash)
-        self.progress_bar.setGeometry(50, 230, 400, 5)  # Thinner, better positioned
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(False)  # No text on Material progress bar
-        self.progress_bar.setStyleSheet(
-            """
-            QProgressBar {
-                border: none;
-                border-radius: 2px;
-                background-color: rgba(255, 255, 255, 50);
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                border-radius: 2px;
-                margin: 0px;
-            }
-        """
-        )
-
-        # Professional Status Label (updated for gray background)
-        self.status_label = QtWidgets.QLabel(self.splash)
-        self.status_label.setGeometry(50, 205, 400, 20)  # Better positioned
-        self.status_label.setStyleSheet(
-            """
-            color: #FFFFFF;
-            font-family: 'Segoe UI';
-            font-size: 11px;
-            font-weight: 500;
-            background: transparent;
-        """
-        )
-        self.status_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.status_label.setText("Initializing application...")
-
-        # Setup animation timer
-        self.splash_animation_timer = QtCore.QTimer()
-        self.splash_animation_timer.timeout.connect(self._update_animation)
-        self.splash_animation_timer.start(80)  # Smoother animation
-
-        # Show splash
+        from splash_screen import MinimalisticSplashScreen
+        
+        self.splash = MinimalisticSplashScreen(self.app_version)
         self.splash.show()
-
-        # Process events to make splash visible immediately
-        QtWidgets.QApplication.instance().processEvents()
-
+        
+        # Keep references for compatibility with existing update methods
+        self.progress_bar = self.splash.progress_bar
+        self.status_label = self.splash.status_label
+        
         return self.splash
 
-    def _update_animation(self):
-        """Update splash screen animation with proper types"""
-        if not hasattr(self, "animation_step"):
-            self.animation_step = 0
-        self.animation_step = (self.animation_step + 1) % 6
-
-        # Simple loading dots animation
-        if self.status_label:
-            message = self.status_label.text().split("•")[0].strip()
-            dots = "•" * (self.animation_step % 4)
-            self.status_label.setText(f"{message} {dots}")
-
-        # Simple progress increment
-        if self.progress_bar and self.progress_bar.value() < 95:
-            current_value = self.progress_bar.value()
-            new_value = min(current_value + 1, 95)
-            self.progress_bar.setValue(new_value)
-
-        # Process events to update UI
-        QtWidgets = lazy_import("PyQt5.QtWidgets")
-        QtWidgets.QApplication.instance().processEvents()
-
     def update_splash_progress(self, value, message=None):
-        """Update splash progress with proper type handling"""
+        """Update splash progress using the new splash screen"""
         if not self.splash:
             return
-
-        if message and hasattr(self, "status_label") and self.status_label:
-            self.status_label.setText(message)
-
-        if hasattr(self, "progress_bar") and self.progress_bar:
-            # Ensure value is integer between 0-100
-            progress_value = max(0, min(100, int(value)))
-            self.progress_bar.setValue(progress_value)
-
-        QtWidgets = lazy_import("PyQt5.QtWidgets")
-        QtWidgets.QApplication.instance().processEvents()
+        
+        if hasattr(self.splash, 'update_status'):
+            self.splash.update_status(message or "", value)
+        elif self.progress_bar:
+            self.progress_bar.setValue(value)
+            if message and self.status_label:
+                self.status_label.setText(message)
 
     def create_main_window(self):
         """Create professional main application window"""
