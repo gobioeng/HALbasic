@@ -12,6 +12,41 @@ import time
 from pathlib import Path
 import traceback
 
+# CRITICAL: Configure matplotlib backend FIRST, before any plotting modules are imported
+# This must happen before any imports that might use matplotlib
+def configure_matplotlib_backend():
+    """Configure matplotlib backend for PyInstaller compatibility - must be called first"""
+    try:
+        import matplotlib
+        import warnings
+        warnings.filterwarnings("ignore", category=UserWarning, module='matplotlib')
+        
+        # Force Qt5Agg backend for consistent behavior
+        current_backend = matplotlib.get_backend()
+        if current_backend.lower() != 'qt5agg':
+            try:
+                matplotlib.use('Qt5Agg', force=True)
+                print("✓ Matplotlib backend configured: Qt5Agg")
+            except ImportError as ie:
+                if 'headless' in str(ie).lower():
+                    print("ℹ️ Running in headless environment, using default backend")
+                else:
+                    print(f"⚠️ Could not set Qt5Agg backend: {ie}")
+        else:
+            print("✓ Matplotlib already using Qt5Agg backend")
+        
+        # Additional configuration for PyInstaller compatibility
+        import matplotlib.pyplot as plt
+        plt.ioff()  # Turn off interactive mode for embedded plots
+        
+    except ImportError:
+        print("⚠️ Matplotlib not available, plots will not work")
+    except Exception as e:
+        print(f"⚠️ Matplotlib configuration warning: {e}")
+
+# Configure matplotlib backend immediately
+configure_matplotlib_backend()
+
 # Define APP_VERSION globally so it's accessible everywhere
 APP_VERSION = "0.0.1"
 
@@ -61,32 +96,8 @@ def setup_environment():
     import warnings
     warnings.filterwarnings("ignore")
     
-    # CRITICAL FIX: Configure matplotlib backend for PyInstaller builds
-    # This prevents graph display issues in compiled executables
-    try:
-        import matplotlib
-        # Force Qt5Agg backend for consistent behavior, but handle headless environments
-        current_backend = matplotlib.get_backend()
-        if current_backend.lower() != 'qt5agg':
-            try:
-                matplotlib.use('Qt5Agg', force=True)
-                print("✓ Matplotlib backend configured: Qt5Agg")
-            except ImportError as ie:
-                if 'headless' in str(ie).lower():
-                    print("ℹ️ Running in headless environment, using default backend")
-                else:
-                    print(f"⚠️ Could not set Qt5Agg backend: {ie}")
-        else:
-            print("✓ Matplotlib already using Qt5Agg backend")
-        
-        # Additional configuration for PyInstaller compatibility
-        import matplotlib.pyplot as plt
-        plt.ioff()  # Turn off interactive mode for embedded plots
-        
-    except ImportError:
-        print("⚠️ Matplotlib not available, plots will not work")
-    except Exception as e:
-        print(f"⚠️ Matplotlib configuration warning: {e}")
+    # Note: matplotlib backend configuration moved to top of file to ensure 
+    # it happens before any matplotlib imports in plotting modules
 
     # Ensure assets directory exists
     assets_dir = app_dir / "assets"
