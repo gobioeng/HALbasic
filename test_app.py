@@ -92,7 +92,15 @@ def test_font_availability():
     print("\n🔤 Testing font availability...")
     
     try:
+        import os
+        # Set platform plugin for headless environments
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        
         from PyQt5.QtGui import QFontDatabase
+        from PyQt5.QtWidgets import QApplication
+        
+        # Ensure QApplication exists before accessing QFontDatabase
+        app = QApplication.instance() or QApplication(sys.argv)
         
         font_db = QFontDatabase()
         available_fonts = font_db.families()
@@ -130,15 +138,27 @@ def test_matplotlib_backend():
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
         from matplotlib.figure import Figure
+        import os
         
-        # Test backend switching
-        matplotlib.use('Qt5Agg')
+        # Handle headless environment
+        if os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
+            print("  ℹ️ Running in headless mode, using Agg backend")
+            matplotlib.use('Agg')
+        else:
+            # Test backend switching
+            matplotlib.use('Qt5Agg')
+        
         print(f"  ✓ Backend: {matplotlib.get_backend()}")
         
         # Test figure creation
         fig = Figure(figsize=(4, 3), dpi=80)
-        canvas = FigureCanvasQTAgg(fig)
-        print("  ✓ Figure and Canvas creation")
+        
+        # For headless mode, create simpler canvas
+        if matplotlib.get_backend().lower() == 'agg':
+            print("  ✓ Figure creation (headless mode)")
+        else:
+            canvas = FigureCanvasQTAgg(fig)
+            print("  ✓ Figure and Canvas creation")
         
         # Test basic plotting
         ax = fig.add_subplot(111)
@@ -160,6 +180,10 @@ def test_application_launch():
     print("\n🚀 Testing application launch components...")
     
     try:
+        import os
+        # Set platform plugin for headless environments  
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        
         # Test splash screen creation
         from splash_screen import MinimalisticSplashScreen
         from PyQt5.QtWidgets import QApplication
@@ -199,6 +223,10 @@ def test_plot_widgets():
     print("\n📈 Testing plot widgets...")
     
     try:
+        import os
+        # Set platform plugin for headless environments
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        
         from PyQt5.QtWidgets import QApplication, QWidget
         from plot_utils import PlotWidget, DualPlotWidget
         import pandas as pd
@@ -212,7 +240,7 @@ def test_plot_widgets():
         
         # Test with sample data
         sample_data = pd.DataFrame({
-            'datetime': pd.date_range('2025-01-01', periods=10, freq='H'),
+            'datetime': pd.date_range('2025-01-01', periods=10, freq='h'),  # Use 'h' instead of deprecated 'H'
             'avg': [1, 2, 3, 4, 5, 4, 3, 2, 1, 2],
             'min': [0.5, 1.5, 2.5, 3.5, 4.5, 3.5, 2.5, 1.5, 0.5, 1.5],
             'max': [1.5, 2.5, 3.5, 4.5, 5.5, 4.5, 3.5, 2.5, 1.5, 2.5]
