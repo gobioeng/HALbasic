@@ -134,11 +134,14 @@ class HALbasicInstaller:
             'matplotlib.backends.backend_qt5agg',
             'matplotlib.backends.backend_pdf',
             'matplotlib.backends._backend_qt5',
+            'matplotlib.backends.backend_agg',  # Fallback backend
             'matplotlib.figure',
             'matplotlib.dates',
             'matplotlib.pyplot',
             'matplotlib._path',
             'matplotlib.ft2font',
+            'matplotlib.style',
+            'matplotlib.font_manager',
             'pandas', 'numpy', 'scipy',
             # Remove if unused:
             # 'sklearn', 'sqlalchemy', 'openpyxl',
