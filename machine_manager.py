@@ -67,17 +67,31 @@ class MachineManager:
         """Filter data by currently selected machine
         
         Args:
-            data: DataFrame to filter. If None, loads all data from database
+            data: DataFrame to filter. If None, loads raw data from database
             
         Returns:
             Filtered DataFrame for selected machine
         """
         if data is None:
-            # Load data from database
+            # Load raw data from database using a simple query
             try:
-                data = self.db.get_all_logs(chunk_size=10000)
-            except TypeError:
-                data = self.db.get_all_logs()
+                with self.db.get_connection() as conn:
+                    data = pd.read_sql_query("""
+                        SELECT datetime, serial_number, parameter_type, 
+                               statistic_type, value, count, unit, description
+                        FROM water_logs
+                        ORDER BY datetime
+                    """, conn)
+                    # Convert datetime with flexible parsing
+                    if not data.empty and 'datetime' in data.columns:
+                        try:
+                            data['datetime'] = pd.to_datetime(data['datetime'], format='mixed')
+                        except:
+                            # Fallback to basic conversion
+                            data['datetime'] = pd.to_datetime(data['datetime'], errors='coerce')
+            except Exception as e:
+                print(f"Error loading raw data: {e}")
+                return pd.DataFrame()
         
         if data.empty:
             return data
@@ -87,18 +101,7 @@ class MachineManager:
             return data
         
         # Filter by selected machine
-        # Handle different possible column names for serial number
-        serial_column = None
-        for col in ['serial_number', 'serial', 'Serial']:
-            if col in data.columns:
-                serial_column = col
-                break
-        
-        if serial_column is None:
-            print("Warning: No serial number column found in data")
-            return data
-        
-        filtered_data = data[data[serial_column] == self._selected_machine].copy()
+        filtered_data = data[data['serial_number'] == self._selected_machine].copy()
         return filtered_data
     
     def get_machine_summary(self, machine_id: str = None) -> Dict[str, Any]:
