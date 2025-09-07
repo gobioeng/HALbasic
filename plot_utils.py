@@ -5,6 +5,19 @@ Developer: gobioeng.com
 Date: 2025-01-21
 """
 
+# CRITICAL: Import matplotlib and configure before other imports
+import matplotlib
+# FIXED: Try Qt5Agg first, fall back gracefully for headless environments
+try:
+    matplotlib.use('Qt5Agg')
+except ImportError:
+    # Fallback to Agg for headless environments
+    matplotlib.use('Agg')
+    print("ℹ️ Using Agg backend for headless environment")
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='matplotlib')
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -409,27 +422,39 @@ class EnhancedPlotWidget(QWidget):
         self.init_ui()
     
     def init_ui(self):
-        """Initialize plotting UI"""
+        """Initialize plotting UI with enhanced error handling and backend verification"""
         self.layout = QVBoxLayout(self)
         self.setMinimumHeight(300)
         
         try:
-            # Note: matplotlib backend configuration is now handled in main.py
-            # before any plotting modules are imported
+            # Ensure matplotlib backend is properly configured
+            backend = matplotlib.get_backend()
+            if backend.lower() != 'qt5agg':
+                print(f"Warning: matplotlib backend is {backend}, expected Qt5Agg")
+                matplotlib.use('Qt5Agg', force=True)
                 
-            # FIXED: Smaller figure size for embedded use
-            self.figure = Figure(figsize=(8, 4), dpi=80)
+            # FIXED: Smaller figure size for embedded use with proper DPI
+            self.figure = Figure(figsize=(8, 4), dpi=100)
             self.canvas = FigureCanvas(self.figure)
             
             # CRITICAL: Ensure proper parent-child relationship to prevent popup windows
             self.canvas.setParent(self)
+            self.canvas.setFocusPolicy(1)  # Allow focus for interactions
             self.layout.addWidget(self.canvas)
             
             # Apply professional styling
             PlotUtils.setup_professional_style()
             
+            # Add a test plot to verify functionality
+            ax = self.figure.add_subplot(111)
+            ax.text(0.5, 0.5, 'Graph Ready', ha='center', va='center', 
+                   fontsize=12, color='#666', alpha=0.7)
+            self.canvas.draw()
+            
         except Exception as e:
-            error_label = QLabel(f"Plotting initialization failed: {str(e)}")
+            print(f"Plot widget initialization error: {e}")
+            error_label = QLabel(f"Plotting initialization failed: {str(e)}\nCheck matplotlib backend configuration.")
+            error_label.setStyleSheet("color: red; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7;")
             self.layout.addWidget(error_label)
     
     def plot_parameter_trends(self, data: pd.DataFrame, parameter: str, 

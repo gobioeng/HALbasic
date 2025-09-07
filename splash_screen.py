@@ -27,8 +27,8 @@ class MinimalisticSplashScreen(QSplashScreen):
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.app_version = app_version
         self.start_time = time.time()
-        # FIXED: Reduced minimum display time for instant launch feel
-        self.minimum_display_time = 1.0  # Reduced from 2.0 to 1.0 seconds
+        # FIXED: Increased minimum display time for better visibility during startup and data processing
+        self.minimum_display_time = 3.0  # Increased from 1.0 to 3.0 seconds to stay visible during processing
         
         # OPTIMIZED: Less frequent animation updates to reduce CPU usage
         self.animation_timer = QTimer(self)
