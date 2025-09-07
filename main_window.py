@@ -22,6 +22,14 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence
 
+# Import enhanced plotting widgets for trend graphs
+try:
+    from plot_utils import EnhancedPlotWidget
+    PLOTTING_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Enhanced plotting not available: {e}")
+    PLOTTING_AVAILABLE = False
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setWindowTitle("HALog • Professional LINAC Monitor")
@@ -527,19 +535,32 @@ class Ui_MainWindow(object):
         graphs_layout = QVBoxLayout(graphs_widget)
         graphs_layout.setSpacing(12)
         
-        self.waterGraphTop = QFrame()
-        self.waterGraphTop.setFrameStyle(QFrame.Box)
-        self.waterGraphTop.setObjectName("plotFrame")
-        self.waterGraphTop.setMinimumHeight(200)
-        self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.waterGraphTop)
-        
-        self.waterGraphBottom = QFrame()
-        self.waterGraphBottom.setFrameStyle(QFrame.Box)
-        self.waterGraphBottom.setObjectName("plotFrame")
-        self.waterGraphBottom.setMinimumHeight(200)
-        self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.waterGraphBottom)
+        # FIXED: Use EnhancedPlotWidget instead of QFrame for graph widgets
+        if PLOTTING_AVAILABLE:
+            self.waterGraphTop = EnhancedPlotWidget()
+            self.waterGraphTop.setMinimumHeight(200)
+            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.waterGraphTop)
+            
+            self.waterGraphBottom = EnhancedPlotWidget()
+            self.waterGraphBottom.setMinimumHeight(200)
+            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.waterGraphBottom)
+        else:
+            # Fallback to QFrame with error message
+            self.waterGraphTop = QFrame()
+            self.waterGraphTop.setFrameStyle(QFrame.Box)
+            self.waterGraphTop.setObjectName("plotFrame")
+            self.waterGraphTop.setMinimumHeight(200)
+            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.waterGraphTop)
+            
+            self.waterGraphBottom = QFrame()
+            self.waterGraphBottom.setFrameStyle(QFrame.Box)
+            self.waterGraphBottom.setObjectName("plotFrame")
+            self.waterGraphBottom.setMinimumHeight(200)
+            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.waterGraphBottom)
         
         layout.addWidget(graphs_widget)
 
@@ -608,19 +629,32 @@ class Ui_MainWindow(object):
         graphs_layout = QVBoxLayout(graphs_widget)
         graphs_layout.setSpacing(12)
         
-        self.voltageGraphTop = QFrame()
-        self.voltageGraphTop.setFrameStyle(QFrame.Box)
-        self.voltageGraphTop.setObjectName("plotFrame")
-        self.voltageGraphTop.setMinimumHeight(200)
-        self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.voltageGraphTop)
-        
-        self.voltageGraphBottom = QFrame()
-        self.voltageGraphBottom.setFrameStyle(QFrame.Box)
-        self.voltageGraphBottom.setObjectName("plotFrame")
-        self.voltageGraphBottom.setMinimumHeight(200)
-        self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.voltageGraphBottom)
+        # FIXED: Use EnhancedPlotWidget instead of QFrame for voltage graph widgets
+        if PLOTTING_AVAILABLE:
+            self.voltageGraphTop = EnhancedPlotWidget()
+            self.voltageGraphTop.setMinimumHeight(200)
+            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.voltageGraphTop)
+            
+            self.voltageGraphBottom = EnhancedPlotWidget()
+            self.voltageGraphBottom.setMinimumHeight(200)
+            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.voltageGraphBottom)
+        else:
+            # Fallback to QFrame with error message
+            self.voltageGraphTop = QFrame()
+            self.voltageGraphTop.setFrameStyle(QFrame.Box)
+            self.voltageGraphTop.setObjectName("plotFrame")
+            self.voltageGraphTop.setMinimumHeight(200)
+            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.voltageGraphTop)
+            
+            self.voltageGraphBottom = QFrame()
+            self.voltageGraphBottom.setFrameStyle(QFrame.Box)
+            self.voltageGraphBottom.setObjectName("plotFrame")
+            self.voltageGraphBottom.setMinimumHeight(200)
+            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.voltageGraphBottom)
         
         layout.addWidget(graphs_widget)
 
@@ -681,19 +715,32 @@ class Ui_MainWindow(object):
         graphs_layout = QVBoxLayout(graphs_widget)
         graphs_layout.setSpacing(12)
         
-        self.tempGraphTop = QFrame()
-        self.tempGraphTop.setFrameStyle(QFrame.Box)
-        self.tempGraphTop.setObjectName("plotFrame")
-        self.tempGraphTop.setMinimumHeight(200)
-        self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.tempGraphTop)
-        
-        self.tempGraphBottom = QFrame()
-        self.tempGraphBottom.setFrameStyle(QFrame.Box)
-        self.tempGraphBottom.setObjectName("plotFrame")
-        self.tempGraphBottom.setMinimumHeight(200)
-        self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.tempGraphBottom)
+        # FIXED: Use EnhancedPlotWidget instead of QFrame for temperature graph widgets
+        if PLOTTING_AVAILABLE:
+            self.tempGraphTop = EnhancedPlotWidget()
+            self.tempGraphTop.setMinimumHeight(200)
+            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.tempGraphTop)
+            
+            self.tempGraphBottom = EnhancedPlotWidget()
+            self.tempGraphBottom.setMinimumHeight(200)
+            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.tempGraphBottom)
+        else:
+            # Fallback to QFrame with error message
+            self.tempGraphTop = QFrame()
+            self.tempGraphTop.setFrameStyle(QFrame.Box)
+            self.tempGraphTop.setObjectName("plotFrame")
+            self.tempGraphTop.setMinimumHeight(200)
+            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.tempGraphTop)
+            
+            self.tempGraphBottom = QFrame()
+            self.tempGraphBottom.setFrameStyle(QFrame.Box)
+            self.tempGraphBottom.setObjectName("plotFrame")
+            self.tempGraphBottom.setMinimumHeight(200)
+            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.tempGraphBottom)
         
         layout.addWidget(graphs_widget)
 
@@ -744,19 +791,32 @@ class Ui_MainWindow(object):
         graphs_layout = QVBoxLayout(graphs_widget)
         graphs_layout.setSpacing(12)
         
-        self.humidityGraphTop = QFrame()
-        self.humidityGraphTop.setFrameStyle(QFrame.Box)
-        self.humidityGraphTop.setObjectName("plotFrame")
-        self.humidityGraphTop.setMinimumHeight(200)
-        self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.humidityGraphTop)
-        
-        self.humidityGraphBottom = QFrame()
-        self.humidityGraphBottom.setFrameStyle(QFrame.Box)
-        self.humidityGraphBottom.setObjectName("plotFrame")
-        self.humidityGraphBottom.setMinimumHeight(200)
-        self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.humidityGraphBottom)
+        # FIXED: Use EnhancedPlotWidget instead of QFrame for humidity graph widgets
+        if PLOTTING_AVAILABLE:
+            self.humidityGraphTop = EnhancedPlotWidget()
+            self.humidityGraphTop.setMinimumHeight(200)
+            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.humidityGraphTop)
+            
+            self.humidityGraphBottom = EnhancedPlotWidget()
+            self.humidityGraphBottom.setMinimumHeight(200)
+            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.humidityGraphBottom)
+        else:
+            # Fallback to QFrame with error message
+            self.humidityGraphTop = QFrame()
+            self.humidityGraphTop.setFrameStyle(QFrame.Box)
+            self.humidityGraphTop.setObjectName("plotFrame")
+            self.humidityGraphTop.setMinimumHeight(200)
+            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.humidityGraphTop)
+            
+            self.humidityGraphBottom = QFrame()
+            self.humidityGraphBottom.setFrameStyle(QFrame.Box)
+            self.humidityGraphBottom.setObjectName("plotFrame")
+            self.humidityGraphBottom.setMinimumHeight(200)
+            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.humidityGraphBottom)
         
         layout.addWidget(graphs_widget)
 
@@ -811,19 +871,32 @@ class Ui_MainWindow(object):
         graphs_layout = QVBoxLayout(graphs_widget)
         graphs_layout.setSpacing(12)
         
-        self.fanGraphTop = QFrame()
-        self.fanGraphTop.setFrameStyle(QFrame.Box)
-        self.fanGraphTop.setObjectName("plotFrame")
-        self.fanGraphTop.setMinimumHeight(200)
-        self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.fanGraphTop)
-        
-        self.fanGraphBottom = QFrame()
-        self.fanGraphBottom.setFrameStyle(QFrame.Box)
-        self.fanGraphBottom.setObjectName("plotFrame")
-        self.fanGraphBottom.setMinimumHeight(200)
-        self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graphs_layout.addWidget(self.fanGraphBottom)
+        # FIXED: Use EnhancedPlotWidget instead of QFrame for fan speed graph widgets
+        if PLOTTING_AVAILABLE:
+            self.fanGraphTop = EnhancedPlotWidget()
+            self.fanGraphTop.setMinimumHeight(200)
+            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.fanGraphTop)
+            
+            self.fanGraphBottom = EnhancedPlotWidget()
+            self.fanGraphBottom.setMinimumHeight(200)
+            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.fanGraphBottom)
+        else:
+            # Fallback to QFrame with error message
+            self.fanGraphTop = QFrame()
+            self.fanGraphTop.setFrameStyle(QFrame.Box)
+            self.fanGraphTop.setObjectName("plotFrame")
+            self.fanGraphTop.setMinimumHeight(200)
+            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.fanGraphTop)
+            
+            self.fanGraphBottom = QFrame()
+            self.fanGraphBottom.setFrameStyle(QFrame.Box)
+            self.fanGraphBottom.setObjectName("plotFrame")
+            self.fanGraphBottom.setMinimumHeight(200)
+            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            graphs_layout.addWidget(self.fanGraphBottom)
         
         layout.addWidget(graphs_widget)
 

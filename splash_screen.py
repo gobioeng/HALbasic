@@ -175,21 +175,57 @@ class MinimalisticSplashScreen(QSplashScreen):
 
     def finish(self, main_window):
         """Finish splash screen with minimum display time"""
-        elapsed = time.time() - self.start_time
-        if elapsed < self.minimum_display_time:
-            QTimer.singleShot(
-                int((self.minimum_display_time - elapsed) * 1000),
-                lambda: self._do_finish(main_window)
-            )
-        else:
-            self._do_finish(main_window)
+        try:
+            elapsed = time.time() - self.start_time
+            if elapsed < self.minimum_display_time:
+                remaining_time = int((self.minimum_display_time - elapsed) * 1000)
+                QTimer.singleShot(remaining_time, lambda: self._do_finish(main_window))
+            else:
+                self._do_finish(main_window)
+        except Exception as e:
+            print(f"Error in splash finish: {e}")
+            # Fallback: try to finish immediately
+            try:
+                self._do_finish(main_window)
+            except Exception as fallback_error:
+                print(f"Fallback finish failed: {fallback_error}")
+                # Last resort: hide splash screen
+                try:
+                    self.hide()
+                    self.close()
+                    self.finished.emit()
+                except:
+                    pass
 
     def _do_finish(self, main_window):
         """Complete the splash screen"""
-        self.animation_timer.stop()
-        self.update_status("Ready!", 100)
-        QTimer.singleShot(300, lambda: super().finish(main_window))
-        self.finished.emit()
+        try:
+            self.animation_timer.stop()
+            self.update_status("Ready!", 100)
+            # Fix: Avoid lambda/super combination - use a proper method reference
+            QTimer.singleShot(300, lambda: self._complete_finish(main_window))
+            self.finished.emit()
+        except Exception as e:
+            print(f"Error in _do_finish: {e}")
+            # Fallback: finish immediately
+            try:
+                super().finish(main_window)
+                self.finished.emit()
+            except Exception as fallback_error:
+                print(f"Fallback finish also failed: {fallback_error}")
+    
+    def _complete_finish(self, main_window):
+        """Complete the finish process - separated from lambda to avoid super() issues"""
+        try:
+            super().finish(main_window)
+        except Exception as e:
+            print(f"Error in _complete_finish: {e}")
+            # If super().finish fails, try to hide the splash screen directly
+            try:
+                self.hide()
+                self.close()
+            except:
+                pass
 
 
 # For backward compatibility with existing imports
