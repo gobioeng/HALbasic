@@ -6,7 +6,7 @@ Enhanced with backup and recovery capabilities
 
 import sqlite3
 import pandas as pd
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import os
 from functools import reduce
 import time
@@ -687,3 +687,25 @@ class DatabaseManager:
                     pass
         except:
             pass
+    
+    def get_unique_serial_numbers(self) -> List[str]:
+        """Get list of unique serial numbers from the database
+        
+        Returns:
+            List of unique serial numbers, excluding 'Unknown' and empty values
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute("""
+                    SELECT DISTINCT serial_number 
+                    FROM water_logs 
+                    WHERE serial_number IS NOT NULL 
+                    AND serial_number != ''
+                    AND serial_number != 'Unknown'
+                    ORDER BY serial_number
+                """)
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error getting unique serial numbers: {e}")
+            traceback.print_exc()
+            return []

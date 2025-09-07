@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QFont
 
 # Import enhanced plotting widgets for trend graphs
 try:
@@ -404,6 +404,50 @@ class Ui_MainWindow(object):
         header_label.setAlignment(Qt.AlignCenter)
         header_label.setWordWrap(True)
         layout.addWidget(header_label)
+
+        # Machine selection header
+        machine_header_layout = QHBoxLayout()
+        machine_header_layout.setContentsMargins(0, 10, 0, 10)
+        
+        # Machine selection label and combo box
+        machine_label = QLabel("Select Machine:")
+        machine_label.setFont(QFont("Calibri", 10))
+        machine_label.setAlignment(Qt.AlignVCenter)
+        
+        self.cmbMachineSelect = QComboBox()
+        self.cmbMachineSelect.setFont(QFont("Calibri", 10))
+        self.cmbMachineSelect.setMinimumWidth(200)
+        self.cmbMachineSelect.setToolTip("Select machine to analyze based on serial number")
+        # Style the combo box to match the app theme
+        self.cmbMachineSelect.setStyleSheet("""
+            QComboBox {
+                padding: 6px 12px;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: white;
+                font-family: Calibri;
+                font-size: 10pt;
+            }
+            QComboBox:focus {
+                border-color: #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+                margin: 2px;
+            }
+        """)
+        
+        machine_header_layout.addStretch()
+        machine_header_layout.addWidget(machine_label)
+        machine_header_layout.addWidget(self.cmbMachineSelect)
+        machine_header_layout.addStretch()
+        
+        layout.addLayout(machine_header_layout)
 
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(12)

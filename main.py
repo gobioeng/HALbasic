@@ -277,6 +277,11 @@ class HALogApp:
 
                     self.df = pd.DataFrame()
 
+                    # Initialize machine manager for multi-machine support
+                    from machine_manager import MachineManager
+                    self.machine_manager = MachineManager(self.db)
+                    print("✓ Machine manager initialized")
+
                     # Initialize unified parser for fault codes and other data
                     from unified_parser import UnifiedParser
                     self.fault_parser = UnifiedParser()
@@ -731,6 +736,11 @@ class HALogApp:
                     # BUTTON ACTIONS
                     self.ui.btnClearDB.clicked.connect(self.clear_database)
                     self.ui.btnRefreshData.clicked.connect(self.load_dashboard)
+
+                    # MACHINE SELECTION COMBO BOX
+                    if hasattr(self.ui, 'cmbMachineSelect'):
+                        self.ui.cmbMachineSelect.currentTextChanged.connect(self.on_machine_selection_changed)
+                        print("✓ Machine selection combo box connected")
 
                     # Legacy trend controls (keep for backward compatibility)
                     if hasattr(self.ui, 'comboTrendSerial'):
@@ -1815,6 +1825,10 @@ Source: {result.get('source', 'unknown')} database
                         print("Database not initialized")
                         return
 
+                    # First, populate machine selection dropdown
+                    if hasattr(self, 'machine_manager') and hasattr(self.ui, 'cmbMachineSelect'):
+                        self._populate_machine_dropdown()
+
                     # First, load only summary data for faster startup
                     start_time = time.time()
                     
@@ -1826,17 +1840,23 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Load only a sample of recent data for UI initialization (last 1000 records)
                     try:
-                        self.df = self.db.get_recent_logs(limit=1000)
+                        raw_df = self.db.get_recent_logs(limit=1000)
                     except (TypeError, AttributeError):
                         # Fallback: Load minimal data for UI setup
                         try:
-                            self.df = self.db.get_all_logs(chunk_size=1000)
-                            if len(self.df) > 1000:
-                                self.df = self.df.tail(1000)  # Keep only last 1000 for startup
+                            raw_df = self.db.get_all_logs(chunk_size=1000)
+                            if len(raw_df) > 1000:
+                                raw_df = raw_df.tail(1000)  # Keep only last 1000 for startup
                         except TypeError:
-                            self.df = self.db.get_all_logs()
-                            if len(self.df) > 1000:
-                                self.df = self.df.tail(1000)
+                            raw_df = self.db.get_all_logs()
+                            if len(raw_df) > 1000:
+                                raw_df = raw_df.tail(1000)
+
+                    # Apply machine filtering if machine manager is available
+                    if hasattr(self, 'machine_manager'):
+                        self.df = self.machine_manager.get_filtered_data(raw_df)
+                    else:
+                        self.df = raw_df
 
                     # Mark that we have partial data loaded
                     self._full_data_loaded = False
@@ -1917,9 +1937,17 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Load all data now
                     try:
-                        self.df = self.db.get_all_logs(chunk_size=10000)
+                        raw_df = self.db.get_all_logs(chunk_size=10000)
                     except TypeError:
-                        self.df = self.db.get_all_logs()
+                        raw_df = self.db.get_all_logs()
+                    
+                    # Apply machine filtering if machine manager is available
+                    if hasattr(self, 'machine_manager'):
+                        self.df = self.machine_manager.get_filtered_data(raw_df)
+                        selected_machine = self.machine_manager.get_selected_machine()
+                        print(f"📊 Applied machine filter: {selected_machine}")
+                    else:
+                        self.df = raw_df
                     
                     self._full_data_loaded = True
                     load_time = time.time() - start_time
@@ -3680,6 +3708,74 @@ Source: {result.get('source', 'unknown')} database
                         self.worker = None
                 except Exception as e:
                     print(f"Error handling file processing error: {e}")
+                    traceback.print_exc()
+
+            def _populate_machine_dropdown(self):
+                """Populate the machine selection dropdown with available machines"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not hasattr(self.ui, 'cmbMachineSelect'):
+                        return
+                        
+                    # Get available machine options
+                    machine_options = self.machine_manager.get_machine_dropdown_options()
+                    current_text = self.ui.cmbMachineSelect.currentText()
+                    
+                    # Temporarily disconnect signal to avoid recursion
+                    self.ui.cmbMachineSelect.blockSignals(True)
+                    
+                    # Clear and populate dropdown
+                    self.ui.cmbMachineSelect.clear()
+                    self.ui.cmbMachineSelect.addItems(machine_options)
+                    
+                    # Auto-select appropriate machine
+                    if current_text and current_text in machine_options:
+                        # Keep current selection if valid
+                        index = machine_options.index(current_text)
+                        self.ui.cmbMachineSelect.setCurrentIndex(index)
+                    else:
+                        # Auto-select based on available data
+                        selected_machine = self.machine_manager.auto_select_machine()
+                        if selected_machine in machine_options:
+                            index = machine_options.index(selected_machine)
+                            self.ui.cmbMachineSelect.setCurrentIndex(index)
+                    
+                    # Re-enable signals
+                    self.ui.cmbMachineSelect.blockSignals(False)
+                    
+                    print(f"✓ Machine dropdown populated with {len(machine_options)} options")
+                    
+                except Exception as e:
+                    print(f"Error populating machine dropdown: {e}")
+                    traceback.print_exc()
+
+            def on_machine_selection_changed(self, machine_id: str):
+                """Handle machine selection change in dropdown"""
+                try:
+                    if not hasattr(self, 'machine_manager'):
+                        return
+                        
+                    print(f"🔧 Machine selection changed to: {machine_id}")
+                    
+                    # Update machine manager selection
+                    if machine_id and machine_id != "No Machines Available":
+                        self.machine_manager.set_selected_machine(machine_id)
+                        
+                        # Refresh dashboard and all analysis with selected machine data
+                        self.load_dashboard()
+                        
+                        # Update other tabs that need machine-specific data
+                        if hasattr(self, '_initialize_trend_controls'):
+                            self._initialize_trend_controls()
+                        if hasattr(self, 'update_trend_combos'):
+                            self.update_trend_combos()
+                        if hasattr(self, 'update_data_table'):
+                            self.update_data_table()
+                        if hasattr(self, 'update_analysis_tab'):
+                            self.update_analysis_tab()
+                            
+                        print(f"✓ Dashboard updated for machine: {machine_id}")
+                except Exception as e:
+                    print(f"Error handling machine selection change: {e}")
                     traceback.print_exc()
 
             def closeEvent(self, event):
