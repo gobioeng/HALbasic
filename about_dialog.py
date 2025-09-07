@@ -40,52 +40,143 @@ class AboutDialog(QDialog):
         return "0.0.1"
 
     def setupUI(self):
-        """Setup the about dialog UI"""
+        """Setup modern about dialog UI with enhanced styling"""
         self.setWindowTitle("About HALog")
         self.setModal(True)
-        self.setFixedSize(500, 400)
+        self.setFixedSize(600, 500)  # Larger for better content display
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        # Apply modern CSS styling
+        self.setStyleSheet("""
+            QDialog {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #f8f9fa, stop:1 #e9ecef);
+                border: 1px solid #dee2e6;
+                border-radius: 12px;
+            }
+            QLabel {
+                color: #212529;
+                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+            }
+            QTabWidget::pane {
+                background: white;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 16px;
+            }
+            QTabBar::tab {
+                background: #e9ecef;
+                border: 1px solid #dee2e6;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-radius: 6px 6px 0 0;
+                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+                font-weight: 500;
+                color: #495057;
+            }
+            QTabBar::tab:selected {
+                background: white;
+                border-bottom: 1px solid white;
+                color: #0d6efd;
+                font-weight: 600;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #f8f9fa;
+            }
+            QPushButton {
+                background: #0d6efd;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+                font-weight: 500;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background: #0b5ed7;
+                transform: translateY(-1px);
+            }
+            QPushButton:pressed {
+                background: #0a58ca;
+                transform: translateY(0px);
+            }
+            QTextBrowser {
+                background: white;
+                border: 1px solid #e9ecef;
+                border-radius: 6px;
+                padding: 12px;
+                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+                line-height: 1.4;
+            }
+        """)
 
         # Main layout
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
         self.setLayout(layout)
 
-        # Header section
-        header_layout = QHBoxLayout()
+        # Modern Header section with gradient background
+        header_widget = QWidget()
+        header_widget.setStyleSheet("""
+            QWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #0d6efd, stop:1 #6610f2);
+                border-radius: 10px;
+                padding: 16px;
+                margin-bottom: 8px;
+            }
+            QLabel {
+                color: white;
+                background: transparent;
+            }
+        """)
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(16, 16, 16, 16)
 
-        # Logo placeholder
-        logo_label = QLabel("🏥")
-        logo_label.setStyleSheet("font-size: 48px; color: #2c3e50;")
+        # Modern logo using text styling
+        logo_label = QLabel("HA[Log]")
+        logo_label.setFont(QFont("Calibri", 24, QFont.Bold))
+        logo_label.setStyleSheet("""
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-weight: bold;
+        """)
         logo_label.setAlignment(Qt.AlignCenter)
+        logo_label.setFixedSize(120, 50)
         header_layout.addWidget(logo_label)
 
-        # Application info
+        # Application info with modern styling
         app_info_layout = QVBoxLayout()
 
-        app_name = QLabel("HALog – LINAC Log Analyzer")
-        app_name.setFont(QFont("Arial", 16, QFont.Bold))
-        app_name.setStyleSheet("color: #2c3e50; margin-bottom: 5px;")
+        app_name = QLabel("LINAC Log Analysis System")
+        app_name.setFont(QFont("Calibri", 18, QFont.Bold))
+        app_name.setStyleSheet("color: white; margin-bottom: 4px; font-weight: 600;")
         app_info_layout.addWidget(app_name)
 
-        version_label = QLabel(f"Version {self.app_version}")
-        version_label.setFont(QFont("Arial", 10))
-        version_label.setStyleSheet("color: #7f8c8d;")
+        version_label = QLabel(f"Version {self.app_version} • Professional Edition")
+        version_label.setFont(QFont("Calibri", 11))
+        version_label.setStyleSheet("color: rgba(255, 255, 255, 0.9); margin-bottom: 2px;")
         app_info_layout.addWidget(version_label)
 
-        developer_label = QLabel("Developed by: Tanmay Pandey")
-        developer_label.setFont(QFont("Arial", 10))
-        developer_label.setStyleSheet("color: #2c3e50; font-weight: bold;")
+        developer_label = QLabel("Developed by Tanmay Pandey")
+        developer_label.setFont(QFont("Calibri", 10))
+        developer_label.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
         app_info_layout.addWidget(developer_label)
 
-        company_label = QLabel("Organization: gobioeng.com")
-        company_label.setFont(QFont("Arial", 10))
-        company_label.setStyleSheet("color: #7f8c8d;")
+        company_label = QLabel("gobioeng.com - Engineering Solutions")
+        company_label.setFont(QFont("Calibri", 10))
+        company_label.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
         app_info_layout.addWidget(company_label)
 
         header_layout.addLayout(app_info_layout)
         header_layout.addStretch()
 
-        layout.addLayout(header_layout)
+        layout.addWidget(header_widget)
 
         # Tab widget for different information sections
         tab_widget = QTabWidget()
@@ -194,52 +285,71 @@ class AboutDialog(QDialog):
         return widget
 
     def create_features_tab(self):
-        """Create the features tab content"""
+        """Create the enhanced features tab content with comprehensive app capabilities"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
         features = QTextBrowser()
         features.setHtml(
             """
-        <h3>Enhanced Features</h3>
+        <div style="font-family: 'Calibri', 'Segoe UI', Arial, sans-serif; line-height: 1.5;">
         
-        <h4>🔍 Unified Parameter Mapping</h4>
-        <ul>
-            <li><b>Pump Pressure:</b> Cooling pump high statistics monitoring</li>
-            <li><b>Magnetron Flow:</b> Unified magnetron cooling flow analysis</li>
-            <li><b>Target & Circulator Flow:</b> Target and circulator flow tracking</li>
-            <li><b>City Water Flow:</b> City water supply flow monitoring</li>
+        <h3 style="color: #0d6efd; font-weight: 600; margin-bottom: 16px;">🚀 Core Application Features</h3>
+        
+        <h4 style="color: #6f42c1; font-weight: 500; margin-top: 20px;">📊 Data Analysis & Visualization</h4>
+        <ul style="margin-left: 16px;">
+            <li><b>Interactive Dual Graphs:</b> Side-by-side parameter comparison with time synchronization</li>
+            <li><b>Real-time Plotting:</b> Live updates with matplotlib integration and Qt5 backend</li>
+            <li><b>Water System Monitoring:</b> Flow rates, pressures, and cooling parameters</li>
+            <li><b>Voltage Analysis:</b> Multi-channel voltage monitoring with trend detection</li>
+            <li><b>Statistical Dashboard:</b> Fault statistics, parameter trends, and quality metrics</li>
         </ul>
         
-        <h4>📊 Advanced Analytics</h4>
-        <ul>
-            <li><b>Statistical Analysis:</b> Comprehensive statistics with confidence intervals</li>
-            <li><b>Trend Analysis:</b> Time series analysis and pattern recognition</li>
+        <h4 style="color: #6f42c1; font-weight: 500; margin-top: 20px;">🔍 Advanced LINAC Log Processing</h4>
+        <ul style="margin-left: 16px;">
+            <li><b>Unified Parser:</b> Intelligent log parsing with automatic parameter mapping</li>
+            <li><b>Multi-format Support:</b> HALfault.txt, TBFault.txt, and custom log formats</li>
+            <li><b>Data Quality Assessment:</b> Automated scoring with confidence intervals</li>
+            <li><b>Background Processing:</b> Worker threads for responsive UI during heavy operations</li>
+            <li><b>Progress Tracking:</b> Real-time progress with ETA and performance monitoring</li>
         </ul>
         
-        <h4>⚡ Performance Enhancements</h4>
-        <ul>
-            <li><b>Lazy Loading:</b> Chunked processing for large log files</li>
-            <li><b>Progress Tracking:</b> Real-time progress with ETA calculations</li>
-            <li><b>Background Processing:</b> Responsive UI during heavy operations</li>
-            <li><b>Memory Optimization:</b> Efficient memory usage for large datasets</li>
+        <h4 style="color: #6f42c1; font-weight: 500; margin-top: 20px;">💾 Database & Performance</h4>
+        <ul style="margin-left: 16px;">
+            <li><b>SQLite Integration:</b> Efficient data storage with automatic backup management</li>
+            <li><b>Startup Optimization:</b> Smart caching and change detection for faster launches</li>
+            <li><b>Memory Management:</b> Optimized for large datasets with chunked processing</li>
+            <li><b>Tab Caching:</b> Intelligent UI caching with 5-minute invalidation cycles</li>
         </ul>
         
-        <h4>🎨 Professional Interface</h4>
-        <ul>
-            <li><b>Interactive Charts:</b> Advanced data visualization</li>
-            <li><b>Tabbed Interface:</b> Organized workspace for different analyses</li>
-            <li><b>Responsive Layout:</b> Adaptive interface for different screen sizes</li>
+        <h4 style="color: #6f42c1; font-weight: 500; margin-top: 20px;">🎨 Professional Interface</h4>
+        <ul style="margin-left: 16px;">
+            <li><b>Modern Design:</b> Windows 11 Fluent-style interface with Calibri fonts</li>
+            <li><b>Tabbed Workspace:</b> Dashboard, Water System, Voltages, and Analysis tabs</li>
+            <li><b>Interactive Controls:</b> Parameter selection, graph updates, and zoom functionality</li>
+            <li><b>Responsive Layout:</b> Adaptive sizing for different screen resolutions</li>
+            <li><b>About Dialog:</b> Comprehensive app information with modern CSS styling</li>
         </ul>
         
-        <h4>👨‍💻 Development Excellence</h4>
-        <p>This application showcases the technical expertise of <b>Tanmay Pandey</b> in:</p>
-        <ul>
-            <li><b>PyQt5 Development:</b> Professional desktop application architecture</li>
-            <li><b>Data Processing:</b> Advanced parsing and analytics algorithms</li>
-            <li><b>Performance Optimization:</b> Memory-efficient large file handling</li>
-            <li><b>User Experience:</b> Intuitive and responsive interface design</li>
+        <h4 style="color: #6f42c1; font-weight: 500; margin-top: 20px;">⚡ Technical Excellence</h4>
+        <ul style="margin-left: 16px;">
+            <li><b>PyQt5 Architecture:</b> Professional desktop application with signal/slot patterns</li>
+            <li><b>Matplotlib Integration:</b> Advanced plotting with Qt5Agg backend optimization</li>
+            <li><b>Pandas/NumPy:</b> High-performance data analysis and statistical processing</li>
+            <li><b>Thread Safety:</b> Crash-safe worker threads with health monitoring</li>
+            <li><b>Error Handling:</b> Comprehensive exception handling and user feedback</li>
         </ul>
+        
+        <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <h4 style="color: #198754; margin: 0 0 8px 0;">👨‍💻 Developer Expertise</h4>
+            <p style="margin: 0; color: #495057;">
+                This application demonstrates <b>Tanmay Pandey's</b> proficiency in biomedical engineering software development, 
+                advanced data visualization, and user-centric design. Built for medical professionals working with 
+                Linear Accelerator (LINAC) systems, showcasing expertise in Python, Qt, and scientific computing.
+            </p>
+        </div>
+        
+        </div>
         """
         )
         features.setStyleSheet("border: none; background: transparent;")

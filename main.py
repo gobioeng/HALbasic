@@ -3712,19 +3712,26 @@ Source: {result.get('source', 'unknown')} database
     def run(self):
         """Run the HALog application"""
         try:
-            # Create and show splash screen
-            self.update_splash_progress(10, "Initializing environment...")
-            setup_environment()
-            self.update_splash_progress(25, "Loading GUI framework...")
+            # FIXED: Load basic Qt components first for splash screen
             QtWidgets = lazy_import("PyQt5.QtWidgets")
             QtCore = lazy_import("PyQt5.QtCore")
             QtGui = lazy_import("PyQt5.QtGui")
 
-            # Create application with professional settings
+            # Create application instance first for splash to work
             app = QtWidgets.QApplication(sys.argv)
             app.setApplicationName("Gobioeng HALog")
             app.setApplicationVersion(APP_VERSION)
             app.setOrganizationName("gobioeng.com")
+
+            # FIXED: Create and show splash screen IMMEDIATELY
+            splash = self.create_splash()
+            splash.show()
+            app.processEvents()  # Ensure splash appears immediately
+
+            self.update_splash_progress(10, "Initializing environment...")
+            setup_environment()
+            
+            self.update_splash_progress(25, "Loading GUI framework...")
 
             # Set professional font - IMPROVED: Using Calibri for better readability
             try:
@@ -3740,29 +3747,30 @@ Source: {result.get('source', 'unknown')} database
                 print(f"Warning: Could not set font: {e}")
                 pass
 
-            # Create HALog app instance and splash
-            halog_app = HALogApp()
-            self.update_splash_progress(40, "Creating splash screen...")
-            splash = halog_app.create_splash()
+            self.update_splash_progress(40, "Preparing application components...")
             self.load_times["splash_creation"] = time.time() - startup_begin
 
-            # Create main window
+            # Create main window with splash visible during data processing
             self.update_splash_progress(60, "Loading main interface...")
-            window = halog_app.create_main_window()
+            window = self.create_main_window()
             self.load_times["window_creation"] = time.time() - startup_begin
 
-            # Finalize startup
-            self.update_splash_progress(90, "Finalizing HALog...")
+            # FIXED: Keep splash visible longer during data processing and initialization
+            self.update_splash_progress(90, "Processing application data...")
+            app.processEvents()  # Ensure splash updates are visible
+            
+            # Allow time for any background data processing
+            QtCore.QTimer.singleShot(500, lambda: self.update_splash_progress(95, "Finalizing HALog..."))
 
-            # Schedule window display with smooth transition - OPTIMIZED for instant launch
+            # Schedule window display with smooth transition - FIXED: Longer delay to keep splash visible
             def finish_startup():
                 if splash:
-                    splash.close()
+                    splash.finish(window)  # Use proper finish method instead of close()
                 window.show()
                 window.raise_()
                 window.activateWindow()
 
-            QtCore.QTimer.singleShot(300, finish_startup)  # Reduced from 600ms to 300ms for faster startup
+            QtCore.QTimer.singleShot(800, finish_startup)  # Increased from 300ms to 800ms to allow splash minimum time
 
             # Log startup timing
             total_time = time.time() - startup_begin
