@@ -3007,6 +3007,14 @@ Source: {result.get('source', 'unknown')} database
                     self.progress_dialog.setModal(True)
                     self.progress_dialog.show()
                     self.progress_dialog.set_phase("uploading", 0)
+                    
+                    # Give the dialog time to render properly
+                    QtWidgets.QApplication.processEvents()
+                    import time
+                    time.sleep(0.1)
+                    
+                    # Update with more descriptive initial message
+                    self.progress_dialog.update_progress(0, f"Preparing to process {len(file_paths)} files...")
                     QtWidgets.QApplication.processEvents()
 
                     # Process files sequentially with proper memory management and caching
@@ -3210,19 +3218,44 @@ Source: {result.get('source', 'unknown')} database
                     return 0
 
             def _import_large_file_single(self, file_path, file_size):
-                """Import single large log file and return record count"""
+                """Import single large log file and return record count with progress dialog"""
                 try:
+                    from progress_dialog import ProgressDialog
+                    
+                    # Create progress dialog
+                    progress_dialog = ProgressDialog()
+                    progress_dialog.setWindowTitle(f"Processing {os.path.basename(file_path)}")
+                    progress_dialog.setModal(True)
+                    progress_dialog.show()
+                    progress_dialog.set_phase("uploading", 0)
+                    progress_dialog.update_progress(0, "Preparing to read file...")
+                    QtWidgets.QApplication.processEvents()
+                    
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
                     
+                    progress_dialog.update_progress(10, "Reading file...")
+                    QtWidgets.QApplication.processEvents()
+                    
                     print(f"Parsing large file {os.path.basename(file_path)}...")
-                    df = parser.parse_linac_file(file_path, chunk_size=5000)
+                    
+                    def progress_callback(percentage, message):
+                        progress_dialog.update_progress(percentage * 0.8, message)  # Reserve 20% for database
+                        QtWidgets.QApplication.processEvents()
+                    
+                    df = parser.parse_linac_file(file_path, chunk_size=5000, progress_callback=progress_callback)
                     
                     if df.empty:
+                        progress_dialog.close()
                         print(f"No valid data found in {os.path.basename(file_path)}")
                         return 0
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
+                    
+                    # Switch to saving phase
+                    progress_dialog.set_phase("saving", 80)
+                    progress_dialog.update_progress(85, "Saving to database...")
+                    QtWidgets.QApplication.processEvents()
                     
                     # Insert data in optimized batches with timing
                     import time
@@ -3237,6 +3270,9 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
                     
                     # Insert file metadata
+                    progress_dialog.update_progress(95, "Saving metadata...")
+                    QtWidgets.QApplication.processEvents()
+                    
                     filename = os.path.basename(file_path)
                     parsing_stats_json = "{}"
                     self.db.insert_file_metadata(
@@ -3246,10 +3282,16 @@ Source: {result.get('source', 'unknown')} database
                         parsing_stats=parsing_stats_json,
                     )
                     
+                    progress_dialog.mark_complete()
+                    QtWidgets.QApplication.processEvents()
+                    progress_dialog.close()
+                    
                     return records_inserted
                     
                 except Exception as e:
                     print(f"Error importing {os.path.basename(file_path)}: {e}")
+                    if 'progress_dialog' in locals():
+                        progress_dialog.close()
                     return 0
 
             def _import_small_file(self, file_path):
@@ -3257,17 +3299,11 @@ Source: {result.get('source', 'unknown')} database
                 try:
                     from progress_dialog import ProgressDialog
 
-                    from progress_dialog import ProgressDialog
-
                     self.progress_dialog = ProgressDialog(self)
                     self.progress_dialog.setWindowTitle("Processing LINAC Log File")
                     self.progress_dialog.setModal(True)
                     self.progress_dialog.show()
-
-                    # Ensure dialog stays on top and visible
-                    self.progress_dialog.set_window_flags(
-                        self.progress_dialog.windowFlags() | Qt.WindowStaysOnTopHint
-                    )
+                    self.progress_dialog.set_phase("uploading", 0)
                     self.progress_dialog.update_progress(10, "Reading file...")
                     QtWidgets.QApplication.processEvents()
 
@@ -3275,11 +3311,13 @@ Source: {result.get('source', 'unknown')} database
 
                     parser = UnifiedParser()
 
+                    self.progress_dialog.set_phase("processing", 30)
                     self.progress_dialog.update_progress(30, "Processing data...")
                     QtWidgets.QApplication.processEvents()
 
                     df = parser.parse_linac_file(file_path)
 
+                    self.progress_dialog.set_phase("saving", 70)
                     self.progress_dialog.update_progress(70, "Saving to database...")
                     QtWidgets.QApplication.processEvents()
 
@@ -3298,7 +3336,7 @@ Source: {result.get('source', 'unknown')} database
                         parsing_stats=parsing_stats_json,
                     )
 
-                    self.progress_dialog.setValue(100)
+                    self.progress_dialog.mark_complete()
                     self.progress_dialog.close()
 
                     try:
@@ -3355,10 +3393,15 @@ Source: {result.get('source', 'unknown')} database
                     self.progress_dialog.setWindowTitle("Processing LINAC Log File")
                     self.progress_dialog.show()
                     self.progress_dialog.set_phase("uploading", 0)
+                    
+                    # Give the dialog time to render properly
                     QtWidgets.QApplication.processEvents()
-
-                    # Start with uploading phase
-                    self.progress_dialog.set_phase("uploading", 0)
+                    import time
+                    time.sleep(0.1)
+                    
+                    # Update with file-specific information
+                    filename = os.path.basename(file_path)
+                    self.progress_dialog.update_progress(0, f"Preparing to process {filename}...")
                     QtWidgets.QApplication.processEvents()
 
                     from worker_thread import FileProcessingWorker
@@ -3366,10 +3409,22 @@ Source: {result.get('source', 'unknown')} database
                     self.worker = FileProcessingWorker(file_path, file_size, self.db)
                     self.worker.chunk_size = 5000
 
-                    # Simple progress handling
+                    # Enhanced progress handling with automatic phase switching
                     def handle_progress_update(percentage, status_message="", lines_processed=0, total_lines=0, bytes_processed=0, total_bytes=0):
                         # Convert to integer and update
                         progress_value = max(0, min(100, int(percentage)))
+                        
+                        # Automatically switch phases based on progress
+                        if progress_value < 15:
+                            if self.progress_dialog.current_phase != "uploading":
+                                self.progress_dialog.set_phase("uploading", progress_value)
+                        elif progress_value < 90:
+                            if self.progress_dialog.current_phase != "processing":
+                                self.progress_dialog.set_phase("processing", progress_value)
+                        else:
+                            if self.progress_dialog.current_phase != "saving":
+                                self.progress_dialog.set_phase("saving", progress_value)
+                        
                         self.progress_dialog.update_progress(progress_value, status_message)
                         QtWidgets.QApplication.processEvents()
 
