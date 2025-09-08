@@ -51,29 +51,44 @@ class MachineManager:
         """Get total number of unique machines in database"""
         return len(self.get_available_machines())
     
-    def set_selected_machine(self, machine_id: str):
-        """Set the currently selected machine for analysis (single selection)"""
-        if machine_id in self.get_available_machines() or machine_id == "All Machines":
-            self._selected_machine = machine_id
-            # For backward compatibility, reset multi-selection when single machine is selected
-            if machine_id == "All Machines":
-                self._selected_machines = []
-            else:
-                self._selected_machines = [machine_id]
-            # Clear cached data when selection changes
-            self._machine_data_cache.clear()
+    def set_selected_machine(self, machine_id: str, validate=True):
+        """Set the currently selected machine for analysis (single selection)
+        
+        Args:
+            machine_id: Machine ID to select
+            validate: Whether to validate machine exists (set False for testing)
+        """
+        if validate:
+            available_machines = self.get_available_machines()
+            if machine_id not in available_machines and machine_id != "All Machines":
+                raise ValueError(f"Machine {machine_id} not found in available machines")
+        
+        self._selected_machine = machine_id
+        # For backward compatibility, reset multi-selection when single machine is selected
+        if machine_id == "All Machines":
+            self._selected_machines = []
         else:
-            raise ValueError(f"Machine {machine_id} not found in available machines")
+            self._selected_machines = [machine_id]
+        # Clear cached data when selection changes
+        self._machine_data_cache.clear()
     
-    def set_selected_machines(self, machine_ids: List[str]):
-        """Set multiple selected machines for analysis (multi-selection)"""
-        available_machines = self.get_available_machines()
-        valid_machines = []
-        for machine_id in machine_ids:
-            if machine_id in available_machines:
-                valid_machines.append(machine_id)
-            else:
-                print(f"Warning: Machine {machine_id} not found in available machines")
+    def set_selected_machines(self, machine_ids: List[str], validate=True):
+        """Set multiple selected machines for analysis (multi-selection)
+        
+        Args:
+            machine_ids: List of machine IDs to select
+            validate: Whether to validate machines exist (set False for testing)
+        """
+        if validate:
+            available_machines = self.get_available_machines()
+            valid_machines = []
+            for machine_id in machine_ids:
+                if machine_id in available_machines:
+                    valid_machines.append(machine_id)
+                else:
+                    print(f"Warning: Machine {machine_id} not found in available machines")
+        else:
+            valid_machines = machine_ids
         
         self._selected_machines = valid_machines
         # Update single selection for backward compatibility
