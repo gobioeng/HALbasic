@@ -69,11 +69,22 @@ class ProgressDialog(QProgressDialog):
         self.setRange(0, 100)
         self.setValue(0)
         self.setLabelText("Initializing...")
+        
+        # Ensure dialog stays visible and responsive
+        self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
+    
+    def ensure_visible(self):
+        """Ensure the dialog is visible and responsive"""
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
+        QApplication.processEvents()
 
     def set_phase(self, phase_name, initial_progress=0):
         """Set current processing phase"""
         phase_names = {
-            "uploading": "Uploading file...",
+            "uploading": "Reading and uploading file...",
             "processing": "Processing data...",
             "finalizing": "Finalizing...",
             "saving": "Saving results...",
@@ -85,7 +96,10 @@ class ProgressDialog(QProgressDialog):
 
         label_text = phase_names.get(phase_name, f"{phase_name.title()}...")
         self.setLabelText(label_text)
-        self.setValue(initial_progress)
+        self.setValue(int(initial_progress))  # Ensure integer value
+        
+        # Ensure dialog is visible when setting phase
+        self.ensure_visible()
 
     def update_progress(self, percentage, status_message="", lines_processed=0, 
                        total_lines=0, bytes_processed=0, total_bytes=0):
@@ -94,6 +108,12 @@ class ProgressDialog(QProgressDialog):
 
         if status_message:
             self.setLabelText(status_message)
+        
+        # Ensure dialog is visible and on top
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
 
         # Process events to keep UI responsive
         QApplication.processEvents()
@@ -102,3 +122,4 @@ class ProgressDialog(QProgressDialog):
         """Mark processing as complete"""
         self.setValue(100)
         self.setLabelText("Complete!")
+        self.ensure_visible()

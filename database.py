@@ -366,27 +366,43 @@ class DatabaseManager:
                             stat_query, conn, params=[stat], parse_dates=["datetime"]
                         )
 
+                    print(f"Retrieved {len(df_stat)} records for statistic type '{stat}'")
                     frames.append(df_stat)
 
-                # If any frames are empty, return empty dataframe
-                if any(df.empty for df in frames):
+                # Only return empty if ALL frames are empty (more lenient)
+                non_empty_frames = [df for df in frames if not df.empty]
+                if not non_empty_frames:
+                    print("⚠️ No data found for any statistic type")
                     return pd.DataFrame()
+                
+                # Use only non-empty frames for merging
+                if len(non_empty_frames) == 1:
+                    df_merged = non_empty_frames[0].copy()
+                    # Add missing columns with NaN values
+                    for stat in stats:
+                        if stat not in df_merged.columns:
+                            df_merged[stat] = pd.NA
+                else:
+                    # Optimize merge for memory efficiency
+                    def merge_func(left, right):
+                        return pd.merge(
+                            left,
+                            right,
+                            on=["datetime", "serial", "param", "unit"],
+                            how="outer",
+                            # Use copy=False for memory efficiency (modifies in place)
+                            copy=False,
+                        )
 
-                # Optimize merge for memory efficiency
-                def merge_func(left, right):
-                    return pd.merge(
-                        left,
-                        right,
-                        on=["datetime", "serial", "param", "unit"],
-                        how="outer",
-                        # Use copy=False for memory efficiency (modifies in place)
-                        copy=False,
-                    )
+                    df_merged = reduce(merge_func, non_empty_frames)
 
-                df_merged = reduce(merge_func, frames)
-
-                # Calculate diff column
-                df_merged["diff"] = df_merged["max"] - df_merged["min"]
+                # Calculate diff column safely
+                if 'max' in df_merged.columns and 'min' in df_merged.columns:
+                    df_merged["diff"] = df_merged["max"] - df_merged["min"]
+                else:
+                    df_merged["diff"] = 0
+                
+                print(f"Final merged dataset: {len(df_merged)} records with columns: {list(df_merged.columns)}")
 
                 return df_merged
 
@@ -394,6 +410,83 @@ class DatabaseManager:
             print(f"Error retrieving logs: {e}")
             traceback.print_exc()
             return pd.DataFrame()
+
+    def diagnose_data_issues(self) -> Dict:
+        """Diagnose potential data issues that could cause dashboard problems"""
+        try:
+            with self.get_connection() as conn:
+                diagnosis = {
+                    "issues_found": [],
+                    "recommendations": [],
+                    "data_health": "good"
+                }
+                
+                # Check 1: Total records
+                total_records = conn.execute("SELECT COUNT(*) FROM water_logs").fetchone()[0]
+                if total_records == 0:
+                    diagnosis["issues_found"].append("No data in database")
+                    diagnosis["recommendations"].append("Import LINAC log files")
+                    diagnosis["data_health"] = "critical"
+                    return diagnosis
+                
+                # Check 2: Statistic type distribution
+                stat_types = conn.execute("""
+                    SELECT statistic_type, COUNT(*) as count 
+                    FROM water_logs 
+                    GROUP BY statistic_type
+                """).fetchall()
+                
+                stat_dict = dict(stat_types)
+                required_stats = ['avg', 'min', 'max']
+                missing_stats = [stat for stat in required_stats if stat not in stat_dict]
+                
+                if missing_stats:
+                    diagnosis["issues_found"].append(f"Missing statistic types: {missing_stats}")
+                    diagnosis["recommendations"].append("Check data parsing and import process")
+                    diagnosis["data_health"] = "poor"
+                
+                # Check 3: Parameter diversity
+                param_count = conn.execute("SELECT COUNT(DISTINCT parameter_type) FROM water_logs").fetchone()[0]
+                if param_count < 3:
+                    diagnosis["issues_found"].append(f"Low parameter diversity: only {param_count} unique parameters")
+                    diagnosis["recommendations"].append("Import more comprehensive log files")
+                    if diagnosis["data_health"] == "good":
+                        diagnosis["data_health"] = "fair"
+                
+                # Check 4: Recent data availability
+                recent_data = conn.execute("""
+                    SELECT COUNT(*) FROM water_logs 
+                    WHERE datetime >= datetime('now', '-7 days')
+                """).fetchone()[0]
+                
+                if recent_data == 0:
+                    diagnosis["issues_found"].append("No recent data (last 7 days)")
+                    diagnosis["recommendations"].append("Import recent log files")
+                    if diagnosis["data_health"] == "good":
+                        diagnosis["data_health"] = "fair"
+                
+                # Check 5: Serial number consistency
+                serial_count = conn.execute("SELECT COUNT(DISTINCT serial_number) FROM water_logs").fetchone()[0]
+                if serial_count == 0:
+                    diagnosis["issues_found"].append("No valid serial numbers found")
+                    diagnosis["recommendations"].append("Check log file format and parsing")
+                    diagnosis["data_health"] = "poor"
+                
+                # Summary
+                diagnosis["total_records"] = total_records
+                diagnosis["unique_parameters"] = param_count
+                diagnosis["unique_serials"] = serial_count
+                diagnosis["statistic_distribution"] = stat_dict
+                
+                return diagnosis
+                
+        except Exception as e:
+            return {
+                "issues_found": [f"Database error: {str(e)}"],
+                "recommendations": ["Check database connectivity and integrity"],
+                "data_health": "critical",
+                "error": str(e)
+            }
 
     def get_logs_by_parameter(
         self,

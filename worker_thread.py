@@ -94,8 +94,7 @@ class ThreadCrashSafetyMixin:
         finally:
             # Always clean up resources regardless of success/failure
             self._cleanup_resources()
-            # Ensure the thread is marked as finished properly
-            self.finished.emit() if hasattr(self, 'finished') else None
+            # Don't emit finished signal here - let the main function handle it
 
 
 class FileProcessingWorker(QThread, ThreadCrashSafetyMixin):
@@ -133,8 +132,21 @@ class FileProcessingWorker(QThread, ThreadCrashSafetyMixin):
         
     def _main_processing(self):
         """Main processing logic wrapped by crash safety"""
+        self._safe_emit(self.status_update, "Preparing to read file...")
+        self._safe_emit(self.progress_update, 0, "Preparing to read file...", 0, 0, 0, self.file_size)
+        
+        # Give progress dialog time to show
+        import time
+        time.sleep(0.1)
+        
+        self._safe_emit(self.status_update, "Opening file for reading...")
+        self._safe_emit(self.progress_update, 5, f"Opening file ({self.file_size:,} bytes)...", 0, 0, 0, self.file_size)
+        
+        # Give more feedback
+        time.sleep(0.1)
+        
         self._safe_emit(self.status_update, "Initializing parser...")
-        self._safe_emit(self.progress_update, 0, "Starting file processing...", 0, 0, 0, self.file_size)
+        self._safe_emit(self.progress_update, 10, "Starting file processing...", 0, 0, 0, self.file_size)
 
         # Parse file with chunked processing
         df = self.parser.parse_linac_file(
