@@ -347,6 +347,64 @@ class PlotUtils:
                 widget.canvas.draw()
 
     @staticmethod
+    def _plot_parameter_data_multi_machine(widget, machine_data_dict, parameter_name, machine_colors):
+        """Plot multi-machine parameter data with different colors per machine"""
+        if hasattr(widget, 'figure') and widget.figure:
+            widget.figure.clear()
+            ax = widget.figure.add_subplot(111)
+            
+            # Apply professional styling
+            PlotUtils.setup_professional_style()
+            
+            if not machine_data_dict:
+                ax.text(0.5, 0.5, f'No data available for {parameter_name}', 
+                       ha='center', va='center', transform=ax.transAxes, fontsize=14)
+                widget.canvas.draw()
+                return
+
+            plotted_count = 0
+            for machine_id, data in machine_data_dict.items():
+                if data.empty:
+                    continue
+                    
+                # Process time data
+                if 'datetime' in data.columns:
+                    data_copy = data.copy()
+                    data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
+                    data_copy = data_copy.sort_values('datetime')
+                    
+                    color = machine_colors.get(machine_id, '#1976D2')
+                    
+                    # Plot average values for multi-machine view
+                    if 'value' in data_copy.columns:
+                        avg_data = data_copy.groupby(['datetime'])['value'].mean().reset_index()
+                        ax.plot(avg_data['datetime'], avg_data['value'], 
+                               label=f'{machine_id}', color=color, linewidth=2, marker='o', markersize=4)
+                        plotted_count += 1
+            
+            if plotted_count > 0:
+                ax.set_title(f"{parameter_name} Trends - Multi-Machine Comparison", fontsize=12, fontweight='bold')
+                ax.set_xlabel('Time')
+                ax.set_ylabel('Value')
+                ax.grid(True, alpha=0.3)
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                
+                # Format datetime axis
+                if plotted_count > 0:
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                    ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+                    widget.figure.autofmt_xdate()
+            else:
+                ax.text(0.5, 0.5, f'No data available for {parameter_name}', 
+                       ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            
+            widget.figure.tight_layout()
+            
+            # Add interactive capabilities if canvas exists
+            if hasattr(widget, 'canvas'):
+                widget.canvas.draw()
+
+    @staticmethod
     def _plot_single_parameter_compressed(ax, data, parameter_name, time_clusters):
         """Plot single parameter with compressed timeline"""
         colors = {'avg': '#1976D2', 'min': '#388E3C', 'max': '#D32F2F'}

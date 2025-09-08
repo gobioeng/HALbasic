@@ -80,7 +80,8 @@ class ThreadCrashSafetyMixin:
         """Run main function with crash safety wrapper"""
         try:
             self._setup_crash_safety()
-            return main_function()
+            result = main_function()
+            return result
         except Exception as e:
             error_msg = f"Thread {self._thread_id} crashed: {str(e)}"
             print(error_msg)
@@ -89,10 +90,12 @@ class ThreadCrashSafetyMixin:
             if hasattr(self, 'error'):
                 self._safe_emit(self.error, error_msg)
                 
-            self._cleanup_resources()
             return None
         finally:
+            # Always clean up resources regardless of success/failure
             self._cleanup_resources()
+            # Ensure the thread is marked as finished properly
+            self.finished.emit() if hasattr(self, 'finished') else None
 
 
 class FileProcessingWorker(QThread, ThreadCrashSafetyMixin):
