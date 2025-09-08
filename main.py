@@ -1920,6 +1920,14 @@ Source: {result.get('source', 'unknown')} database
                     summary_stats = self.db.get_summary_statistics()
                     if not summary_stats:
                         print("⚠️ No data available in database")
+                        # Run diagnostic to provide more details
+                        if hasattr(self.db, 'diagnose_data_issues'):
+                            diagnosis = self.db.diagnose_data_issues()
+                            print(f"Data health: {diagnosis.get('data_health', 'unknown')}")
+                            if diagnosis.get('issues_found'):
+                                print(f"Issues found: {', '.join(diagnosis['issues_found'])}")
+                            if diagnosis.get('recommendations'):
+                                print(f"Recommendations: {', '.join(diagnosis['recommendations'])}")
                         return
                     
                     # Load only a sample of recent data for UI initialization (last 1000 records)

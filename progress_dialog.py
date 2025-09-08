@@ -96,7 +96,7 @@ class ProgressDialog(QProgressDialog):
 
         label_text = phase_names.get(phase_name, f"{phase_name.title()}...")
         self.setLabelText(label_text)
-        self.setValue(initial_progress)
+        self.setValue(int(initial_progress))  # Ensure integer value
         
         # Ensure dialog is visible when setting phase
         self.ensure_visible()
