@@ -737,10 +737,14 @@ class HALogApp:
                     self.ui.btnClearDB.clicked.connect(self.clear_database)
                     self.ui.btnRefreshData.clicked.connect(self.load_dashboard)
 
-                    # MACHINE SELECTION COMBO BOX
+                    # MACHINE SELECTION CONTROLS
                     if hasattr(self.ui, 'cmbMachineSelect'):
                         self.ui.cmbMachineSelect.currentTextChanged.connect(self.on_machine_selection_changed)
                         print("✓ Machine selection combo box connected")
+                    
+                    if hasattr(self.ui, 'btnMultiMachineSelect'):
+                        self.ui.btnMultiMachineSelect.clicked.connect(self.open_multi_machine_selection)
+                        print("✓ Multi-machine selection button connected")
 
                     # Legacy trend controls (keep for backward compatibility)
                     if hasattr(self.ui, 'comboTrendSerial'):
@@ -1087,25 +1091,66 @@ class HALogApp:
                     from utils_plot import PlotUtils
                     import pandas as pd
 
-                    # Plot top graph
-                    if selected_top_param and selected_top_param != "Select parameter...":
-                        data_top = self._get_parameter_data_by_description(selected_top_param)
-                        if not data_top.empty:
-                            PlotUtils._plot_parameter_data_single(graph_top, data_top, selected_top_param)
-                        else:
-                            PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), f"No data available for {selected_top_param}")
-                    else:
-                        PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), "Select a parameter from dropdown")
+                    # Check if multi-machine mode is active
+                    is_multi_machine = (hasattr(self, 'machine_manager') and 
+                                      self.machine_manager and 
+                                      self.machine_manager.is_multi_machine_selected())
 
-                    # Plot bottom graph
-                    if selected_bottom_param and selected_bottom_param != "Select parameter...":
-                        data_bottom = self._get_parameter_data_by_description(selected_bottom_param)
-                        if not data_bottom.empty:
-                            PlotUtils._plot_parameter_data_single(graph_bottom, data_bottom, selected_bottom_param)
+                    if is_multi_machine:
+                        # Get color scheme for machines
+                        machine_colors = self.machine_manager.get_machine_color_scheme()
+                        
+                        # Plot top graph - multi-machine
+                        if selected_top_param and selected_top_param != "Select parameter...":
+                            machine_data_top = self._get_multi_machine_parameter_data(selected_top_param)
+                            if machine_data_top:
+                                PlotUtils._plot_parameter_data_multi_machine(
+                                    graph_top, machine_data_top, selected_top_param, machine_colors
+                                )
+                            else:
+                                PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
+                                                                    f"No data available for {selected_top_param}")
                         else:
-                            PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), f"No data available for {selected_bottom_param}")
+                            PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
+                                                                "Select a parameter from dropdown")
+
+                        # Plot bottom graph - multi-machine
+                        if selected_bottom_param and selected_bottom_param != "Select parameter...":
+                            machine_data_bottom = self._get_multi_machine_parameter_data(selected_bottom_param)
+                            if machine_data_bottom:
+                                PlotUtils._plot_parameter_data_multi_machine(
+                                    graph_bottom, machine_data_bottom, selected_bottom_param, machine_colors
+                                )
+                            else:
+                                PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
+                                                                    f"No data available for {selected_bottom_param}")
+                        else:
+                            PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
+                                                                "Select a parameter from dropdown")
                     else:
-                        PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), "Select a parameter from dropdown")
+                        # Single machine mode - use existing logic
+                        # Plot top graph
+                        if selected_top_param and selected_top_param != "Select parameter...":
+                            data_top = self._get_parameter_data_by_description(selected_top_param)
+                            if not data_top.empty:
+                                PlotUtils._plot_parameter_data_single(graph_top, data_top, selected_top_param)
+                            else:
+                                PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
+                                                                    f"No data available for {selected_top_param}")
+                        else:
+                            PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
+                                                                "Select a parameter from dropdown")
+
+                        # Plot bottom graph
+                        if selected_bottom_param and selected_bottom_param != "Select parameter...":
+                            data_bottom = self._get_parameter_data_by_description(selected_bottom_param)
+                            if not data_bottom.empty:
+                                PlotUtils._plot_parameter_data_single(graph_bottom, data_bottom, selected_bottom_param)
+                            else:
+                                PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
+                                                                    f"No data available for {selected_bottom_param}")
+                        else:
+                            PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), "Select a parameter from dropdown")
 
                     print(f"✓ Successfully refreshed {group_name} trends")
 
@@ -1203,6 +1248,45 @@ class HALogApp:
 
                 except Exception as e:
                     return pd.DataFrame()
+
+            def _get_multi_machine_parameter_data(self, parameter_description):
+                """Get parameter data for multiple machines, organized by machine ID"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        return {}
+                    
+                    # Get multi-machine data from machine manager
+                    machine_data_dict = self.machine_manager.get_multi_machine_data(self.df if hasattr(self, 'df') else None)
+                    
+                    result = {}
+                    for machine_id, machine_df in machine_data_dict.items():
+                        if machine_df.empty:
+                            continue
+                            
+                        # Use existing parameter data retrieval logic for each machine
+                        # Create a temporary instance to reuse the single-machine logic
+                        temp_df_backup = None
+                        if hasattr(self, 'df'):
+                            temp_df_backup = self.df
+                        
+                        # Set machine-specific data temporarily
+                        self.df = machine_df
+                        
+                        # Get parameter data for this machine
+                        param_data = self._get_parameter_data_by_description(parameter_description)
+                        
+                        if not param_data.empty:
+                            result[machine_id] = param_data
+                        
+                        # Restore original data
+                        if temp_df_backup is not None:
+                            self.df = temp_df_backup
+                    
+                    return result
+                    
+                except Exception as e:
+                    print(f"Error getting multi-machine parameter data: {e}")
+                    return {}
 
             def refresh_latest_mpc(self):
                 """Load and display MPC results from database with single date selection"""
@@ -2413,6 +2497,11 @@ Source: {result.get('source', 'unknown')} database
                             analyzer = DataAnalyzer()
                             worker = AnalysisWorker(analyzer, self.df)
 
+                            # Track worker for cleanup
+                            if not hasattr(self, '_active_analysis_workers'):
+                                self._active_analysis_workers = []
+                            self._active_analysis_workers.append(worker)
+
                             worker.analysis_progress.connect(
                                 lambda p, m: progress_dialog.setValue(p)
                             )
@@ -2421,10 +2510,16 @@ Source: {result.get('source', 'unknown')} database
                                     results, progress_dialog
                                 )
                             )
+                            worker.analysis_finished.connect(
+                                lambda: self._cleanup_finished_worker(worker)
+                            )
                             worker.analysis_error.connect(
                                 lambda msg: self._handle_analysis_error(
                                     msg, progress_dialog
                                 )
+                            )
+                            worker.analysis_error.connect(
+                                lambda: self._cleanup_finished_worker(worker)
                             )
 
                             progress_dialog.canceled.connect(worker.cancel_analysis)
@@ -2515,6 +2610,15 @@ Source: {result.get('source', 'unknown')} database
                     )
                 except Exception as e:
                     print(f"Error handling analysis error: {e}")
+
+            def _cleanup_finished_worker(self, worker):
+                """Remove finished worker from active tracking list"""
+                try:
+                    if hasattr(self, '_active_analysis_workers') and worker in self._active_analysis_workers:
+                        self._active_analysis_workers.remove(worker)
+                        print(f"✓ Analysis worker removed from tracking list")
+                except Exception as e:
+                    print(f"Warning: Error cleaning up finished worker: {e}")
 
             def _populate_trends_table(self, trends_df):
                 """Populate trends table with enhanced analysis results"""
@@ -3778,12 +3882,131 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error handling machine selection change: {e}")
                     traceback.print_exc()
 
-            def closeEvent(self, event):
-                """Clean up resources when closing application"""
+            def open_multi_machine_selection(self):
+                """Open multi-machine selection dialog"""
                 try:
+                    if not hasattr(self, 'machine_manager'):
+                        QtWidgets.QMessageBox.warning(
+                            self, "No Data", "Please import log files first to enable machine selection."
+                        )
+                        return
+                    
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) < 2:
+                        QtWidgets.QMessageBox.information(
+                            self, "Single Machine", 
+                            "Only one machine is available in the data. Multi-selection is not needed."
+                        )
+                        return
+                    
+                    # Import the dialog from main_window
+                    from main_window import MultiMachineSelectionDialog
+                    
+                    current_selected = self.machine_manager.get_selected_machines()
+                    
+                    dialog = MultiMachineSelectionDialog(
+                        available_machines, current_selected, parent=self
+                    )
+                    
+                    if dialog.exec_() == QtWidgets.QDialog.Accepted:
+                        selected_machines = dialog.get_selected_machines()
+                        
+                        if selected_machines:
+                            # Update machine manager with multi-selection
+                            self.machine_manager.set_selected_machines(selected_machines)
+                            
+                            # Update UI to reflect multi-selection
+                            if len(selected_machines) == 1:
+                                self.ui.cmbMachineSelect.blockSignals(True)
+                                index = self.ui.cmbMachineSelect.findText(selected_machines[0])
+                                if index >= 0:
+                                    self.ui.cmbMachineSelect.setCurrentIndex(index)
+                                self.ui.cmbMachineSelect.blockSignals(False)
+                                status_msg = f"Selected: {selected_machines[0]}"
+                            else:
+                                # Show multi-selection status in combo box
+                                self.ui.cmbMachineSelect.blockSignals(True)
+                                # Find or add a "Multiple Machines" item
+                                multi_text = f"Multiple Machines ({len(selected_machines)})"
+                                index = self.ui.cmbMachineSelect.findText(multi_text)
+                                if index < 0:
+                                    self.ui.cmbMachineSelect.addItem(multi_text)
+                                    index = self.ui.cmbMachineSelect.findText(multi_text)
+                                self.ui.cmbMachineSelect.setCurrentIndex(index)
+                                self.ui.cmbMachineSelect.blockSignals(False)
+                                status_msg = f"Selected: {', '.join(selected_machines[:3])}"
+                                if len(selected_machines) > 3:
+                                    status_msg += f" (+{len(selected_machines) - 3} more)"
+                            
+                            print(f"🔧 Multi-machine selection: {selected_machines}")
+                            
+                            # Refresh all components
+                            self.load_dashboard()
+                            self._initialize_trend_controls()
+                            self.update_trend_combos()
+                            self.update_data_table()
+                            self.update_analysis_tab()
+                            QtCore.QTimer.singleShot(500, self._refresh_all_trends)
+                            
+                            QtWidgets.QMessageBox.information(
+                                self, "Selection Updated",
+                                f"Multi-machine selection updated successfully!\n\n{status_msg}\n\n"
+                                "Trend graphs will now show data from all selected machines with different colors."
+                            )
+                        else:
+                            QtWidgets.QMessageBox.information(
+                                self, "No Selection", "No machines were selected."
+                            )
+                            
+                except Exception as e:
+                    print(f"Error in multi-machine selection: {e}")
+                    traceback.print_exc()
+                    QtWidgets.QMessageBox.warning(
+                        self, "Error", f"Error opening multi-machine selection: {str(e)}"
+                    )
+
+            def closeEvent(self, event):
+                """Clean up resources when closing application with proper thread cleanup"""
+                try:
+                    print("🔄 Starting application cleanup...")
+                    
+                    # Clean up any active worker threads
+                    if hasattr(self, "worker") and self.worker is not None:
+                        print("🧵 Cleaning up file processing worker thread...")
+                        try:
+                            if self.worker.isRunning():
+                                self.worker.cancel_processing()
+                                if not self.worker.wait(3000):  # Wait up to 3 seconds
+                                    print("⚠️ Worker thread didn't respond, terminating...")
+                                    self.worker.terminate()
+                                    self.worker.wait(1000)  # Wait for termination
+                            print("✓ File processing worker cleaned up")
+                        except Exception as e:
+                            print(f"Warning: Error cleaning up file worker: {e}")
+                        finally:
+                            self.worker = None
+                    
+                    # Clean up any analysis worker threads that might be running
+                    # These are created in different scopes, so we track them globally
+                    if hasattr(self, "_active_analysis_workers"):
+                        for worker in self._active_analysis_workers[:]:  # Copy list to avoid modification during iteration
+                            try:
+                                if worker.isRunning():
+                                    worker.cancel_analysis()
+                                    if not worker.wait(3000):
+                                        worker.terminate()
+                                        worker.wait(1000)
+                                print("✓ Analysis worker cleaned up")
+                            except Exception as e:
+                                print(f"Warning: Error cleaning up analysis worker: {e}")
+                        self._active_analysis_workers.clear()
+
+                    # Clean up timers
                     if hasattr(self, "memory_timer"):
                         self.memory_timer.stop()
 
+                    # Database cleanup
                     if hasattr(self, "db"):
                         try:
                             self.db.vacuum_database()
@@ -3791,10 +4014,9 @@ Source: {result.get('source', 'unknown')} database
                             pass
 
                     import gc
-
                     gc.collect()
 
-                    print("Window close event: cleaning up resources")
+                    print("✓ Application cleanup completed")
                     event.accept()
                 except Exception as e:
                     print(f"Error during application close: {e}")

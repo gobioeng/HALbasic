@@ -25,6 +25,7 @@ class MachineManager:
         self.db = database_manager
         self._available_machines = []
         self._selected_machine = None
+        self._selected_machines = []  # For multi-selection support
         self._machine_data_cache = {}
         
     def get_available_machines(self) -> List[str]:
@@ -51,13 +52,48 @@ class MachineManager:
         return len(self.get_available_machines())
     
     def set_selected_machine(self, machine_id: str):
-        """Set the currently selected machine for analysis"""
+        """Set the currently selected machine for analysis (single selection)"""
         if machine_id in self.get_available_machines() or machine_id == "All Machines":
             self._selected_machine = machine_id
+            # For backward compatibility, reset multi-selection when single machine is selected
+            if machine_id == "All Machines":
+                self._selected_machines = []
+            else:
+                self._selected_machines = [machine_id]
             # Clear cached data when selection changes
             self._machine_data_cache.clear()
         else:
             raise ValueError(f"Machine {machine_id} not found in available machines")
+    
+    def set_selected_machines(self, machine_ids: List[str]):
+        """Set multiple selected machines for analysis (multi-selection)"""
+        available_machines = self.get_available_machines()
+        valid_machines = []
+        for machine_id in machine_ids:
+            if machine_id in available_machines:
+                valid_machines.append(machine_id)
+            else:
+                print(f"Warning: Machine {machine_id} not found in available machines")
+        
+        self._selected_machines = valid_machines
+        # Update single selection for backward compatibility
+        if len(valid_machines) == 1:
+            self._selected_machine = valid_machines[0]
+        elif len(valid_machines) == 0:
+            self._selected_machine = "All Machines"
+        else:
+            self._selected_machine = "Multiple Machines"
+        
+        # Clear cached data when selection changes
+        self._machine_data_cache.clear()
+    
+    def get_selected_machines(self) -> List[str]:
+        """Get list of currently selected machines"""
+        return self._selected_machines.copy()
+    
+    def is_multi_machine_selected(self) -> bool:
+        """Check if multiple machines are selected"""
+        return len(self._selected_machines) > 1
     
     def get_selected_machine(self) -> Optional[str]:
         """Get currently selected machine ID"""
@@ -100,7 +136,12 @@ class MachineManager:
         if not self._selected_machine or self._selected_machine == "All Machines":
             return data
         
-        # Filter by selected machine
+        # If multiple machines selected, return data for all selected machines
+        if self.is_multi_machine_selected():
+            filtered_data = data[data['serial_number'].isin(self._selected_machines)].copy()
+            return filtered_data
+        
+        # Filter by single selected machine
         filtered_data = data[data['serial_number'] == self._selected_machine].copy()
         return filtered_data
     
@@ -207,3 +248,80 @@ class MachineManager:
     def clear_cache(self):
         """Clear internal data cache"""
         self._machine_data_cache.clear()
+    
+    def get_multi_machine_data(self, data: pd.DataFrame = None) -> Dict[str, pd.DataFrame]:
+        """Get data for multiple selected machines, organized by machine ID
+        
+        Args:
+            data: DataFrame to filter. If None, loads from database
+            
+        Returns:
+            Dictionary mapping machine IDs to their filtered data
+        """
+        if data is None:
+            # Load raw data from database
+            try:
+                with self.db.get_connection() as conn:
+                    data = pd.read_sql_query("""
+                        SELECT datetime, serial_number, parameter_type, 
+                               statistic_type, value, count, unit, description
+                        FROM water_logs
+                        ORDER BY datetime
+                    """, conn)
+                    if not data.empty and 'datetime' in data.columns:
+                        try:
+                            data['datetime'] = pd.to_datetime(data['datetime'], format='mixed')
+                        except:
+                            data['datetime'] = pd.to_datetime(data['datetime'], errors='coerce')
+            except Exception as e:
+                print(f"Error loading raw data: {e}")
+                return {}
+        
+        if data.empty:
+            return {}
+        
+        # If no specific machines selected, return all available machines
+        if not self._selected_machines or len(self._selected_machines) == 0:
+            available_machines = self.get_available_machines()
+            result = {}
+            for machine in available_machines:
+                machine_data = data[data['serial_number'] == machine].copy()
+                if not machine_data.empty:
+                    result[machine] = machine_data
+            return result
+        
+        # Return data for selected machines only
+        result = {}
+        for machine_id in self._selected_machines:
+            machine_data = data[data['serial_number'] == machine_id].copy()
+            if not machine_data.empty:
+                result[machine_id] = machine_data
+        return result
+    
+    def get_machine_color_scheme(self) -> Dict[str, str]:
+        """Get color scheme for multi-machine visualization
+        
+        Returns:
+            Dictionary mapping machine IDs to colors
+        """
+        machines = self.get_available_machines() if not self._selected_machines else self._selected_machines
+        
+        # Professional color palette for multiple machines
+        colors = [
+            '#2196F3',  # Blue
+            '#4CAF50',  # Green  
+            '#FF9800',  # Orange
+            '#9C27B0',  # Purple
+            '#F44336',  # Red
+            '#00BCD4',  # Cyan
+            '#795548',  # Brown
+            '#607D8B',  # Blue Grey
+            '#E91E63',  # Pink
+            '#3F51B5',  # Indigo
+        ]
+        
+        machine_colors = {}
+        for i, machine in enumerate(machines):
+            machine_colors[machine] = colors[i % len(colors)]
+        
+        return machine_colors

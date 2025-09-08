@@ -18,6 +18,10 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QLineEdit,
     QTextEdit,
+    QDialog,
+    QListWidget,
+    QListWidgetItem,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QFont
@@ -445,6 +449,30 @@ class Ui_MainWindow(object):
         machine_header_layout.addStretch()
         machine_header_layout.addWidget(machine_label)
         machine_header_layout.addWidget(self.cmbMachineSelect)
+        
+        # Add multi-selection button for advanced machine selection
+        self.btnMultiMachineSelect = QPushButton("Multi-Select")
+        self.btnMultiMachineSelect.setFont(QFont("Calibri", 10))
+        self.btnMultiMachineSelect.setMaximumWidth(100)
+        self.btnMultiMachineSelect.setToolTip("Select multiple machines for comparison")
+        self.btnMultiMachineSelect.setStyleSheet("""
+            QPushButton {
+                padding: 6px 12px;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: white;
+                font-family: Calibri;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                border-color: #2196F3;
+                background-color: #F5F5F5;
+            }
+            QPushButton:pressed {
+                background-color: #E3F2FD;
+            }
+        """)
+        machine_header_layout.addWidget(self.btnMultiMachineSelect)
         machine_header_layout.addStretch()
         
         layout.addLayout(machine_header_layout)
@@ -1474,3 +1502,119 @@ class Ui_MainWindow(object):
         app_info.setWordWrap(True)
         layout.addWidget(app_info)
         layout.addStretch()
+
+
+class MultiMachineSelectionDialog(QDialog):
+    """Dialog for selecting multiple machines for analysis"""
+    
+    def __init__(self, available_machines, selected_machines=None, parent=None):
+        super().__init__(parent)
+        self.available_machines = available_machines
+        self.selected_machines = selected_machines or []
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Setup the dialog UI"""
+        self.setWindowTitle("Select Machines for Analysis")
+        self.setModal(True)
+        self.resize(400, 500)
+        
+        layout = QVBoxLayout(self)
+        
+        # Title
+        title = QLabel("<h3>Multi-Machine Selection</h3>")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Instructions
+        instructions = QLabel(
+            "Select one or more machines to analyze. "
+            "Trend graphs will show data from selected machines with different colors."
+        )
+        instructions.setWordWrap(True)
+        instructions.setStyleSheet("color: #666; margin: 10px 0;")
+        layout.addWidget(instructions)
+        
+        # Machine list with checkboxes
+        self.machine_list = QListWidget()
+        self.machine_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #E0E0E0;
+                border-radius: 6px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #F0F0F0;
+            }
+            QListWidget::item:hover {
+                background-color: #F5F5F5;
+            }
+        """)
+        
+        # Add machines to list
+        for machine in self.available_machines:
+            item = QListWidgetItem()
+            checkbox = QCheckBox(f"Machine: {machine}")
+            checkbox.setFont(QFont("Calibri", 10))
+            
+            if machine in self.selected_machines:
+                checkbox.setChecked(True)
+            
+            self.machine_list.addItem(item)
+            self.machine_list.setItemWidget(item, checkbox)
+        
+        layout.addWidget(self.machine_list)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        # Select All / None buttons
+        btn_select_all = QPushButton("Select All")
+        btn_select_all.clicked.connect(self.select_all)
+        btn_select_none = QPushButton("Select None")
+        btn_select_none.clicked.connect(self.select_none)
+        
+        button_layout.addWidget(btn_select_all)
+        button_layout.addWidget(btn_select_none)
+        button_layout.addStretch()
+        
+        # OK/Cancel buttons
+        btn_ok = QPushButton("OK")
+        btn_ok.setObjectName("primaryButton")
+        btn_ok.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.clicked.connect(self.reject)
+        
+        button_layout.addWidget(btn_ok)
+        button_layout.addWidget(btn_cancel)
+        
+        layout.addLayout(button_layout)
+        
+    def select_all(self):
+        """Select all machines"""
+        for i in range(self.machine_list.count()):
+            item = self.machine_list.item(i)
+            widget = self.machine_list.itemWidget(item)
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(True)
+    
+    def select_none(self):
+        """Deselect all machines"""
+        for i in range(self.machine_list.count()):
+            item = self.machine_list.item(i)
+            widget = self.machine_list.itemWidget(item)
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(False)
+    
+    def get_selected_machines(self):
+        """Get list of selected machine IDs"""
+        selected = []
+        for i in range(self.machine_list.count()):
+            item = self.machine_list.item(i)
+            widget = self.machine_list.itemWidget(item)
+            if isinstance(widget, QCheckBox) and widget.isChecked():
+                # Extract machine ID from text "Machine: ID"
+                machine_id = widget.text().replace("Machine: ", "")
+                selected.append(machine_id)
+        return selected
