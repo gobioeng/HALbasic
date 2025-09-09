@@ -330,7 +330,7 @@ class TrendChart(DashboardWidget):
         config = super()._get_default_config()
         config.update({
             'chart_parameters': [],
-            'time_range': 24,  # hours
+            'time_range': 168,  # hours - default to 1 week, but allow up to 2 months
             'show_grid': True,
             'show_legend': True,
             'line_width': 2,
@@ -790,7 +790,7 @@ class WidgetConfigDialog(QDialog):
     def _add_trend_chart_options(self, form_layout):
         """Add TrendChart specific options"""
         self.time_range = QSpinBox()
-        self.time_range.setRange(1, 168)  # 1 hour to 1 week
+        self.time_range.setRange(1, 1440)  # 1 hour to 2 months (60 days * 24 hours)
         self.time_range.setValue(self.config.get('time_range', 24))
         form_layout.addRow("Time Range (hours):", self.time_range)
         

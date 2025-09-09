@@ -560,17 +560,26 @@ class DatabaseManager:
                     if diagnosis["data_health"] == "good":
                         diagnosis["data_health"] = "fair"
                 
-                # Check 4: Recent data availability
+                # Check 4: Data availability (any age within reasonable range)
+                # Check for data within last 2 months instead of just 7 days
                 recent_data = conn.execute("""
                     SELECT COUNT(*) FROM water_logs 
-                    WHERE datetime >= datetime('now', '-7 days')
+                    WHERE datetime >= datetime('now', '-2 months')
                 """).fetchone()[0]
                 
                 if recent_data == 0:
-                    diagnosis["issues_found"].append("No recent data (last 7 days)")
-                    diagnosis["recommendations"].append("Import recent log files")
+                    diagnosis["issues_found"].append("No data available (last 2 months)")
+                    diagnosis["recommendations"].append("Import log files")
                     if diagnosis["data_health"] == "good":
                         diagnosis["data_health"] = "fair"
+                else:
+                    # Add informational message about data age without blocking
+                    oldest_data = conn.execute("""
+                        SELECT MIN(datetime) FROM water_logs 
+                        WHERE datetime >= datetime('now', '-2 months')
+                    """).fetchone()[0]
+                    if oldest_data:
+                        diagnosis["recommendations"].append(f"Data available from {oldest_data} onwards")
                 
                 # Check 5: Serial number consistency
                 serial_count = conn.execute("SELECT COUNT(DISTINCT serial_number) FROM water_logs").fetchone()[0]
@@ -1032,12 +1041,13 @@ class DatabaseManager:
         """
         try:
             with self.get_connection() as conn:
-                # Get recent data (last 24 hours)
+                # Get data availability (any recent data within 2 months)
+                # Changed from 24-hour restriction to 2-month window
                 recent_data_query = """
                     SELECT COUNT(*) as recent_records
                     FROM water_logs 
                     WHERE serial_number = ? 
-                    AND datetime >= datetime('now', '-24 hours')
+                    AND datetime >= datetime('now', '-2 months')
                 """
                 recent_count = conn.execute(recent_data_query, (machine_id,)).fetchone()[0]
                 
@@ -1058,34 +1068,44 @@ class DatabaseManager:
                 latest_result = conn.execute(latest_query, (machine_id,)).fetchone()
                 latest_datetime = latest_result[0] if latest_result[0] else None
                 
-                # Determine alert level
+                # Determine alert level based on data availability and freshness
                 alert_level = 'normal'
                 alerts = []
                 
                 if recent_count == 0:
                     alert_level = 'critical'
-                    alerts.append("No data received in last 24 hours")
-                elif recent_count < 10:
-                    alert_level = 'warning'
-                    alerts.append("Low data volume in last 24 hours")
+                    alerts.append("No data available in last 2 months")
+                else:
+                    # Show data freshness info without blocking functionality
+                    if latest_datetime:
+                        try:
+                            import pandas as pd
+                            latest_dt = pd.to_datetime(latest_datetime)
+                            hours_old = (pd.Timestamp.now() - latest_dt).total_seconds() / 3600
+                            days_old = hours_old / 24
+                            
+                            # Flexible data status system
+                            if days_old <= 14:  # Green: Last 2 weeks
+                                alert_level = 'normal'
+                                alerts.append(f"Data current ({days_old:.1f} days ago)")
+                            elif days_old <= 28:  # Blue: 2-4 weeks  
+                                alert_level = 'info'
+                                alerts.append(f"Data from {days_old:.1f} days ago")
+                            elif days_old <= 60:  # Orange: 1-2 months
+                                alert_level = 'warning'
+                                alerts.append(f"Data from {days_old:.1f} days ago")
+                            else:  # Gray: Very old data
+                                alert_level = 'warning'
+                                alerts.append(f"Data is {days_old:.1f} days old")
+                        except:
+                            pass
+                    
+                    # Low data volume warning (but don't block functionality)
+                    if recent_count < 100:  # Reduced from harsh 24-hour limits
+                        alerts.append(f"Limited data volume ({recent_count} records)")
                 
                 if param_count < 3:
-                    if alert_level == 'normal':
-                        alert_level = 'warning'
                     alerts.append("Limited parameter monitoring")
-                
-                # Check data age
-                if latest_datetime:
-                    try:
-                        latest_dt = pd.to_datetime(latest_datetime)
-                        hours_old = (pd.Timestamp.now() - latest_dt).total_seconds() / 3600
-                        
-                        if hours_old > 48:
-                            if alert_level == 'normal':
-                                alert_level = 'warning'
-                            alerts.append(f"Latest data is {hours_old:.1f} hours old")
-                    except:
-                        pass
                 
                 return {
                     'machine_id': machine_id,

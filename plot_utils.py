@@ -341,7 +341,25 @@ class PlotUtils:
                 else:
                     PlotUtils._plot_single_parameter_continuous(ax, data_copy, parameter_name)
             
-            ax.set_title(f"{parameter_name} Trends", fontsize=12, fontweight='bold')
+            # Enhanced title with data range and point count information
+            title = f"{parameter_name} Trends"
+            if not data_copy.empty:
+                data_range_start = data_copy['datetime'].min().strftime('%b %d')
+                data_range_end = data_copy['datetime'].max().strftime('%b %d')
+                point_count = len(data_copy)
+                
+                # Add data context to title without making it too long
+                if data_range_start == data_range_end:
+                    title += f" ({data_range_start})"
+                else:
+                    title += f" ({data_range_start} - {data_range_end})"
+                
+                # Add point count as subtitle if there's enough space
+                subtitle = f"Based on {point_count:,} measurements"
+                ax.text(0.5, 0.95, subtitle, ha='center', va='top', 
+                       transform=ax.transAxes, fontsize=10, style='italic', alpha=0.7)
+            
+            ax.set_title(title, fontsize=12, fontweight='bold')
             ax.grid(True, alpha=0.3)
             widget.figure.tight_layout()
             
@@ -366,6 +384,8 @@ class PlotUtils:
                 return
 
             plotted_count = 0
+            machine_periods = {}  # Track data periods for each machine
+            
             for machine_id, data in machine_data_dict.items():
                 if data.empty:
                     continue
@@ -376,17 +396,34 @@ class PlotUtils:
                     data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
                     data_copy = data_copy.sort_values('datetime')
                     
+                    # Track data period for this machine
+                    start_date = data_copy['datetime'].min()
+                    end_date = data_copy['datetime'].max()
+                    machine_periods[machine_id] = f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d')}"
+                    
                     color = machine_colors.get(machine_id, '#1976D2')
                     
                     # Plot average values for multi-machine view
                     if 'value' in data_copy.columns:
                         avg_data = data_copy.groupby(['datetime'])['value'].mean().reset_index()
+                        # Enhanced label with period info for non-overlapping data
+                        label = f'{machine_id} ({machine_periods[machine_id]})'
                         ax.plot(avg_data['datetime'], avg_data['value'], 
-                               label=f'{machine_id}', color=color, linewidth=2, marker='o', markersize=4)
+                               label=label, color=color, linewidth=2, marker='o', markersize=4)
                         plotted_count += 1
             
             if plotted_count > 0:
-                ax.set_title(f"{parameter_name} Trends - Multi-Machine Comparison", fontsize=12, fontweight='bold')
+                # Smart title based on data overlap
+                title = f"{parameter_name} Trends - Machine Comparison"
+                if len(machine_periods) > 1:
+                    # Check if periods overlap or are separate
+                    periods_list = list(machine_periods.values())
+                    if len(set(periods_list)) == len(periods_list):
+                        title += " (Different Periods)"
+                    else:
+                        title += " (Overlapping Data)"
+                
+                ax.set_title(title, fontsize=12, fontweight='bold')
                 ax.set_xlabel('Time')
                 ax.set_ylabel('Value')
                 ax.grid(True, alpha=0.3)
