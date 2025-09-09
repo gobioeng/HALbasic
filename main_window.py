@@ -22,6 +22,8 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QCheckBox,
+    QRadioButton,
+    QButtonGroup,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QFont
@@ -1419,25 +1421,57 @@ class Ui_MainWindow(object):
         notes_layout.addWidget(self.txtUserNote)
         
         # Note controls
-        note_controls_layout = QHBoxLayout()
+        note_controls_layout = QVBoxLayout()
         note_controls_layout.setSpacing(8)
+        
+        # Machine selection for notes (when fault exists in both databases)
+        machine_selection_layout = QHBoxLayout()
+        machine_selection_layout.setSpacing(12)
+        
+        machine_selection_label = QLabel("Applies to:")
+        machine_selection_label.setStyleSheet("font-weight: 500; color: #333;")
+        machine_selection_layout.addWidget(machine_selection_label)
+        
+        self.note_machine_group = QButtonGroup()
+        
+        self.rbNoteBoth = QRadioButton("Both Machines")
+        self.rbNoteBoth.setChecked(True)  # Default selection
+        self.note_machine_group.addButton(self.rbNoteBoth, 0)
+        machine_selection_layout.addWidget(self.rbNoteBoth)
+        
+        self.rbNoteHAL = QRadioButton("HAL Only")
+        self.note_machine_group.addButton(self.rbNoteHAL, 1)
+        machine_selection_layout.addWidget(self.rbNoteHAL)
+        
+        self.rbNoteTB = QRadioButton("TB Only")
+        self.note_machine_group.addButton(self.rbNoteTB, 2)
+        machine_selection_layout.addWidget(self.rbNoteTB)
+        
+        machine_selection_layout.addStretch()
+        note_controls_layout.addLayout(machine_selection_layout)
+        
+        # Button row
+        button_row_layout = QHBoxLayout()
+        button_row_layout.setSpacing(8)
         
         self.btnSaveNote = QPushButton("Save Note")
         self.btnSaveNote.setObjectName("primaryButton")
         self.btnSaveNote.setMaximumWidth(100)
-        note_controls_layout.addWidget(self.btnSaveNote)
+        button_row_layout.addWidget(self.btnSaveNote)
         
         self.btnClearNote = QPushButton("Clear Note")
         self.btnClearNote.setObjectName("secondaryButton")
         self.btnClearNote.setMaximumWidth(100)
-        note_controls_layout.addWidget(self.btnClearNote)
+        button_row_layout.addWidget(self.btnClearNote)
         
-        note_controls_layout.addStretch()
+        button_row_layout.addStretch()
         
         # Note info label
         self.lblNoteInfo = QLabel("")
         self.lblNoteInfo.setStyleSheet("color: #666; font-size: 11px;")
-        note_controls_layout.addWidget(self.lblNoteInfo)
+        button_row_layout.addWidget(self.lblNoteInfo)
+        
+        note_controls_layout.addLayout(button_row_layout)
         
         notes_layout.addLayout(note_controls_layout)
         
