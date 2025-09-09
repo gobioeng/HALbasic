@@ -500,6 +500,27 @@ class Ui_MainWindow(object):
         machine_header_layout.addStretch()
         
         layout.addLayout(machine_header_layout)
+        
+        # Add machine database status indicator
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(10, 5, 10, 5)
+        
+        self.lblMachineStatus = QLabel("Database: Combined (Legacy Mode)")
+        self.lblMachineStatus.setFont(QFont("Calibri", 9))
+        self.lblMachineStatus.setStyleSheet("""
+            QLabel {
+                color: #666666;
+                background-color: #F5F5F5;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid #E0E0E0;
+            }
+        """)
+        
+        status_layout.addWidget(self.lblMachineStatus)
+        status_layout.addStretch()
+        
+        layout.addLayout(status_layout)
 
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(12)

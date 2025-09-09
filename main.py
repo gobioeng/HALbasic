@@ -3639,7 +3639,7 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error showing success message: {e}")
 
             def _import_small_file_single(self, file_path):
-                """Import single small log file and return record count - with validation integration"""
+                """Import single small log file and return record count - with validation integration and single-machine routing"""
                 try:
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
@@ -3653,7 +3653,9 @@ Source: {result.get('source', 'unknown')} database
                         return 0
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
-                    records_inserted = self.db.insert_data_batch(df)
+                    
+                    # Detect machine ID for single-machine database routing
+                    records_inserted = self._route_data_to_machine_database(df, file_path)
                     
                     # Get validation results from parser and store in database
                     validation_summary = parser.parsing_stats.get('validation_summary')
@@ -3672,21 +3674,22 @@ Source: {result.get('source', 'unknown')} database
                             })
                             validation_report = dummy_validator.export_validation_report()
                             
-                            # Store validation log in database
-                            self.db.insert_validation_log(
+                            # Store validation log in appropriate database
+                            self._store_validation_log_for_machine(
                                 os.path.basename(file_path), 
                                 validation_summary, 
-                                validation_report
+                                validation_report,
+                                df
                             )
                         except Exception as ve:
                             print(f"Warning: Could not store validation log: {ve}")
                     
                     # Insert file metadata
-                    self.db.insert_file_metadata(
+                    self._store_file_metadata_for_machine(
                         filename=os.path.basename(file_path),
                         file_size=os.path.getsize(file_path),
                         records_imported=records_inserted,
-                        parsing_stats="{}",
+                        df=df
                     )
                     
                     return records_inserted
@@ -3694,6 +3697,133 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error importing {os.path.basename(file_path)}: {e}")
                     return 0
+
+            def _detect_machine_id(self, df):
+                """Detect machine serial number from dataframe"""
+                try:
+                    # Look for serial_number column
+                    if 'serial_number' in df.columns:
+                        unique_serials = df['serial_number'].dropna().unique()
+                        if len(unique_serials) > 0:
+                            # Filter out invalid serial numbers
+                            valid_serials = [s for s in unique_serials 
+                                           if s and str(s) != 'Unknown' and str(s).strip() != '']
+                            if valid_serials:
+                                return str(valid_serials[0])  # Use first valid serial
+                    
+                    # If no valid serial found, return None
+                    return None
+                    
+                except Exception as e:
+                    print(f"Error detecting machine ID: {e}")
+                    return None
+
+            def _route_data_to_machine_database(self, df, file_path):
+                """Route data to appropriate machine database or fallback to combined database"""
+                try:
+                    # Detect machine ID
+                    machine_id = self._detect_machine_id(df)
+                    
+                    if machine_id and hasattr(self.machine_manager, 'single_machine_db') and \
+                       self.machine_manager.single_machine_db:
+                        
+                        print(f"🎯 Detected machine {machine_id}, routing to single-machine database")
+                        
+                        # Create machine database if it doesn't exist
+                        if not self.machine_manager.single_machine_db.create_machine_database(machine_id):
+                            print(f"⚠️  Failed to create database for machine {machine_id}, using combined database")
+                            return self.db.insert_data_batch(df)
+                        
+                        # Switch to machine database and insert data
+                        if self.machine_manager.single_machine_db.switch_to_machine(machine_id):
+                            records_inserted = self.machine_manager.single_machine_db.insert_data_batch(df)
+                            print(f"✅ Inserted {records_inserted} records into machine {machine_id} database")
+                            return records_inserted
+                        else:
+                            print(f"⚠️  Failed to switch to machine {machine_id} database, using combined database")
+                            return self.db.insert_data_batch(df)
+                    
+                    else:
+                        # No machine ID detected or single-machine architecture not available
+                        if not machine_id:
+                            print("⚠️  No machine ID detected, using combined database")
+                        else:
+                            print("⚠️  Single-machine architecture not available, using combined database")
+                        return self.db.insert_data_batch(df)
+                        
+                except Exception as e:
+                    print(f"Error routing data to machine database: {e}")
+                    # Fallback to combined database
+                    return self.db.insert_data_batch(df)
+
+            def _store_validation_log_for_machine(self, filename, validation_summary, validation_report, df):
+                """Store validation log in appropriate database (machine-specific or combined)"""
+                try:
+                    machine_id = self._detect_machine_id(df)
+                    
+                    if machine_id and hasattr(self.machine_manager, 'single_machine_db') and \
+                       self.machine_manager.single_machine_db and \
+                       self.machine_manager.single_machine_db.current_machine_id == machine_id:
+                        
+                        # Store in machine-specific database
+                        with self.machine_manager.single_machine_db.get_connection() as conn:
+                            # Insert validation log using same logic as combined database
+                            conn.execute("""
+                                INSERT INTO import_validation_log (
+                                    filename, total_records, valid_records, invalid_records,
+                                    validation_score, validation_details
+                                ) VALUES (?, ?, ?, ?, ?, ?)
+                            """, (
+                                filename,
+                                validation_summary.get('records_processed', 0),
+                                validation_summary.get('records_processed', 0) - validation_summary.get('total_anomalies', 0),
+                                validation_summary.get('total_anomalies', 0),
+                                validation_summary.get('overall_quality_score', 0.0),
+                                validation_report
+                            ))
+                        print(f"✅ Stored validation log in machine {machine_id} database")
+                    else:
+                        # Store in combined database
+                        self.db.insert_validation_log(filename, validation_summary, validation_report)
+                        
+                except Exception as e:
+                    print(f"Warning: Could not store validation log for machine: {e}")
+
+            def _store_file_metadata_for_machine(self, filename, file_size, records_imported, df):
+                """Store file metadata in appropriate database (machine-specific or combined)"""
+                try:
+                    machine_id = self._detect_machine_id(df)
+                    
+                    if machine_id and hasattr(self.machine_manager, 'single_machine_db') and \
+                       self.machine_manager.single_machine_db and \
+                       self.machine_manager.single_machine_db.current_machine_id == machine_id:
+                        
+                        # Store in machine-specific database
+                        with self.machine_manager.single_machine_db.get_connection() as conn:
+                            conn.execute("""
+                                INSERT INTO file_metadata (
+                                    filename, file_size, records_imported, 
+                                    processing_status, machine_serial
+                                ) VALUES (?, ?, ?, ?, ?)
+                            """, (
+                                filename,
+                                file_size,
+                                records_imported,
+                                'completed',
+                                machine_id
+                            ))
+                        print(f"✅ Stored file metadata in machine {machine_id} database")
+                    else:
+                        # Store in combined database
+                        self.db.insert_file_metadata(
+                            filename=filename,
+                            file_size=file_size,
+                            records_imported=records_imported,
+                            parsing_stats="{}",
+                        )
+                        
+                except Exception as e:
+                    print(f"Warning: Could not store file metadata for machine: {e}")
 
             def _import_large_file_single(self, file_path, file_size):
                 """Import single large log file with checkpoint recovery and error handling"""
@@ -3751,13 +3881,8 @@ Source: {result.get('source', 'unknown')} database
                     import time
                     start_time = time.time()
                     
-                    # Use error handling for database operations
-                    if self.safe_get_attribute('db_resilience', True):
-                        records_inserted = self.execute_with_retry(
-                            self.db.insert_data_batch, df, batch_size=500
-                        )
-                    else:
-                        records_inserted = self.db.insert_data_batch(df, batch_size=500)
+                    # Use machine-specific routing instead of direct database insertion
+                    records_inserted = self._route_data_to_machine_database(df, file_path)
                     
                     end_time = time.time()
                     
@@ -4523,6 +4648,9 @@ Source: {result.get('source', 'unknown')} database
                     if machine_id and machine_id != "No Machines Available":
                         self.machine_manager.set_selected_machine(machine_id)
                         
+                        # Update machine status indicator
+                        self.update_machine_status_indicator(machine_id)
+                        
                         # Refresh dashboard and all analysis with selected machine data
                         self.load_dashboard()
                         
@@ -4538,6 +4666,66 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error handling machine selection change: {e}")
                     traceback.print_exc()
+            
+            def update_machine_status_indicator(self, machine_id: str):
+                """Update the machine database status indicator"""
+                try:
+                    if not hasattr(self.ui, 'lblMachineStatus'):
+                        return
+                    
+                    if hasattr(self.machine_manager, 'single_machine_db') and \
+                       self.machine_manager.single_machine_db and \
+                       machine_id != "All Machines":
+                        
+                        # Single-machine mode
+                        current_machine = self.machine_manager.single_machine_db.current_machine_id
+                        if current_machine:
+                            db_path = self.machine_manager.single_machine_db.current_db_path
+                            filename = os.path.basename(db_path) if db_path else "Unknown"
+                            
+                            # Get machine summary for additional info
+                            summary = self.machine_manager.single_machine_db.get_machine_summary()
+                            record_count = summary.get('record_count', 0)
+                            
+                            status_text = f"Database: {filename} • Records: {record_count:,} • Mode: Single-Machine"
+                            self.ui.lblMachineStatus.setStyleSheet("""
+                                QLabel {
+                                    color: #2E7D32;
+                                    background-color: #E8F5E8;
+                                    padding: 4px 8px;
+                                    border-radius: 4px;
+                                    border: 1px solid #4CAF50;
+                                    font-weight: 500;
+                                }
+                            """)
+                        else:
+                            status_text = "Database: Switch failed • Mode: Single-Machine"
+                            self.ui.lblMachineStatus.setStyleSheet("""
+                                QLabel {
+                                    color: #D32F2F;
+                                    background-color: #FFEBEE;
+                                    padding: 4px 8px;
+                                    border-radius: 4px;
+                                    border: 1px solid #F44336;
+                                }
+                            """)
+                    else:
+                        # Combined database mode
+                        status_text = "Database: halog_water.db (Combined) • Mode: Legacy"
+                        self.ui.lblMachineStatus.setStyleSheet("""
+                            QLabel {
+                                color: #FF8F00;
+                                background-color: #FFF8E1;
+                                padding: 4px 8px;
+                                border-radius: 4px;
+                                border: 1px solid #FFC107;
+                            }
+                        """)
+                    
+                    self.ui.lblMachineStatus.setText(status_text)
+                    
+                except Exception as e:
+                    print(f"Error updating machine status indicator: {e}")
 
             def open_multi_machine_selection(self):
                 """Open multi-machine selection dialog"""
