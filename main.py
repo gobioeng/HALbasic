@@ -755,6 +755,10 @@ class HALogApp:
                     if hasattr(self.ui, "actionOptimizeDatabase"):
                         self.ui.actionOptimizeDatabase.triggered.connect(self.optimize_database)
                         print("✓ Optimize database action connected")
+                        
+                    if hasattr(self.ui, "actionExportFleetComparison"):
+                        self.ui.actionExportFleetComparison.triggered.connect(self.export_fleet_comparison_report)
+                        print("✓ Export fleet comparison action connected")
 
                     # HELP MENU ACTIONS
                     self.ui.actionAbout.triggered.connect(self.show_about_dialog)
@@ -886,11 +890,59 @@ class HALogApp:
                     traceback.print_exc()
 
             def export_data(self):
-                """Export data functionality (placeholder)"""
+                """Enhanced export data functionality with multi-machine support"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        QtWidgets.QMessageBox.information(
+                            self,
+                            "Export Data",
+                            "Basic export functionality - machine manager not available.",
+                        )
+                        return
+                    
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) > 1:
+                        # Show export options dialog
+                        reply = QtWidgets.QMessageBox.question(
+                            self,
+                            "Export Options",
+                            f"Multiple machines detected ({len(available_machines)} machines).\n\n"
+                            f"Would you like to export:\n"
+                            f"• Fleet Comparison Report (recommended)\n"
+                            f"• Individual Machine Data\n\n"
+                            f"Click Yes for Fleet Comparison, No for Individual Data.",
+                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel,
+                            QtWidgets.QMessageBox.Yes
+                        )
+                        
+                        if reply == QtWidgets.QMessageBox.Yes:
+                            self.export_fleet_comparison_report()
+                        elif reply == QtWidgets.QMessageBox.No:
+                            self._export_individual_machine_data()
+                        # Cancel does nothing
+                    else:
+                        # Single machine - show basic export options
+                        QtWidgets.QMessageBox.information(
+                            self,
+                            "Export Data",
+                            f"Single machine export not yet implemented.\n"
+                            f"Use the Fleet Comparison export for detailed data export.",
+                        )
+                    
+                except Exception as e:
+                    print(f"Error in export_data: {e}")
+                    QtWidgets.QMessageBox.critical(
+                        self, "Export Error", f"Error during export: {str(e)}"
+                    )
+                    
+            def _export_individual_machine_data(self):
+                """Export individual machine data (placeholder for now)"""
                 QtWidgets.QMessageBox.information(
                     self,
-                    "Export Data",
-                    "Export functionality will be implemented in a future version.",
+                    "Individual Export",
+                    "Individual machine data export will be implemented in a future version.\n\n"
+                    "For now, use Fleet Comparison export to get detailed machine data.",
                 )
 
             def show_settings(self):
@@ -2058,6 +2110,9 @@ Source: {result.get('source', 'unknown')} database
                         self.ui.lblParameterCount.setText("Parameters: 0")
                         print("⚠️ Dashboard shows no data - import log files first")
 
+                    # Add multi-machine status indicators
+                    self._update_multi_machine_status()
+
                     # Update UI components
                     self.update_trend_combos()
                     # Data table removed - skip update
@@ -2071,6 +2126,78 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error loading dashboard: {e}")
                     traceback.print_exc()
+                    
+            def _update_multi_machine_status(self):
+                """Update dashboard with multi-machine status indicators"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        return
+                        
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) <= 1:
+                        return  # Single machine mode, no need for multi-machine status
+                        
+                    # Get multi-machine statistics
+                    multi_stats = self.machine_manager.get_multi_machine_stats()
+                    
+                    if 'fleet_stats' in multi_stats:
+                        fleet_stats = multi_stats['fleet_stats']
+                        
+                        # Update existing labels to show fleet information
+                        if hasattr(self.ui, 'lblSerial'):
+                            total_machines = fleet_stats.get('total_machines', 0)
+                            active_machines = fleet_stats.get('active_machines', 0)
+                            self.ui.lblSerial.setText(
+                                f"Fleet: {active_machines}/{total_machines} machines active"
+                            )
+                            
+                        if hasattr(self.ui, 'lblRecordCount'):
+                            total_records = fleet_stats.get('total_records', 0)
+                            avg_per_machine = fleet_stats.get('average_records_per_machine', 0)
+                            self.ui.lblRecordCount.setText(
+                                f"Fleet Records: {total_records:,} (avg: {avg_per_machine:.0f}/machine)"
+                            )
+                    
+                    # Show machine status indicators in console (could be enhanced with UI later)
+                    machine_statuses = []
+                    machines = multi_stats.get('machines', {})
+                    for machine_id, machine_data in machines.items():
+                        status = machine_data.get('status', 'unknown')
+                        color = machine_data.get('color', '#808080')
+                        record_count = machine_data.get('record_count', 0)
+                        
+                        status_symbol = {
+                            'active': '🟢',
+                            'limited': '🟡', 
+                            'inactive': '🔴',
+                            'unknown': '⚪'
+                        }.get(status, '⚪')
+                        
+                        machine_statuses.append(f"{status_symbol} {machine_id}: {record_count:,} records")
+                        
+                    if machine_statuses:
+                        print("🏭 Multi-Machine Fleet Status:")
+                        for status_line in machine_statuses:
+                            print(f"  {status_line}")
+                            
+                    # Check for alerts
+                    alerts = []
+                    for machine_id in available_machines:
+                        try:
+                            alert_summary = self.db.get_machine_alert_summary(machine_id)
+                            if alert_summary.get('alert_level') in ['warning', 'critical']:
+                                alerts.extend([f"{machine_id}: {alert}" for alert in alert_summary.get('alerts', [])])
+                        except:
+                            pass
+                            
+                    if alerts:
+                        print("⚠️ Multi-Machine Alerts:")
+                        for alert in alerts[:5]:  # Show first 5 alerts
+                            print(f"  • {alert}")
+                            
+                except Exception as e:
+                    print(f"Error updating multi-machine status: {e}")
                     
             def _ensure_full_data_loaded(self):
                 """Load full dataset when needed for analysis"""
@@ -2426,7 +2553,7 @@ Source: {result.get('source', 'unknown')} database
                     traceback.print_exc()
 
             def _direct_analysis(self):
-                """Perform analysis directly without worker"""
+                """Perform analysis directly without worker - enhanced with multi-machine analytics"""
                 try:
                     from analyzer_data import DataAnalyzer
 
@@ -2453,6 +2580,7 @@ Source: {result.get('source', 'unknown')} database
                     ):
                         analysis_df["value"] = analysis_df["avg"]
 
+                    # Standard trend analysis
                     try:
                         trends_df = analyzer.calculate_advanced_trends(analysis_df)
                         self._populate_trends_table(trends_df)
@@ -2472,10 +2600,278 @@ Source: {result.get('source', 'unknown')} database
                             ]
                         )
                         self._populate_trends_table(empty_trends)
+                    
+                    # Enhanced multi-machine analytics
+                    self._perform_multi_machine_analytics(analysis_df)
 
                 except Exception as e:
                     print(f"Error in direct analysis: {e}")
                     traceback.print_exc()
+                    
+            def _perform_multi_machine_analytics(self, analysis_df):
+                """Perform multi-machine analytics and display results"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        return
+                        
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) <= 1:
+                        print("ℹ️ Single machine mode - multi-machine analytics not applicable")
+                        return
+                        
+                    print("🔍 Performing multi-machine analytics...")
+                    
+                    # Import multi-machine analytics
+                    from multi_machine_analytics import MultiMachineAnalyzer, CorrelationAnalyzer
+                    
+                    # Initialize analyzers
+                    multi_analyzer = MultiMachineAnalyzer(self.db)
+                    corr_analyzer = CorrelationAnalyzer()
+                    
+                    # Get multi-machine data
+                    machine_data_dict = self.machine_manager.get_multi_machine_data(analysis_df)
+                    
+                    if not machine_data_dict:
+                        print("⚠️ No multi-machine data available")
+                        return
+                    
+                    # Get common parameters
+                    param_col = 'parameter_type' if 'parameter_type' in analysis_df.columns else 'param'
+                    common_parameters = []
+                    
+                    if param_col in analysis_df.columns:
+                        all_machine_params = []
+                        for machine_data in machine_data_dict.values():
+                            if not machine_data.empty and param_col in machine_data.columns:
+                                all_machine_params.append(set(machine_data[param_col].unique()))
+                        
+                        if all_machine_params:
+                            # Find intersection of all machine parameters
+                            common_parameters = list(set.intersection(*all_machine_params))
+                    
+                    if not common_parameters:
+                        print("⚠️ No common parameters found across machines")
+                        return
+                    
+                    print(f"🔬 Analyzing {len(common_parameters)} common parameters across {len(machine_data_dict)} machines")
+                    
+                    # 1. Machine Performance Rankings
+                    rankings_df = multi_analyzer.calculate_machine_rankings(
+                        machine_data_dict, common_parameters[:5]  # Use first 5 parameters for performance
+                    )
+                    
+                    if not rankings_df.empty:
+                        print("\n🏆 Machine Performance Rankings:")
+                        for _, row in rankings_df.head(10).iterrows():
+                            machine_id = row['machine_id']
+                            total_score = row['total_score']
+                            rank = row['rank']
+                            print(f"  #{rank}: {machine_id} (Score: {total_score:.3f})")
+                    
+                    # 2. Outlier Detection
+                    outlier_analysis = multi_analyzer.detect_performance_outliers(machine_data_dict)
+                    
+                    if outlier_analysis.get('outlier_machines'):
+                        print(f"\n⚠️ Performance Outliers Detected:")
+                        for outlier in outlier_analysis['outlier_machines']:
+                            machine_id = outlier['machine_id']
+                            metrics = ', '.join(outlier['outlier_metrics'])
+                            severity = outlier['severity']
+                            print(f"  • {machine_id}: {severity} deviation in {metrics}")
+                    else:
+                        print("\n✅ No performance outliers detected - all machines within normal ranges")
+                    
+                    # 3. Correlation Analysis
+                    correlation_results = corr_analyzer.detect_parameter_correlations(
+                        machine_data_dict, min_correlation=0.5
+                    )
+                    
+                    if correlation_results.get('cross_machine_correlations'):
+                        print(f"\n🔗 Cross-Machine Parameter Correlations:")
+                        for param, corr_data in correlation_results['cross_machine_correlations'].items():
+                            correlations = corr_data['correlations']
+                            if correlations:
+                                print(f"  Parameter: {param}")
+                                for pair, corr_info in correlations.items():
+                                    corr_value = corr_info['correlation']
+                                    strength = corr_info['strength']
+                                    print(f"    {pair}: {corr_value:.3f} ({strength})")
+                    
+                    # 4. Fleet Deviation Analysis
+                    deviation_results = corr_analyzer.identify_machines_deviating_from_fleet(
+                        machine_data_dict, deviation_threshold=2.0
+                    )
+                    
+                    if deviation_results.get('deviating_machines'):
+                        print(f"\n📊 Machines Deviating from Fleet Average:")
+                        for machine_id, deviations in deviation_results['deviating_machines'].items():
+                            high_severity = [d for d in deviations if d['deviation_severity'] == 'high']
+                            moderate_severity = [d for d in deviations if d['deviation_severity'] == 'moderate']
+                            
+                            if high_severity:
+                                print(f"  🔴 {machine_id}: {len(high_severity)} high severity deviations")
+                            elif moderate_severity:
+                                print(f"  🟡 {machine_id}: {len(moderate_severity)} moderate deviations")
+                    else:
+                        print("\n✅ All machines operating within fleet parameters")
+                    
+                    # 5. Fleet Statistics Summary
+                    fleet_stats = multi_analyzer.calculate_fleet_statistics(machine_data_dict)
+                    
+                    if fleet_stats and 'fleet_summary' in fleet_stats:
+                        summary = fleet_stats['fleet_summary']
+                        print(f"\n📈 Fleet Summary:")
+                        print(f"  Total Machines: {summary.get('total_machines', 0)}")
+                        print(f"  Active Machines: {summary.get('active_machines', 0)}")
+                        print(f"  Total Records: {summary.get('total_records', 0):,}")
+                        print(f"  Avg Records/Machine: {summary.get('average_records_per_machine', 0):.0f}")
+                        
+                        # Quality metrics
+                        if 'quality_metrics' in fleet_stats:
+                            quality = fleet_stats['quality_metrics']
+                            fleet_grade = quality.get('fleet_grade', 'F')
+                            completeness = quality.get('overall_completeness', 0) * 100
+                            print(f"  Fleet Quality Grade: {fleet_grade} ({completeness:.1f}% complete)")
+                    
+                    print("✅ Multi-machine analytics completed")
+                    
+                except Exception as e:
+                    print(f"Error in multi-machine analytics: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    
+            def export_fleet_comparison_report(self):
+                """Export comprehensive fleet comparison report"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        QtWidgets.QMessageBox.warning(
+                            self, "No Data", "Machine manager not available for export."
+                        )
+                        return
+                        
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) < 2:
+                        QtWidgets.QMessageBox.information(
+                            self, "Insufficient Data", 
+                            "Need at least 2 machines to export fleet comparison report."
+                        )
+                        return
+                    
+                    # Get export file path
+                    file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                        self,
+                        "Export Fleet Comparison Report",
+                        f"fleet_comparison_report_{len(available_machines)}_machines.csv",
+                        "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)"
+                    )
+                    
+                    if not file_path:
+                        return
+                    
+                    # Show progress dialog
+                    progress_dialog = QtWidgets.QProgressDialog(
+                        "Generating fleet comparison report...", "Cancel", 0, 100, self
+                    )
+                    progress_dialog.setWindowModality(QtCore.Qt.WindowModal)
+                    progress_dialog.setMinimumDuration(0)
+                    progress_dialog.setValue(0)
+                    progress_dialog.show()
+                    QtWidgets.QApplication.processEvents()
+                    
+                    # Get common parameters
+                    progress_dialog.setValue(20)
+                    QtWidgets.QApplication.processEvents()
+                    
+                    # Get full data for export
+                    self._ensure_full_data_loaded()
+                    analysis_df = self._get_analysis_data()
+                    
+                    param_col = 'parameter_type' if 'parameter_type' in analysis_df.columns else 'param'
+                    common_parameters = []
+                    
+                    if param_col in analysis_df.columns:
+                        # Get intersection of all machine parameters
+                        machine_data_dict = self.machine_manager.get_multi_machine_data(analysis_df)
+                        all_machine_params = []
+                        
+                        for machine_data in machine_data_dict.values():
+                            if not machine_data.empty and param_col in machine_data.columns:
+                                all_machine_params.append(set(machine_data[param_col].unique()))
+                        
+                        if all_machine_params:
+                            common_parameters = list(set.intersection(*all_machine_params))
+                    
+                    if not common_parameters:
+                        progress_dialog.close()
+                        QtWidgets.QMessageBox.warning(
+                            self, "Export Error", 
+                            "No common parameters found across machines for comparison."
+                        )
+                        return
+                    
+                    progress_dialog.setValue(40)
+                    QtWidgets.QApplication.processEvents()
+                    
+                    # Use machine manager to export comparison data
+                    export_df = self.machine_manager.export_machine_comparison(
+                        available_machines, common_parameters
+                    )
+                    
+                    progress_dialog.setValue(80)
+                    QtWidgets.QApplication.processEvents()
+                    
+                    if not export_df.empty:
+                        # Save to file
+                        if file_path.endswith('.xlsx'):
+                            # Save as Excel with multiple sheets if pandas supports it
+                            try:
+                                with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                                    export_df.to_excel(writer, sheet_name='Fleet Comparison', index=False)
+                                    
+                                    # Add summary sheet
+                                    summary_data = {
+                                        'Metric': ['Total Machines', 'Common Parameters', 'Total Records', 'Export Date'],
+                                        'Value': [len(available_machines), len(common_parameters), len(export_df), 
+                                                pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')]
+                                    }
+                                    summary_df = pd.DataFrame(summary_data)
+                                    summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                            except ImportError:
+                                # Fallback to CSV if Excel not available
+                                export_df.to_csv(file_path.replace('.xlsx', '.csv'), index=False)
+                                file_path = file_path.replace('.xlsx', '.csv')
+                        else:
+                            export_df.to_csv(file_path, index=False)
+                        
+                        progress_dialog.setValue(100)
+                        progress_dialog.close()
+                        
+                        QtWidgets.QMessageBox.information(
+                            self, "Export Successful",
+                            f"Fleet comparison report exported successfully!\n\n"
+                            f"File: {file_path}\n"
+                            f"Machines: {len(available_machines)}\n" 
+                            f"Parameters: {len(common_parameters)}\n"
+                            f"Records: {len(export_df):,}"
+                        )
+                    else:
+                        progress_dialog.close()
+                        QtWidgets.QMessageBox.warning(
+                            self, "Export Error", 
+                            "No data available for export. Check that machines have common parameters."
+                        )
+                        
+                except Exception as e:
+                    if 'progress_dialog' in locals():
+                        progress_dialog.close()
+                    print(f"Error exporting fleet comparison report: {e}")
+                    traceback.print_exc()
+                    QtWidgets.QMessageBox.critical(
+                        self, "Export Error", 
+                        f"Error exporting fleet comparison report:\n{str(e)}"
+                    )
 
             def _display_analysis_results(self, results, progress_dialog=None):
                 """Display analysis results after worker completes"""
