@@ -362,6 +362,46 @@ class HALogApp:
                             # Fallback to normal loading
                             self.load_dashboard()
                     
+                    # Initialize Advanced Dashboard System
+                    try:
+                        print("🎛️ Initializing Advanced Dashboard System...")
+                        from advanced_dashboard import AdvancedDashboard
+                        self.advanced_dashboard = AdvancedDashboard(database_manager=self.db, parent=self)
+                        
+                        # If there's a dashboard tab in the UI, replace it with advanced dashboard
+                        if hasattr(self.ui, 'tabWidget') and hasattr(self.ui, 'dashboardTab'):
+                            # Find dashboard tab index
+                            dashboard_tab_index = -1
+                            for i in range(self.ui.tabWidget.count()):
+                                if self.ui.tabWidget.widget(i) == self.ui.dashboardTab:
+                                    dashboard_tab_index = i
+                                    break
+                            
+                            if dashboard_tab_index >= 0:
+                                # Replace the dashboard tab content
+                                old_layout = self.ui.dashboardTab.layout()
+                                if old_layout:
+                                    # Clear existing layout
+                                    while old_layout.count():
+                                        child = old_layout.takeAt(0)
+                                        if child.widget():
+                                            child.widget().deleteLater()
+                                    old_layout.deleteLater()
+                                
+                                # Add advanced dashboard
+                                from PyQt5.QtWidgets import QVBoxLayout
+                                new_layout = QVBoxLayout(self.ui.dashboardTab)
+                                new_layout.setContentsMargins(0, 0, 0, 0)
+                                new_layout.addWidget(self.advanced_dashboard)
+                                
+                                print("✓ Advanced Dashboard integrated into Dashboard tab")
+                        else:
+                            print("⚠️ Dashboard tab not found - Advanced Dashboard created but not integrated")
+                            
+                    except Exception as dashboard_error:
+                        print(f"Warning: Could not initialize Advanced Dashboard: {dashboard_error}")
+                        # Continue with standard dashboard loading
+                    
                     self._dashboard_loaded = True
                     
                     # Display performance report
