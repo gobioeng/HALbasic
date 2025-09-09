@@ -2124,11 +2124,38 @@ Source: {result.get('source', 'unknown')} database
                         dt_min = self.df["datetime"].min()
                         dt_max = self.df["datetime"].max()
                         duration = dt_max - dt_min
-
-                        self.ui.lblDuration.setText(f"Duration: {duration}")
-                        self.ui.lblRecordCount.setText(
-                            f"Total Records: {len(self.df):,}"
-                        )
+                        
+                        # Calculate data age and add contextual information
+                        import pandas as pd
+                        latest_dt = pd.to_datetime(latest['datetime'])
+                        oldest_dt = pd.to_datetime(dt_min) 
+                        now = pd.Timestamp.now()
+                        
+                        days_old = (now - latest_dt).total_seconds() / (24 * 3600)
+                        data_range_days = (latest_dt - oldest_dt).total_seconds() / (24 * 3600)
+                        
+                        # Enhanced duration display with data freshness context
+                        duration_text = f"Duration: {duration}"
+                        if days_old <= 14:
+                            freshness = "🟢 Current"
+                        elif days_old <= 28:
+                            freshness = "🔵 Recent"
+                        elif days_old <= 60:
+                            freshness = "🟠 Available"
+                        else:
+                            freshness = "⚪ Older"
+                        
+                        # Show data range with freshness indicator
+                        range_info = f" ({oldest_dt.date()} to {latest_dt.date()})"
+                        self.ui.lblDuration.setText(f"{duration_text}{range_info} - {freshness}")
+                        
+                        # Enhanced record count with data context
+                        record_info = f"Total Records: {len(self.df):,}"
+                        if data_range_days > 0:
+                            records_per_day = len(self.df) / max(1, data_range_days)
+                            record_info += f" ({records_per_day:.0f}/day avg)"
+                        
+                        self.ui.lblRecordCount.setText(record_info)
 
                         # Count unique parameters using correct column
                         if param_col:
