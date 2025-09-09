@@ -108,48 +108,29 @@ def setup_environment():
     # Ensure application icon exists
     try:
         from resource_helper import ensure_app_icon
-
         ensure_app_icon()
     except Exception as e:
         print(f"Warning: Could not ensure app icon: {e}")
 
 
-def test_icon_loading():
-    """
-    Test function to verify icon loading
-    Debugging utility for Gobioeng HALog
-    """
-    from resource_helper import load_splash_icon, resource_path
-    import os
+def safe_update_progress(progress_dialog, percentage, message=""):
+    """Helper function to safely update progress dialog and process events"""
+    if progress_dialog and hasattr(progress_dialog, 'update_progress'):
+        try:
+            progress_dialog.update_progress(percentage, message)
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+        except Exception as e:
+            print(f"Warning: Could not update progress: {e}")
 
-    print("=== Icon Loading Test ===")
 
-    # Check available files
-    icon_files = [
-        "halogo_256.png",
-        "halogo_256.ico", 
-        "halogo_100.png",
-        "halogo_100.ico",
-        "halogo.png",
-        "halogo.ico",
-    ]
-
-    print("Available icon files:")
-    for icon_file in icon_files:
-        path = resource_path(icon_file)
-        exists = os.path.exists(path)
-        size = os.path.getsize(path) if exists else 0
-        print(f"  {icon_file}: {'✓' if exists else '✗'} ({path}) - {size} bytes")
-
-    # Test loading
-    print("\nTesting icon loading...")
-    icon = load_splash_icon(100)  # Back to 100px for better arrangement
-    if icon and not icon.isNull():
-        print(f"✓ Icon loaded successfully: {icon.size()}")
-    else:
-        print("✗ Icon loading failed")
-
-    print("=== End Test ===")
+def safe_execute_with_error_handling(func, error_message="Operation failed", *args, **kwargs):
+    """Helper function to execute functions with consistent error handling"""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        print(f"{error_message}: {e}")
+        return None
 
 
 class HALogApp:
@@ -2006,7 +1987,7 @@ Source: {result.get('source', 'unknown')} database
 
                     # Update UI components
                     self.update_trend_combos()
-                    self.update_data_table()
+                    # Data table removed - skip update
                     self.update_analysis_tab()
 
                     # Initialize trend graphs with default parameters only if we have data
@@ -2637,7 +2618,7 @@ Source: {result.get('source', 'unknown')} database
                             self.update_trend()
                             tab_data = {"type": "trend", "updated_at": current_time}
                         elif index == 2:  # Data Table tab
-                            self.update_data_table()
+                    # Data table removed - skip update
                             tab_data = {"type": "data_table", "updated_at": current_time}
                         elif index == 3:  # Analysis tab
                             self.update_analysis_tab()
@@ -2786,9 +2767,7 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Show upload progress BEFORE starting file operations
                     self.progress_dialog.set_phase("uploading", 0)
-                    self.progress_dialog.update_progress(0, f"Starting to process {len(file_paths)} files...")
-                    self.progress_dialog.show()
-                    QtWidgets.QApplication.processEvents()
+                    safe_update_progress(self.progress_dialog, 0, f"Starting to process {len(file_paths)} files...")
                     time.sleep(0.1)  # Small delay to ensure dialog renders
 
                     # Process files sequentially with proper memory management
@@ -2806,12 +2785,11 @@ Source: {result.get('source', 'unknown')} database
                             files_completed = i
                             file_progress = int((files_completed / total_files) * 85)
                             
-                            self.progress_dialog.update_progress(
+                            safe_update_progress(
+                                self.progress_dialog, 
                                 file_progress, 
-                                f"Processing file {files_completed+1}/{total_files}: {filename}",
-                                files_completed, total_files
+                                f"Processing file {files_completed+1}/{total_files}: {filename}"
                             )
-                            QtWidgets.QApplication.processEvents()
                             
                             # Check if user cancelled
                             if self.progress_dialog.wasCanceled():
@@ -2855,11 +2833,11 @@ Source: {result.get('source', 'unknown')} database
                                     
                             # Update progress after each file
                             completed_progress = int(((files_completed + 1) / total_files) * 85)  # Leave 15% for finalization
-                            self.progress_dialog.update_progress(
+                            safe_update_progress(
+                                self.progress_dialog,
                                 completed_progress,
                                 f"Completed {filename} - {successful_imports}/{files_completed+1} files processed successfully"
                             )
-                            QtWidgets.QApplication.processEvents()
                             
                             # Force garbage collection between files
                             import gc
@@ -2872,8 +2850,7 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Finalization phase
                     self.progress_dialog.set_phase("finalizing", 85)
-                    self.progress_dialog.update_progress(90, "Refreshing database and UI components...")
-                    QtWidgets.QApplication.processEvents()
+                    safe_update_progress(self.progress_dialog, 90, "Refreshing database and UI components...")
 
                     # Final UI update after all files processed
                     if successful_imports > 0:
@@ -2883,22 +2860,19 @@ Source: {result.get('source', 'unknown')} database
                             self.df = self.db.get_all_logs()
                         
                         # Update progress during UI refresh
-                        self.progress_dialog.update_progress(92, "Loading dashboard...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 92, "Loading dashboard...")
                         self.load_dashboard()
                         
-                        self.progress_dialog.update_progress(94, "Initializing trend controls...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 94, "Initializing trend controls...")
                         self._initialize_trend_controls()
                         self.update_trend_combos()
                         
                         self.progress_dialog.update_progress(96, "Updating data tables...")
                         QtWidgets.QApplication.processEvents()
-                        self.update_data_table()
+                    # Data table removed - skip update
                         self.update_analysis_tab()
 
-                        self.progress_dialog.update_progress(98, "Finalizing trends and analysis...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 98, "Finalizing trends and analysis...")
 
                         # Initialize default trend displays
                         QtCore.QTimer.singleShot(500, self._refresh_all_trends)
@@ -2950,7 +2924,7 @@ Source: {result.get('source', 'unknown')} database
                     print(f"Error showing success message: {e}")
 
             def _import_small_file_single(self, file_path):
-                """Import single small log file and return record count"""
+                """Import single small log file and return record count - simplified"""
                 try:
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
@@ -2963,27 +2937,14 @@ Source: {result.get('source', 'unknown')} database
                         return 0
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
-                    
-                    # Insert data in batch with timing
-                    import time
-                    start_time = time.time()
                     records_inserted = self.db.insert_data_batch(df)
-                    end_time = time.time()
-                    
-                    # Calculate and display performance metrics
-                    duration = end_time - start_time
-                    records_per_sec = records_inserted / duration if duration > 0 else 0
-                    
-                    print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
                     
                     # Insert file metadata
-                    filename = os.path.basename(file_path)
-                    parsing_stats_json = "{}"
                     self.db.insert_file_metadata(
-                        filename=filename,
+                        filename=os.path.basename(file_path),
                         file_size=os.path.getsize(file_path),
                         records_imported=records_inserted,
-                        parsing_stats=parsing_stats_json,
+                        parsing_stats="{}",
                     )
                     
                     return records_inserted
@@ -3099,7 +3060,7 @@ Source: {result.get('source', 'unknown')} database
                     self.load_dashboard()
                     self._initialize_trend_controls()
                     self.update_trend_combos()
-                    self.update_data_table()
+                    # Data table removed - skip update
                     self.update_analysis_tab()
 
                     # Initialize default trend displays
@@ -3231,7 +3192,7 @@ Source: {result.get('source', 'unknown')} database
                             self.load_dashboard()
                             self._initialize_trend_controls()
                             self.update_trend_combos()
-                            self.update_data_table()
+                    # Data table removed - skip update
                             self.update_analysis_tab()
 
                             # Initialize default trend displays
@@ -3562,7 +3523,7 @@ Source: {result.get('source', 'unknown')} database
                         self.load_dashboard()
                         self._initialize_trend_controls()
                         self.update_trend_combos()
-                        self.update_data_table()
+                    # Data table removed - skip update
                         self.update_analysis_tab()
 
                         # Initialize default trend displays
@@ -3746,7 +3707,7 @@ Source: {result.get('source', 'unknown')} database
                             self.load_dashboard()
                             self._initialize_trend_controls()
                             self.update_trend_combos()
-                            self.update_data_table()
+                    # Data table removed - skip update
                             self.update_analysis_tab()
                             QtCore.QTimer.singleShot(500, self._refresh_all_trends)
                             
