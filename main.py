@@ -224,6 +224,16 @@ class HALogApp:
 
             def __init__(self, parent=None):
                 super().__init__(parent)
+                
+                # Application settings including validation preferences
+                self.validation_enabled = True  # Default: validation enabled
+                self.validation_preferences = {
+                    'enable_real_time_validation': True,
+                    'show_validation_warnings': True,
+                    'store_validation_logs': True,
+                    'validation_quality_threshold': 75.0,  # Minimum acceptable quality score
+                    'max_anomalies_threshold': 100  # Maximum acceptable anomalies
+                }
 
                 # FIRST: Create the UI
                 self.ui = Ui_MainWindow()
@@ -2956,7 +2966,7 @@ Source: {result.get('source', 'unknown')} database
                     )
 
             def _show_success_message_and_close_progress(self):
-                """Show success message and close progress dialog"""
+                """Show success message with validation summary and close progress dialog"""
                 try:
                     if hasattr(self, 'progress_dialog') and self.progress_dialog:
                         self.progress_dialog.close()
@@ -2964,24 +2974,43 @@ Source: {result.get('source', 'unknown')} database
                     # Get the latest data for success message
                     total_records = len(self.df) if hasattr(self, 'df') and not self.df.empty else 0
                     
+                    # Get validation history to show in success message
+                    validation_info = ""
+                    try:
+                        validation_history = self.db.get_validation_history(limit=1)
+                        if not validation_history.empty:
+                            latest_validation = validation_history.iloc[0]
+                            quality_score = latest_validation['overall_quality_score']
+                            total_anomalies = latest_validation['total_anomalies']
+                            quality_grade = latest_validation['quality_grade']
+                            
+                            validation_info = f"\n\n📊 Data Validation Results:\n" \
+                                            f"• Quality Score: {quality_score:.1f}% (Grade: {quality_grade})\n" \
+                                            f"• Anomalies Detected: {total_anomalies:,}\n" \
+                                            f"• Completeness: {latest_validation['completeness_percentage']:.1f}%"
+                    except Exception as ve:
+                        print(f"Could not get validation summary: {ve}")
+                    
                     QtWidgets.QMessageBox.information(
                         self,
                         "Multi-File Import Successful",
                         f"File processing completed successfully!\n\n"
                         f"Total records now available: {total_records:,}\n"
-                        f"Dashboard, trends, and analysis tabs have been updated.",
+                        f"Dashboard, trends, and analysis tabs have been updated."
+                        f"{validation_info}",
                     )
                 except Exception as e:
                     print(f"Error showing success message: {e}")
 
             def _import_small_file_single(self, file_path):
-                """Import single small log file and return record count - simplified"""
+                """Import single small log file and return record count - with validation integration"""
                 try:
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
                     
                     print(f"Parsing {os.path.basename(file_path)}...")
-                    df = parser.parse_linac_file(file_path)
+                    # Enable validation during parsing
+                    df = parser.parse_linac_file(file_path, enable_validation=True)
                     
                     if df.empty:
                         print(f"No valid data found in {os.path.basename(file_path)}")
@@ -2989,6 +3018,32 @@ Source: {result.get('source', 'unknown')} database
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
                     records_inserted = self.db.insert_data_batch(df)
+                    
+                    # Get validation results from parser and store in database
+                    validation_summary = parser.parsing_stats.get('validation_summary')
+                    if validation_summary:
+                        # Create validation report
+                        try:
+                            from data_validator import DataValidator
+                            dummy_validator = DataValidator(parser.parameter_mapping)
+                            dummy_validator.validation_results.update({
+                                'data_quality_score': validation_summary['overall_quality_score'],
+                                'anomalies_detected': validation_summary['total_anomalies'],
+                                'validation_warnings': validation_summary.get('detailed_warnings', []),
+                                'validation_errors': validation_summary.get('detailed_errors', []),
+                                'completeness_score': validation_summary['completeness_percentage'],
+                                'records_processed': validation_summary['records_processed']
+                            })
+                            validation_report = dummy_validator.export_validation_report()
+                            
+                            # Store validation log in database
+                            self.db.insert_validation_log(
+                                os.path.basename(file_path), 
+                                validation_summary, 
+                                validation_report
+                            )
+                        except Exception as ve:
+                            print(f"Warning: Could not store validation log: {ve}")
                     
                     # Insert file metadata
                     self.db.insert_file_metadata(
@@ -3005,13 +3060,14 @@ Source: {result.get('source', 'unknown')} database
                     return 0
 
             def _import_large_file_single(self, file_path, file_size):
-                """Import single large log file and return record count"""
+                """Import single large log file and return record count - with validation"""
                 try:
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
                     
                     print(f"Parsing large file {os.path.basename(file_path)}...")
-                    df = parser.parse_linac_file(file_path, chunk_size=5000)
+                    # Enable validation for large files too
+                    df = parser.parse_linac_file(file_path, chunk_size=5000, enable_validation=True)
                     
                     if df.empty:
                         print(f"No valid data found in {os.path.basename(file_path)}")
@@ -3031,10 +3087,31 @@ Source: {result.get('source', 'unknown')} database
                     
                     print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
                     
-                    # Insert file metadata
-                    progress_dialog.update_progress(95, "Saving metadata...")
-                    QtWidgets.QApplication.processEvents()
+                    # Store validation results if available
+                    validation_summary = parser.parsing_stats.get('validation_summary')
+                    if validation_summary:
+                        try:
+                            from data_validator import DataValidator
+                            dummy_validator = DataValidator(parser.parameter_mapping)
+                            dummy_validator.validation_results.update({
+                                'data_quality_score': validation_summary['overall_quality_score'],
+                                'anomalies_detected': validation_summary['total_anomalies'],
+                                'validation_warnings': validation_summary.get('detailed_warnings', []),
+                                'validation_errors': validation_summary.get('detailed_errors', []),
+                                'completeness_score': validation_summary['completeness_percentage'],
+                                'records_processed': validation_summary['records_processed']
+                            })
+                            validation_report = dummy_validator.export_validation_report()
+                            
+                            self.db.insert_validation_log(
+                                os.path.basename(file_path), 
+                                validation_summary, 
+                                validation_report
+                            )
+                        except Exception as ve:
+                            print(f"Warning: Could not store validation log: {ve}")
                     
+                    # Insert file metadata
                     filename = os.path.basename(file_path)
                     parsing_stats_json = "{}"
                     self.db.insert_file_metadata(
@@ -3043,10 +3120,6 @@ Source: {result.get('source', 'unknown')} database
                         records_imported=records_inserted,
                         parsing_stats=parsing_stats_json,
                     )
-                    
-                    progress_dialog.mark_complete()
-                    QtWidgets.QApplication.processEvents()
-                    progress_dialog.close()
                     
                     return records_inserted
                     
