@@ -31,7 +31,7 @@ MACHINE_COLORS = {
 
 
 class MachineManager:
-    """Manages machine-specific datasets and analysis contexts for multi-machine support"""
+    """Manages machine-specific datasets and analysis contexts for single-machine support"""
     
     def __init__(self, database_manager: DatabaseManager):
         """Initialize machine manager with database connection"""
@@ -41,9 +41,27 @@ class MachineManager:
         self._selected_machines = []  # For multi-selection support
         self._machine_data_cache = {}
         
+        # Initialize single machine database manager for new architecture
+        try:
+            from single_machine_database import SingleMachineDatabaseManager
+            self.single_machine_db = SingleMachineDatabaseManager()
+            self._use_single_machine_architecture = True
+            print("✓ Single-machine database architecture enabled")
+        except ImportError:
+            self.single_machine_db = None
+            self._use_single_machine_architecture = False
+            print("Warning: Single-machine database architecture not available, using legacy mode")
+        
     def get_available_machines(self) -> List[str]:
         """Get list of unique serial numbers available in the database"""
         try:
+            # Use single-machine architecture if available
+            if self._use_single_machine_architecture and self.single_machine_db:
+                machines = self.single_machine_db.discover_available_machines()
+                self._available_machines = machines
+                return machines
+            
+            # Fallback to legacy combined database approach
             with self.db.get_connection() as conn:
                 cursor = conn.execute("""
                     SELECT DISTINCT serial_number 
@@ -75,6 +93,12 @@ class MachineManager:
             available_machines = self.get_available_machines()
             if machine_id not in available_machines and machine_id != "All Machines":
                 raise ValueError(f"Machine {machine_id} not found in available machines")
+        
+        # Handle single-machine database switching
+        if self._use_single_machine_architecture and self.single_machine_db and machine_id != "All Machines":
+            success = self.single_machine_db.switch_to_machine(machine_id)
+            if not success:
+                raise RuntimeError(f"Failed to switch to machine {machine_id} database")
         
         self._selected_machine = machine_id
         # For backward compatibility, reset multi-selection when single machine is selected
@@ -417,6 +441,11 @@ class MachineManager:
         Returns:
             Dictionary with comparison data for both machines
         """
+        # Use single-machine architecture if available for better performance
+        if self._use_single_machine_architecture and self.single_machine_db:
+            return self.single_machine_db.get_comparison_data(machine1_id, machine2_id, parameter)
+        
+        # Fallback to legacy approach
         try:
             comparison_data = {
                 'machine1': {'id': machine1_id, 'data': pd.DataFrame()},
