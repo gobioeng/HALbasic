@@ -507,6 +507,208 @@ class PlotUtils:
         ax.figure.autofmt_xdate()
         ax.legend()
 
+    @staticmethod
+    def interpolate_data(data: pd.DataFrame, method: str = 'linear') -> pd.DataFrame:
+        """
+        Interpolate missing data points in time series data
+        
+        Args:
+            data: DataFrame with datetime column and parameter values
+            method: Interpolation method ('linear', 'cubic', 'quadratic')
+        
+        Returns:
+            DataFrame with interpolated data
+        """
+        try:
+            if data.empty or 'datetime' not in data.columns:
+                return data
+            
+            data_copy = data.copy()
+            data_copy = data_copy.sort_values('datetime').reset_index(drop=True)
+            
+            # Interpolate numeric columns
+            numeric_columns = data_copy.select_dtypes(include=[np.number]).columns
+            for col in numeric_columns:
+                if col in ['avg', 'min', 'max']:
+                    # Use pandas interpolate method
+                    data_copy[col] = data_copy[col].interpolate(method=method)
+            
+            return data_copy
+            
+        except Exception as e:
+            print(f"Error in data interpolation: {e}")
+            return data
+
+    @staticmethod
+    def smooth_data(data: pd.DataFrame, window_size: int = 5, method: str = 'rolling') -> pd.DataFrame:
+        """
+        Apply data smoothing to reduce noise and improve visual appearance
+        
+        Args:
+            data: DataFrame with parameter values
+            window_size: Size of the smoothing window
+            method: Smoothing method ('rolling', 'ewm', 'savgol')
+        
+        Returns:
+            DataFrame with smoothed data
+        """
+        try:
+            if data.empty:
+                return data
+            
+            data_copy = data.copy()
+            numeric_columns = data_copy.select_dtypes(include=[np.number]).columns
+            
+            for col in numeric_columns:
+                if col in ['avg', 'min', 'max']:
+                    if method == 'rolling':
+                        # Rolling average
+                        data_copy[col] = data_copy[col].rolling(window=window_size, center=True).mean()
+                    elif method == 'ewm':
+                        # Exponentially weighted moving average
+                        data_copy[col] = data_copy[col].ewm(span=window_size).mean()
+                    elif method == 'savgol' and window_size >= 3:
+                        # Savitzky-Golay filter (requires scipy)
+                        try:
+                            from scipy.signal import savgol_filter
+                            # Ensure window size is odd and >= 3
+                            if window_size % 2 == 0:
+                                window_size += 1
+                            data_copy[col] = savgol_filter(data_copy[col].dropna(), window_size, 2)
+                        except ImportError:
+                            # Fallback to rolling average if scipy not available
+                            data_copy[col] = data_copy[col].rolling(window=window_size, center=True).mean()
+            
+            return data_copy
+            
+        except Exception as e:
+            print(f"Error in data smoothing: {e}")
+            return data
+
+    @staticmethod
+    def aggregate_data_by_time(data: pd.DataFrame, freq: str = 'H') -> pd.DataFrame:
+        """
+        Aggregate data by time periods (hourly, daily, etc.)
+        
+        Args:
+            data: DataFrame with datetime column and parameter values
+            freq: Aggregation frequency ('H' for hourly, 'D' for daily, 'T' for minute)
+        
+        Returns:
+            DataFrame with aggregated data including min, max, avg for each period
+        """
+        try:
+            if data.empty or 'datetime' not in data.columns:
+                return data
+            
+            data_copy = data.copy()
+            data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
+            data_copy.set_index('datetime', inplace=True)
+            
+            # Aggregate numeric columns
+            numeric_columns = data_copy.select_dtypes(include=[np.number]).columns
+            agg_dict = {}
+            
+            for col in numeric_columns:
+                if col in ['avg', 'min', 'max']:
+                    agg_dict[col] = ['min', 'max', 'mean']
+            
+            if agg_dict:
+                aggregated = data_copy.resample(freq).agg(agg_dict)
+                
+                # Flatten column names
+                aggregated.columns = ['_'.join(col).strip() for col in aggregated.columns]
+                aggregated.reset_index(inplace=True)
+                
+                return aggregated
+            
+            return data_copy.reset_index()
+            
+        except Exception as e:
+            print(f"Error in data aggregation: {e}")
+            return data
+
+    @staticmethod
+    def calculate_statistics(data: pd.DataFrame, time_range: str = None) -> dict:
+        """
+        Calculate statistical summary for the visible data
+        
+        Args:
+            data: DataFrame with parameter values
+            time_range: Optional time range filter ('1H', '1D', '1W')
+        
+        Returns:
+            Dictionary with statistical summary
+        """
+        try:
+            if data.empty:
+                return {}
+            
+            data_copy = data.copy()
+            
+            # Filter by time range if specified
+            if time_range and 'datetime' in data_copy.columns:
+                data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
+                cutoff_time = data_copy['datetime'].max() - pd.Timedelta(time_range)
+                data_copy = data_copy[data_copy['datetime'] >= cutoff_time]
+            
+            stats = {}
+            numeric_columns = data_copy.select_dtypes(include=[np.number]).columns
+            
+            for col in numeric_columns:
+                if col in ['avg', 'min', 'max']:
+                    values = data_copy[col].dropna()
+                    if not values.empty:
+                        stats[col] = {
+                            'min': float(values.min()),
+                            'max': float(values.max()),
+                            'mean': float(values.mean()),
+                            'std': float(values.std()) if len(values) > 1 else 0.0,
+                            'count': len(values)
+                        }
+            
+            return stats
+            
+        except Exception as e:
+            print(f"Error in statistics calculation: {e}")
+            return {}
+
+    @staticmethod
+    def synchronize_time_axes(ax_list: list, data_list: list) -> None:
+        """
+        Synchronize time axes across multiple subplots for multi-machine comparison
+        
+        Args:
+            ax_list: List of matplotlib axes
+            data_list: List of DataFrames corresponding to each axis
+        """
+        try:
+            if not ax_list or not data_list:
+                return
+            
+            # Find common time range across all datasets
+            min_time = None
+            max_time = None
+            
+            for data in data_list:
+                if not data.empty and 'datetime' in data.columns:
+                    data_times = pd.to_datetime(data['datetime'])
+                    data_min = data_times.min()
+                    data_max = data_times.max()
+                    
+                    if min_time is None or data_min < min_time:
+                        min_time = data_min
+                    if max_time is None or data_max > max_time:
+                        max_time = data_max
+            
+            # Apply common time range to all axes
+            if min_time is not None and max_time is not None:
+                for ax in ax_list:
+                    ax.set_xlim(min_time, max_time)
+                    
+        except Exception as e:
+            print(f"Error in time axis synchronization: {e}")
+
 
 class EnhancedPlotWidget(QWidget):
     """Enhanced plotting widget with professional styling and LINAC data processing"""
@@ -517,12 +719,20 @@ class EnhancedPlotWidget(QWidget):
         self.canvas = None
         self.interactive_manager = None
         self.data = pd.DataFrame()
+        self.raw_data = pd.DataFrame()
+        self.current_view_mode = 'raw'  # 'raw', 'interpolated', 'smoothed', 'aggregated'
+        self.current_aggregation = 'H'  # 'T' for minute, 'H' for hourly, 'D' for daily
+        self.statistics_panel = None
+        self.show_statistics = True
         self.init_ui()
     
     def init_ui(self):
         """Initialize plotting UI with enhanced error handling and backend verification"""
         self.layout = QVBoxLayout(self)
         self.setMinimumHeight(300)
+        
+        # Add control panel for view options
+        self._setup_control_panel()
         
         try:
             # Ensure matplotlib backend is properly configured
@@ -543,6 +753,9 @@ class EnhancedPlotWidget(QWidget):
             # Apply professional styling
             PlotUtils.setup_professional_style()
             
+            # Add statistics panel
+            self._setup_statistics_panel()
+            
             # Add a test plot to verify functionality
             ax = self.figure.add_subplot(111)
             ax.text(0.5, 0.5, 'Graph Ready', ha='center', va='center', 
@@ -554,6 +767,163 @@ class EnhancedPlotWidget(QWidget):
             error_label = QLabel(f"Plotting initialization failed: {str(e)}\nCheck matplotlib backend configuration.")
             error_label.setStyleSheet("color: red; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7;")
             self.layout.addWidget(error_label)
+    
+    def _setup_control_panel(self):
+        """Setup control panel for view options"""
+        try:
+            control_frame = QFrame()
+            control_frame.setMaximumHeight(50)
+            control_layout = QHBoxLayout(control_frame)
+            control_layout.setContentsMargins(5, 5, 5, 5)
+            
+            # View mode controls
+            view_label = QLabel("View:")
+            control_layout.addWidget(view_label)
+            
+            self.view_combo = QComboBox()
+            self.view_combo.addItems(['Raw Data', 'Interpolated', 'Smoothed', 'Aggregated'])
+            self.view_combo.currentTextChanged.connect(self._on_view_mode_changed)
+            control_layout.addWidget(self.view_combo)
+            
+            control_layout.addWidget(QLabel("|"))
+            
+            # Aggregation controls
+            agg_label = QLabel("Period:")
+            control_layout.addWidget(agg_label)
+            
+            self.agg_combo = QComboBox()
+            self.agg_combo.addItems(['Minute', 'Hourly', 'Daily'])
+            self.agg_combo.setCurrentText('Hourly')
+            self.agg_combo.currentTextChanged.connect(self._on_aggregation_changed)
+            self.agg_combo.setEnabled(False)  # Initially disabled
+            control_layout.addWidget(self.agg_combo)
+            
+            control_layout.addWidget(QLabel("|"))
+            
+            # Statistics toggle
+            self.stats_checkbox = QCheckBox("Show Statistics")
+            self.stats_checkbox.setChecked(True)
+            self.stats_checkbox.toggled.connect(self._on_statistics_toggled)
+            control_layout.addWidget(self.stats_checkbox)
+            
+            control_layout.addStretch()
+            
+            self.layout.addWidget(control_frame)
+            
+        except Exception as e:
+            print(f"Error setting up control panel: {e}")
+    
+    def _setup_statistics_panel(self):
+        """Setup statistics panel"""
+        try:
+            self.statistics_panel = QLabel()
+            self.statistics_panel.setMaximumHeight(30)
+            self.statistics_panel.setStyleSheet(
+                "background-color: #f8f9fa; border: 1px solid #dee2e6; "
+                "padding: 5px; font-size: 10px; color: #495057;"
+            )
+            self.statistics_panel.setText("Statistics will appear here when data is plotted")
+            self.layout.addWidget(self.statistics_panel)
+            
+        except Exception as e:
+            print(f"Error setting up statistics panel: {e}")
+    
+    def _on_view_mode_changed(self, view_text):
+        """Handle view mode change"""
+        mode_map = {
+            'Raw Data': 'raw',
+            'Interpolated': 'interpolated', 
+            'Smoothed': 'smoothed',
+            'Aggregated': 'aggregated'
+        }
+        
+        self.current_view_mode = mode_map.get(view_text, 'raw')
+        
+        # Enable/disable aggregation combo based on view mode
+        if hasattr(self, 'agg_combo'):
+            self.agg_combo.setEnabled(self.current_view_mode == 'aggregated')
+        
+        # Re-plot with new view mode if data exists
+        if not self.raw_data.empty:
+            self._replot_with_current_settings()
+    
+    def _on_aggregation_changed(self, agg_text):
+        """Handle aggregation period change"""
+        agg_map = {
+            'Minute': 'T',
+            'Hourly': 'H',
+            'Daily': 'D'
+        }
+        
+        self.current_aggregation = agg_map.get(agg_text, 'H')
+        
+        # Re-plot with new aggregation if in aggregated mode
+        if self.current_view_mode == 'aggregated' and not self.raw_data.empty:
+            self._replot_with_current_settings()
+    
+    def _on_statistics_toggled(self, checked):
+        """Handle statistics panel toggle"""
+        self.show_statistics = checked
+        if hasattr(self, 'statistics_panel'):
+            self.statistics_panel.setVisible(checked)
+    
+    def _replot_with_current_settings(self):
+        """Re-plot data with current view settings"""
+        # This will be implemented to re-plot using the current view mode and settings
+        # For now, just update statistics
+        self._update_statistics_panel()
+    
+    def _update_statistics_panel(self):
+        """Update the statistics panel with current data statistics"""
+        try:
+            if not self.show_statistics or not hasattr(self, 'statistics_panel'):
+                return
+            
+            if self.data.empty:
+                self.statistics_panel.setText("No data available")
+                return
+            
+            stats = PlotUtils.calculate_statistics(self.data)
+            if stats:
+                stats_text = []
+                for param, stat_info in stats.items():
+                    stats_text.append(
+                        f"{param.upper()}: Min={stat_info['min']:.2f}, "
+                        f"Max={stat_info['max']:.2f}, Avg={stat_info['mean']:.2f} "
+                        f"(n={stat_info['count']})"
+                    )
+                self.statistics_panel.setText(" | ".join(stats_text))
+            else:
+                self.statistics_panel.setText("No statistics available")
+                
+        except Exception as e:
+            print(f"Error updating statistics panel: {e}")
+    
+    def set_data(self, data: pd.DataFrame):
+        """Set data for the plot widget"""
+        self.raw_data = data.copy() if not data.empty else pd.DataFrame()
+        self._process_data_for_current_view()
+        self._update_statistics_panel()
+    
+    def _process_data_for_current_view(self):
+        """Process raw data according to current view mode"""
+        try:
+            if self.raw_data.empty:
+                self.data = pd.DataFrame()
+                return
+            
+            if self.current_view_mode == 'raw':
+                self.data = self.raw_data.copy()
+            elif self.current_view_mode == 'interpolated':
+                self.data = PlotUtils.interpolate_data(self.raw_data)
+            elif self.current_view_mode == 'smoothed':
+                self.data = PlotUtils.smooth_data(self.raw_data, window_size=5)
+            elif self.current_view_mode == 'aggregated':
+                self.data = PlotUtils.aggregate_data_by_time(self.raw_data, self.current_aggregation)
+            
+        except Exception as e:
+            print(f"Error processing data for view mode {self.current_view_mode}: {e}")
+            self.data = self.raw_data.copy()
     
     def plot_multi_machine_parameter(self, data_dict: Dict[str, pd.DataFrame], parameter: str, colors: Dict[str, str]):
         """Plot multi-machine parameter data with different colors per machine
@@ -582,51 +952,100 @@ class EnhancedPlotWidget(QWidget):
             plotted_count = 0
             legend_handles = []
             legend_labels = []
+            processed_data_list = []
             
+            # Process each machine's data according to current view settings
             for machine_id, data in data_dict.items():
                 if data.empty:
                     continue
+                
+                # Store raw data for processing
+                self.raw_data = data.copy()
+                self._process_data_for_current_view()
+                processed_data = self.data.copy()
+                
+                if processed_data.empty:
+                    continue
                     
                 # Process time data
-                if 'datetime' in data.columns:
-                    data_copy = data.copy()
-                    data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
-                    data_copy = data_copy.sort_values('datetime')
+                if 'datetime' in processed_data.columns:
+                    processed_data['datetime'] = pd.to_datetime(processed_data['datetime'])
+                    processed_data = processed_data.sort_values('datetime')
+                    processed_data_list.append(processed_data)
                     
                     color = colors.get(machine_id, '#1976D2')
                     
-                    # Plot average values for multi-machine view
-                    if 'avg' in data_copy.columns:
-                        avg_data = data_copy.groupby(['datetime'])['avg'].mean().reset_index()
+                    # Plot average values with enhanced styling
+                    if 'avg' in processed_data.columns:
+                        avg_data = processed_data.groupby(['datetime'])['avg'].mean().reset_index()
                         if not avg_data.empty:
+                            # Use different line styles for different machines
+                            line_style = '-' if plotted_count == 0 else '--' if plotted_count == 1 else ':'
                             line = ax.plot(avg_data['datetime'], avg_data['avg'], 
-                                         color=color, linewidth=2, marker='o', markersize=4,
-                                         alpha=0.8, label=machine_id)[0]
+                                         color=color, linewidth=2.5, linestyle=line_style,
+                                         marker='o', markersize=3, alpha=0.8, 
+                                         label=f"{machine_id} (avg)")[0]
                             legend_handles.append(line)
-                            legend_labels.append(machine_id)
+                            legend_labels.append(f"{machine_id} (avg)")
                             plotted_count += 1
+                    
+                    # Optionally plot min/max ranges for aggregated view
+                    if self.current_view_mode == 'aggregated':
+                        if 'avg_min' in processed_data.columns and 'avg_max' in processed_data.columns:
+                            min_data = processed_data.groupby(['datetime'])['avg_min'].min().reset_index()
+                            max_data = processed_data.groupby(['datetime'])['avg_max'].max().reset_index()
+                            if not min_data.empty and not max_data.empty:
+                                ax.fill_between(min_data['datetime'], min_data['avg_min'], 
+                                               max_data['avg_max'], alpha=0.2, color=color)
+            
+            # Synchronize time axes for multi-machine comparison
+            if len(processed_data_list) > 1:
+                PlotUtils.synchronize_time_axes([ax], processed_data_list)
             
             if plotted_count > 0:
-                ax.set_title(f"{parameter} - Multi-Machine Comparison", fontsize=12, fontweight='bold')
+                # Enhanced title with view mode information
+                view_mode_text = f" ({self.current_view_mode.title()}"
+                if self.current_view_mode == 'aggregated':
+                    agg_text = {'T': 'Minute', 'H': 'Hourly', 'D': 'Daily'}.get(self.current_aggregation, 'Hourly')
+                    view_mode_text += f", {agg_text}"
+                view_mode_text += ")"
+                
+                ax.set_title(f"{parameter} - Multi-Machine Comparison{view_mode_text}", 
+                           fontsize=12, fontweight='bold')
                 ax.set_xlabel('Time', fontsize=10)
                 ax.set_ylabel('Value', fontsize=10)
-                ax.grid(True, alpha=0.3)
+                ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
                 
-                # Add legend with machine toggle capability
+                # Enhanced legend with better positioning
                 if legend_handles:
                     legend = ax.legend(legend_handles, legend_labels, 
-                                     bbox_to_anchor=(1.05, 1), loc='upper left',
-                                     fontsize=9)
+                                     bbox_to_anchor=(1.02, 1), loc='upper left',
+                                     fontsize=9, frameon=True, fancybox=True, 
+                                     shadow=True, framealpha=0.9)
                     legend.set_draggable(True)
                 
-                # Format datetime axis
+                # Enhanced datetime formatting
                 if plotted_count > 0:
                     try:
-                        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+                        if self.current_aggregation == 'D':
+                            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+                            ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+                        elif self.current_aggregation == 'H':
+                            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+                        else:  # Minute
+                            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=30))
                         self.figure.autofmt_xdate()
                     except:
                         pass  # Fallback if date formatting fails
+                
+                # Update statistics panel
+                if processed_data_list:
+                    # Combine all processed data for statistics
+                    combined_data = pd.concat(processed_data_list, ignore_index=True)
+                    self.data = combined_data
+                    self._update_statistics_panel()
             else:
                 ax.text(0.5, 0.5, f'No valid data for {parameter}', 
                        ha='center', va='center', transform=ax.transAxes, fontsize=14)
