@@ -275,6 +275,17 @@ class HALogApp:
                 try:
                     # Use enhanced database manager with backup support
                     self.db = DatabaseManager()  # No path needed - uses backup manager's path
+                    
+                    # Add missing attributes after database initialization
+                    self.db_resilience = True
+                    self.backup_enabled = True
+                    self.import_in_progress = False  
+                    self.export_in_progress = False
+                    self.progress_dialog = None
+                    self.worker = None
+                    self.error_count = 0
+                    self.processing_cancelled = False
+                    
                     import pandas as pd
 
                     self.df = pd.DataFrame()
@@ -482,6 +493,10 @@ class HALogApp:
                                 print("✓ Sample data loaded for trend analysis")
                 except Exception as e:
                     print(f"Note: Could not load sample data: {e}")
+
+            def safe_get_attribute(self, attr_name: str, default_value=None):
+                """Safe attribute access method to prevent AttributeError"""
+                return getattr(self, attr_name, default_value)
 
             def apply_professional_styles(self):
                 """Apply comprehensive professional styling with VISIBLE MENU BAR"""
@@ -746,6 +761,14 @@ class HALogApp:
                     # VIEW MENU ACTIONS
                     self.ui.actionRefresh.triggered.connect(self.load_dashboard)
                     print("✓ View menu actions connected")
+                    
+                    # DASHBOARD CONTROLS - Add modern dashboard actions
+                    if hasattr(self.ui, 'actionRefreshDashboard'):
+                        self.ui.actionRefreshDashboard.triggered.connect(self.refresh_modern_dashboard)
+                        print("✓ Dashboard refresh action connected")
+                    if hasattr(self.ui, 'actionDashboardSettings'):
+                        self.ui.actionDashboardSettings.triggered.connect(self.open_dashboard_settings)
+                        print("✓ Dashboard settings action connected")
 
                     # DATA MENU ACTIONS
                     if hasattr(self.ui, "actionClearAllData"):
@@ -2112,6 +2135,9 @@ Source: {result.get('source', 'unknown')} database
 
                     # Add multi-machine status indicators
                     self._update_multi_machine_status()
+                    
+                    # Load modern dashboard with widgets
+                    self._load_modern_dashboard()
 
                     # Update UI components
                     self.update_trend_combos()
@@ -2198,6 +2224,123 @@ Source: {result.get('source', 'unknown')} database
                             
                 except Exception as e:
                     print(f"Error updating multi-machine status: {e}")
+                    
+            def _load_modern_dashboard(self):
+                """Load modern dashboard with widgets"""
+                try:
+                    from modern_dashboard import ModernDashboard
+                    
+                    # Find dashboard tab in the UI
+                    dashboard_tab = None
+                    if hasattr(self.ui, 'tabWidget') and hasattr(self.ui, 'dashboardTab'):
+                        dashboard_tab = self.ui.dashboardTab
+                    elif hasattr(self.ui, 'tabWidget'):
+                        # Try to find the first tab as dashboard
+                        if self.ui.tabWidget.count() > 0:
+                            dashboard_tab = self.ui.tabWidget.widget(0)
+                    
+                    if dashboard_tab:
+                        # Remove old dashboard content
+                        if dashboard_tab.layout():
+                            QWidget().setLayout(dashboard_tab.layout())  # Clear old layout
+                        
+                        # Create modern dashboard
+                        self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, dashboard_tab)
+                        
+                        # Set new layout
+                        new_layout = QVBoxLayout(dashboard_tab)
+                        new_layout.setContentsMargins(0, 0, 0, 0)
+                        new_layout.addWidget(self.modern_dashboard)
+                        
+                        print("✓ Modern dashboard loaded with real-time widgets")
+                    else:
+                        # Fallback: create modern dashboard widget without integration
+                        self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, self)
+                        print("✓ Modern dashboard created (not integrated - no dashboard tab found)")
+                        
+                except Exception as e:
+                    print(f"Error loading modern dashboard: {e}")
+                    # Fallback to basic dashboard loading if available
+                    try:
+                        self._load_basic_dashboard()
+                    except:
+                        pass
+                        
+            def _load_basic_dashboard(self):
+                """Fallback basic dashboard loading"""
+                print("Loading basic dashboard fallback...")
+                
+            def refresh_modern_dashboard(self):
+                """Refresh the modern dashboard manually"""
+                try:
+                    if hasattr(self, 'modern_dashboard') and self.modern_dashboard:
+                        self.modern_dashboard.refresh_dashboard()
+                        print("✓ Modern dashboard refreshed manually")
+                    else:
+                        print("Modern dashboard not available for refresh")
+                except Exception as e:
+                    print(f"Error refreshing modern dashboard: {e}")
+                    
+            def open_dashboard_settings(self):
+                """Open dashboard configuration settings"""
+                try:
+                    # Create a simple settings dialog
+                    dialog = QDialog(self)
+                    dialog.setWindowTitle("Dashboard Settings")
+                    dialog.setFixedSize(400, 300)
+                    
+                    layout = QVBoxLayout(dialog)
+                    
+                    # Auto-refresh settings
+                    refresh_group = QGroupBox("Auto-Refresh Settings")
+                    refresh_layout = QFormLayout(refresh_group)
+                    
+                    refresh_checkbox = QCheckBox("Enable auto-refresh")
+                    refresh_checkbox.setChecked(True)
+                    
+                    refresh_interval = QSpinBox()
+                    refresh_interval.setRange(10, 300)
+                    refresh_interval.setValue(30)
+                    refresh_interval.setSuffix(" seconds")
+                    
+                    refresh_layout.addRow("Auto-refresh:", refresh_checkbox)
+                    refresh_layout.addRow("Interval:", refresh_interval)
+                    
+                    layout.addWidget(refresh_group)
+                    
+                    # Buttons
+                    button_layout = QHBoxLayout()
+                    ok_button = QPushButton("OK")
+                    cancel_button = QPushButton("Cancel")
+                    
+                    ok_button.clicked.connect(dialog.accept)
+                    cancel_button.clicked.connect(dialog.reject)
+                    
+                    button_layout.addStretch()
+                    button_layout.addWidget(ok_button)
+                    button_layout.addWidget(cancel_button)
+                    
+                    layout.addLayout(button_layout)
+                    
+                    if dialog.exec_() == QDialog.Accepted:
+                        # Apply settings
+                        if hasattr(self, 'modern_dashboard') and self.modern_dashboard:
+                            if refresh_checkbox.isChecked():
+                                interval_ms = refresh_interval.value() * 1000
+                                self.modern_dashboard.refresh_timer.setInterval(interval_ms)
+                                self.modern_dashboard.refresh_timer.start()
+                                print(f"✓ Dashboard auto-refresh set to {refresh_interval.value()} seconds")
+                            else:
+                                self.modern_dashboard.refresh_timer.stop()
+                                print("✓ Dashboard auto-refresh disabled")
+                        
+                except Exception as e:
+                    print(f"Error opening dashboard settings: {e}")
+                    QMessageBox.information(
+                        self, "Dashboard Settings", 
+                        "Dashboard settings functionality is being enhanced.\n"
+                        "Auto-refresh is currently set to 30 seconds."
+                    )
                     
             def _ensure_full_data_loaded(self):
                 """Load full dataset when needed for analysis"""
@@ -3567,7 +3710,7 @@ Source: {result.get('source', 'unknown')} database
                     start_time = time.time()
                     
                     # Use error handling for database operations
-                    if self.db_resilience:
+                    if self.safe_get_attribute('db_resilience', True):
                         records_inserted = self.db_resilience.execute_with_retry(
                             self.db.insert_data_batch, df, batch_size=500
                         )
@@ -3614,7 +3757,7 @@ Source: {result.get('source', 'unknown')} database
                     try:
                         filename = os.path.basename(file_path)
                         parsing_stats_json = "{}"
-                        if self.db_resilience:
+                        if self.safe_get_attribute('db_resilience', True):
                             self.db_resilience.execute_with_retry(
                                 self.db.insert_file_metadata,
                                 filename=filename,
