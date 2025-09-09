@@ -391,7 +391,6 @@ class Ui_MainWindow(object):
         self.main_layout.addWidget(self.tabWidget)
         self.setup_dashboard_tab()
         self.setup_trends_tab()
-        self.setup_data_table_tab()
         self.setup_analysis_tab()
         self.setup_mpc_tab()  # NEW MPC TAB
         self.setup_fault_code_tab()
@@ -971,75 +970,6 @@ class Ui_MainWindow(object):
             graphs_layout.addWidget(self.fanGraphBottom)
         
         layout.addWidget(graphs_widget)
-
-    def setup_data_table_tab(self):
-        self.tabDataTable = QWidget()
-        self.tabWidget.addTab(self.tabDataTable, "📋 Data Table")
-        layout = QVBoxLayout(self.tabDataTable)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        self.lblTableInfo = QLabel("No data available")
-        self.lblTableInfo.setWordWrap(True)
-        layout.addWidget(self.lblTableInfo)
-
-        self.tableData = QTableWidget()
-        self.tableData.setColumnCount(7)
-        self.tableData.setHorizontalHeaderLabels(
-            [
-                "DateTime",
-                "Serial",
-                "Parameter",
-                "Average", 
-                "Min",
-                "Max",
-                "Diff (Max-Min)",
-            ]
-        )
-        self.tableData.setAlternatingRowColors(True)
-        self.tableData.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tableData.horizontalHeader().setStretchLastSection(True)
-        self.tableData.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tableData.verticalHeader().setVisible(False)
-        self.tableData.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.tableData.setWordWrap(True)
-        
-        # Add scroll policies and improved styling
-        self.tableData.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tableData.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tableData.setMinimumHeight(400)
-        
-        # Enhanced styling for data table
-        self.tableData.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #E0E0E0;
-                font-size: 11px;
-                background-color: #FAFAFA;
-                border: 1px solid #DDDDDD;
-                border-radius: 6px;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border: 1px solid #E0E0E0;
-                background-color: white;
-            }
-            QTableWidget::item:selected {
-                background-color: #E3F2FD;
-                color: #0D47A1;
-            }
-            QTableWidget::item:alternate {
-                background-color: #F8F9FA;
-            }
-            QHeaderView::section {
-                background-color: #2196F3;
-                color: white;
-                padding: 10px;
-                border: none;
-                font-weight: bold;
-                font-size: 12px;
-            }
-        """)
-        
-        layout.addWidget(self.tableData)
 
     def setup_analysis_tab(self):
         self.tabAnalysis = QWidget()

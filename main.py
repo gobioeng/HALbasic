@@ -108,48 +108,29 @@ def setup_environment():
     # Ensure application icon exists
     try:
         from resource_helper import ensure_app_icon
-
         ensure_app_icon()
     except Exception as e:
         print(f"Warning: Could not ensure app icon: {e}")
 
 
-def test_icon_loading():
-    """
-    Test function to verify icon loading
-    Debugging utility for Gobioeng HALog
-    """
-    from resource_helper import load_splash_icon, resource_path
-    import os
+def safe_update_progress(progress_dialog, percentage, message=""):
+    """Helper function to safely update progress dialog and process events"""
+    if progress_dialog and hasattr(progress_dialog, 'update_progress'):
+        try:
+            progress_dialog.update_progress(percentage, message)
+            from PyQt5.QtWidgets import QApplication
+            QApplication.processEvents()
+        except Exception as e:
+            print(f"Warning: Could not update progress: {e}")
 
-    print("=== Icon Loading Test ===")
 
-    # Check available files
-    icon_files = [
-        "halogo_256.png",
-        "halogo_256.ico", 
-        "halogo_100.png",
-        "halogo_100.ico",
-        "halogo.png",
-        "halogo.ico",
-    ]
-
-    print("Available icon files:")
-    for icon_file in icon_files:
-        path = resource_path(icon_file)
-        exists = os.path.exists(path)
-        size = os.path.getsize(path) if exists else 0
-        print(f"  {icon_file}: {'✓' if exists else '✗'} ({path}) - {size} bytes")
-
-    # Test loading
-    print("\nTesting icon loading...")
-    icon = load_splash_icon(100)  # Back to 100px for better arrangement
-    if icon and not icon.isNull():
-        print(f"✓ Icon loaded successfully: {icon.size()}")
-    else:
-        print("✗ Icon loading failed")
-
-    print("=== End Test ===")
+def safe_execute_with_error_handling(func, error_message="Operation failed", *args, **kwargs):
+    """Helper function to execute functions with consistent error handling"""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        print(f"{error_message}: {e}")
+        return None
 
 
 class HALogApp:
@@ -2006,7 +1987,7 @@ Source: {result.get('source', 'unknown')} database
 
                     # Update UI components
                     self.update_trend_combos()
-                    self.update_data_table()
+                    # Data table removed - skip update
                     self.update_analysis_tab()
 
                     # Initialize trend graphs with default parameters only if we have data
@@ -2268,219 +2249,6 @@ Source: {result.get('source', 'unknown')} database
                     self.update_trend()
                 except Exception as e:
                     print(f"Error updating trend combos: {e}")
-
-            def update_data_table(self, page_size=None):
-                """Update data table with optimized performance for large datasets"""
-                try:
-                    from PyQt5.QtWidgets import QTableWidgetItem
-                    from PyQt5.QtCore import Qt
-                    import pandas as pd
-                    
-                    if not hasattr(self, "df") or self.df.empty:
-                        self.ui.tableData.setRowCount(0)
-                        self.ui.lblTableInfo.setText("No data available")
-                        return
-
-                    # Smart page sizing based on dataset size
-                    if page_size is None:
-                        total_records = len(self.df)
-                        if total_records > 50000:
-                            page_size = 500   # Very large datasets: show only 500 rows
-                        elif total_records > 10000:
-                            page_size = 1000  # Large datasets: show 1000 rows  
-                        elif total_records > 1000:
-                            page_size = 2000  # Medium datasets: show 2000 rows
-                        else:
-                            page_size = total_records  # Small datasets: show all
-
-                    # Use cached sorted data if available and not stale
-                    cache_key = 'sorted_data_table'
-                    if (hasattr(self, '_data_cache') and 
-                        cache_key in self._data_cache and 
-                        self._data_cache[cache_key]['timestamp'] > getattr(self, '_last_data_update', 0)):
-                        display_df = self._data_cache[cache_key]['data']
-                        param_col = self._data_cache[cache_key]['param_col']
-                        print("📋 Using cached sorted data for table (performance optimization)")
-                    else:
-                        print(f"🔍 DataFrame columns: {list(self.df.columns)}")
-                        print(f"🔍 DataFrame shape: {self.df.shape}")
-
-                        # Find parameter column
-                        param_col = None
-                        for col in ['param', 'parameter_type', 'parameter_name']:
-                            if col in self.df.columns:
-                                param_col = col
-                                break
-                        
-                        print(f"🔍 Using parameter column: '{param_col}'")
-
-                        if not param_col:
-                            self.ui.tableData.setRowCount(0)
-                            self.ui.lblTableInfo.setText("No parameter column found")
-                            return
-
-                        # Sort by parameter name, then by datetime (newest first) - expensive operation
-                        print("📋 Sorting data for table display...")
-                        df_sorted = self.df.sort_values([param_col, 'datetime'], ascending=[True, False])
-                        display_df = df_sorted.iloc[:page_size]
-                        
-                        # Cache the sorted result
-                        if not hasattr(self, '_data_cache'):
-                            self._data_cache = {}
-                        self._data_cache[cache_key] = {
-                            'data': display_df,
-                            'param_col': param_col,
-                            'timestamp': time.time()
-                        }
-
-                    # Find column mappings with better fallbacks (cached)
-                    if not hasattr(self, '_column_mapping_cache'):
-                        serial_col = None
-                        avg_col = None
-                        min_col = None 
-                        max_col = None
-                        
-                        # Map columns
-                        for col in self.df.columns:
-                            col_lower = col.lower()
-                            if col_lower in ['serial', 'serial_number']:
-                                serial_col = col
-                            elif col_lower in ['avg', 'average', 'avg_value']:
-                                avg_col = col
-                            elif col_lower in ['min', 'min_value', 'minimum']:
-                                min_col = col
-                            elif col_lower in ['max', 'max_value', 'maximum']:
-                                max_col = col
-                        
-                        self._column_mapping_cache = {
-                            'serial_col': serial_col,
-                            'avg_col': avg_col,
-                            'min_col': min_col,
-                            'max_col': max_col
-                        }
-                    
-                    # Use cached column mappings
-                    serial_col = self._column_mapping_cache['serial_col']
-                    avg_col = self._column_mapping_cache['avg_col']
-                    min_col = self._column_mapping_cache['min_col']
-                    max_col = self._column_mapping_cache['max_col']
-
-                    # Set table size and headers (match main_window.py which expects 7 columns)
-                    self.ui.tableData.setRowCount(len(display_df))
-                    self.ui.tableData.setColumnCount(7)
-                    self.ui.tableData.setHorizontalHeaderLabels([
-                        "DateTime",
-                        "Serial", 
-                        "Parameter",
-                        "Average",
-                        "Min",
-                        "Max",
-                        "Diff (Max-Min)"
-                    ])
-
-                    # Optimize table population with batch updates
-                    self.ui.tableData.setSortingEnabled(False)  # Disable sorting during updates
-                    self.ui.tableData.setUpdatesEnabled(False)  # Disable updates during population
-
-                    # Populate table rows with optimized performance
-                    for row_idx, (_, row) in enumerate(display_df.iterrows()):
-                        try:
-                            # DateTime
-                            dt_str = row["datetime"].strftime("%Y-%m-%d %H:%M:%S") if pd.notna(row["datetime"]) else "N/A"
-                            dt_item = QTableWidgetItem(dt_str)
-                            dt_item.setFlags(dt_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 0, dt_item)
-
-                            # Serial Number
-                            serial_value = "Unknown"
-                            if serial_col and pd.notna(row[serial_col]):
-                                serial_value = str(row[serial_col])
-                            serial_item = QTableWidgetItem(serial_value)
-                            serial_item.setFlags(serial_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 1, serial_item)
-
-                            # Parameter Name (use enhanced name)
-                            raw_param = str(row[param_col])
-                            display_param = self._get_enhanced_parameter_name(raw_param)
-                            param_item = QTableWidgetItem(display_param)
-                            param_item.setToolTip(f"Raw parameter: {raw_param}")  # Show raw name in tooltip
-                            param_item.setFlags(param_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 2, param_item)
-
-                            # Average value
-                            avg_value = 0.0
-                            if avg_col and pd.notna(row[avg_col]):
-                                try:
-                                    avg_value = float(row[avg_col])
-                                except (ValueError, TypeError):
-                                    avg_value = 0.0
-                            avg_item = QTableWidgetItem(f"{avg_value:.4f}")
-                            avg_item.setFlags(avg_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 3, avg_item)
-
-                            # Min value
-                            min_value = 0.0
-                            if min_col and pd.notna(row[min_col]):
-                                try:
-                                    min_value = float(row[min_col])
-                                except (ValueError, TypeError):
-                                    min_value = 0.0
-                            min_item = QTableWidgetItem(f"{min_value:.4f}")
-                            min_item.setFlags(min_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 4, min_item)
-
-                            # Max value
-                            max_value = 0.0
-                            if max_col and pd.notna(row[max_col]):
-                                try:
-                                    max_value = float(row[max_col])
-                                except (ValueError, TypeError):
-                                    max_value = 0.0
-                            max_item = QTableWidgetItem(f"{max_value:.4f}")
-                            max_item.setFlags(max_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 5, max_item)
-
-                            # Difference (Max - Min)
-                            diff_value = max_value - min_value
-                            diff_item = QTableWidgetItem(f"{diff_value:.4f}")
-                            diff_item.setFlags(diff_item.flags() & ~Qt.ItemIsEditable)
-                            self.ui.tableData.setItem(row_idx, 6, diff_item)
-
-                        except Exception as e:
-                            print(f"Error processing row {row_idx}: {e}")
-                            # Fill row with N/A values if there's an error
-                            for col_idx in range(7):
-                                if not self.ui.tableData.item(row_idx, col_idx):
-                                    placeholder_item = QTableWidgetItem("N/A")
-                                    placeholder_item.setFlags(placeholder_item.flags() & ~Qt.ItemIsEditable)
-                                    self.ui.tableData.setItem(row_idx, col_idx, placeholder_item)
-
-                    # Re-enable table updates and sorting
-                    self.ui.tableData.setUpdatesEnabled(True)
-                    self.ui.tableData.setSortingEnabled(True)
-
-                    # Auto-resize columns to content (only if not done recently)
-                    if not hasattr(self, '_last_column_resize') or time.time() - self._last_column_resize > 30:
-                        self.ui.tableData.resizeColumnsToContents()
-                        self._last_column_resize = time.time()
-
-                    # Update info label
-                    total_records = len(self.df)
-                    showing_records = len(display_df)
-                    unique_params = self.df[param_col].nunique()
-
-                    self.ui.lblTableInfo.setText(
-                        f"Showing {showing_records:,} of {total_records:,} records | "
-                        f"Unique Parameters: {unique_params} | Sorted by parameter name, then date"
-                    )
-
-                    print(f"✓ Data table updated: {showing_records:,} records displayed with {unique_params} unique parameters")
-
-                except Exception as e:
-                    print(f"Error updating data table: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    self.ui.lblTableInfo.setText("Error loading data table")
 
             def update_analysis_tab(self):
                 """Update analysis tab with professional progress"""
@@ -2850,7 +2618,7 @@ Source: {result.get('source', 'unknown')} database
                             self.update_trend()
                             tab_data = {"type": "trend", "updated_at": current_time}
                         elif index == 2:  # Data Table tab
-                            self.update_data_table()
+                    # Data table removed - skip update
                             tab_data = {"type": "data_table", "updated_at": current_time}
                         elif index == 3:  # Analysis tab
                             self.update_analysis_tab()
@@ -2990,67 +2758,38 @@ Source: {result.get('source', 'unknown')} database
                     for file_path in file_paths:
                         print(f"  - {file_path}")
 
-                    # ENHANCEMENT: Initialize performance manager for result caching
-                    from startup_performance_manager import StartupPerformanceManager
-                    perf_manager = StartupPerformanceManager()
-                    
-                    # Check if we can use cached results for unchanged files
-                    files_to_process = []
-                    cached_results = {}
-                    
-                    for file_path in file_paths:
-                        cached_result = perf_manager.get_cached_results(file_path)
-                        if cached_result:
-                            cached_results[file_path] = cached_result
-                            print(f"📋 Using cached results for {os.path.basename(file_path)}")
-                        else:
-                            files_to_process.append(file_path)
-                            print(f"🔄 Will process {os.path.basename(file_path)}")
-
-                    # Create progress dialog for multi-file upload
+                    # Create progress dialog for multi-file upload immediately
                     from progress_dialog import ProgressDialog
                     
                     self.progress_dialog = ProgressDialog(self)
                     self.progress_dialog.setWindowTitle(f"Processing {len(file_paths)} LINAC Log Files")
                     self.progress_dialog.setModal(True)
-                    self.progress_dialog.show()
+                    
+                    # Show upload progress BEFORE starting file operations
                     self.progress_dialog.set_phase("uploading", 0)
-                    
-                    # Give the dialog time to render properly
-                    QtWidgets.QApplication.processEvents()
-                    import time
-                    time.sleep(0.1)
-                    
-                    # Update with more descriptive initial message
-                    self.progress_dialog.update_progress(0, f"Preparing to process {len(file_paths)} files...")
-                    QtWidgets.QApplication.processEvents()
+                    safe_update_progress(self.progress_dialog, 0, f"Starting to process {len(file_paths)} files...")
+                    time.sleep(0.1)  # Small delay to ensure dialog renders
 
-                    # Process files sequentially with proper memory management and caching
+                    # Process files sequentially with proper memory management
                     total_records_imported = 0
                     successful_imports = 0
                     
-                    # Use cached results count for already processed files
-                    for cached_file, cached_data in cached_results.items():
-                        total_records_imported += cached_data.get("record_count", 0)
-                        successful_imports += 1
-                    
-                    # Process only new/changed files
-                    for i, file_path in enumerate(files_to_process):
+                    # Process all files
+                    for i, file_path in enumerate(file_paths):
                         try:
                             file_size = os.path.getsize(file_path)
                             filename = os.path.basename(file_path)
                             
-                            # Calculate progress including cached files
+                            # Calculate progress for current file
                             total_files = len(file_paths)
-                            files_completed = len(cached_results) + i
+                            files_completed = i
                             file_progress = int((files_completed / total_files) * 85)
                             
-                            self.progress_dialog.update_progress(
+                            safe_update_progress(
+                                self.progress_dialog, 
                                 file_progress, 
-                                f"Processing file {files_completed+1}/{total_files}: {filename}",
-                                files_completed, total_files
+                                f"Processing file {files_completed+1}/{total_files}: {filename}"
                             )
-                            QtWidgets.QApplication.processEvents()
                             
                             # Check if user cancelled
                             if self.progress_dialog.wasCanceled():
@@ -3088,23 +2827,17 @@ Source: {result.get('source', 'unknown')} database
                                     total_records_imported += records
                                     successful_imports += 1
                             
-                            # ENHANCEMENT: Cache processed results for future use
+                            # Record successful processing
                             if records > 0:
-                                processed_data = {
-                                    "record_count": records,
-                                    "file_size": file_size,
-                                    "parameter_summary": self._get_file_parameter_summary(file_path),
-                                    "time_range": self._get_file_time_range(file_path)
-                                }
-                                perf_manager.cache_processed_results(file_path, processed_data)
+                                print(f"✓ Successfully processed {filename}: {records} records")
                                     
                             # Update progress after each file
                             completed_progress = int(((files_completed + 1) / total_files) * 85)  # Leave 15% for finalization
-                            self.progress_dialog.update_progress(
+                            safe_update_progress(
+                                self.progress_dialog,
                                 completed_progress,
                                 f"Completed {filename} - {successful_imports}/{files_completed+1} files processed successfully"
                             )
-                            QtWidgets.QApplication.processEvents()
                             
                             # Force garbage collection between files
                             import gc
@@ -3117,8 +2850,7 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Finalization phase
                     self.progress_dialog.set_phase("finalizing", 85)
-                    self.progress_dialog.update_progress(90, "Refreshing database and UI components...")
-                    QtWidgets.QApplication.processEvents()
+                    safe_update_progress(self.progress_dialog, 90, "Refreshing database and UI components...")
 
                     # Final UI update after all files processed
                     if successful_imports > 0:
@@ -3128,22 +2860,19 @@ Source: {result.get('source', 'unknown')} database
                             self.df = self.db.get_all_logs()
                         
                         # Update progress during UI refresh
-                        self.progress_dialog.update_progress(92, "Loading dashboard...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 92, "Loading dashboard...")
                         self.load_dashboard()
                         
-                        self.progress_dialog.update_progress(94, "Initializing trend controls...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 94, "Initializing trend controls...")
                         self._initialize_trend_controls()
                         self.update_trend_combos()
                         
                         self.progress_dialog.update_progress(96, "Updating data tables...")
                         QtWidgets.QApplication.processEvents()
-                        self.update_data_table()
+                    # Data table removed - skip update
                         self.update_analysis_tab()
 
-                        self.progress_dialog.update_progress(98, "Finalizing trends and analysis...")
-                        QtWidgets.QApplication.processEvents()
+                        safe_update_progress(self.progress_dialog, 98, "Finalizing trends and analysis...")
 
                         # Initialize default trend displays
                         QtCore.QTimer.singleShot(500, self._refresh_all_trends)
@@ -3151,17 +2880,10 @@ Source: {result.get('source', 'unknown')} database
                         # Initialize MPC tab with new data
                         QtCore.QTimer.singleShot(300, self.refresh_latest_mpc)
 
-                        # Mark as complete and close progress dialog
+                        # Mark as complete and keep progress dialog until user sees success message
                         self.progress_dialog.mark_complete()
-                        QtCore.QTimer.singleShot(1000, self.progress_dialog.close)  # Close after 1 second
-
-                        QtWidgets.QMessageBox.information(
-                            self,
-                            "Multi-File Import Successful",
-                            f"Successfully processed {successful_imports}/{len(file_paths)} files.\n\n"
-                            f"Total records imported: {total_records_imported:,}\n"
-                            f"Dashboard, trends, and analysis tabs have been updated.",
-                        )
+                        QtCore.QTimer.singleShot(100, self._show_success_message_and_close_progress)
+                        return
                     else:
                         self.progress_dialog.close()
                         QtWidgets.QMessageBox.warning(
@@ -3182,8 +2904,27 @@ Source: {result.get('source', 'unknown')} database
                         self, "Import Error", f"Error importing log file: {str(e)}"
                     )
 
+            def _show_success_message_and_close_progress(self):
+                """Show success message and close progress dialog"""
+                try:
+                    if hasattr(self, 'progress_dialog') and self.progress_dialog:
+                        self.progress_dialog.close()
+                    
+                    # Get the latest data for success message
+                    total_records = len(self.df) if hasattr(self, 'df') and not self.df.empty else 0
+                    
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "Multi-File Import Successful",
+                        f"File processing completed successfully!\n\n"
+                        f"Total records now available: {total_records:,}\n"
+                        f"Dashboard, trends, and analysis tabs have been updated.",
+                    )
+                except Exception as e:
+                    print(f"Error showing success message: {e}")
+
             def _import_small_file_single(self, file_path):
-                """Import single small log file and return record count"""
+                """Import single small log file and return record count - simplified"""
                 try:
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
@@ -3196,27 +2937,14 @@ Source: {result.get('source', 'unknown')} database
                         return 0
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
-                    
-                    # Insert data in batch with timing
-                    import time
-                    start_time = time.time()
                     records_inserted = self.db.insert_data_batch(df)
-                    end_time = time.time()
-                    
-                    # Calculate and display performance metrics
-                    duration = end_time - start_time
-                    records_per_sec = records_inserted / duration if duration > 0 else 0
-                    
-                    print(f"Batch insert completed: {records_inserted} records in {duration:.2f}s ({records_per_sec:.1f} records/sec)")
                     
                     # Insert file metadata
-                    filename = os.path.basename(file_path)
-                    parsing_stats_json = "{}"
                     self.db.insert_file_metadata(
-                        filename=filename,
+                        filename=os.path.basename(file_path),
                         file_size=os.path.getsize(file_path),
                         records_imported=records_inserted,
-                        parsing_stats=parsing_stats_json,
+                        parsing_stats="{}",
                     )
                     
                     return records_inserted
@@ -3226,44 +2954,19 @@ Source: {result.get('source', 'unknown')} database
                     return 0
 
             def _import_large_file_single(self, file_path, file_size):
-                """Import single large log file and return record count with progress dialog"""
+                """Import single large log file and return record count"""
                 try:
-                    from progress_dialog import ProgressDialog
-                    
-                    # Create progress dialog
-                    progress_dialog = ProgressDialog()
-                    progress_dialog.setWindowTitle(f"Processing {os.path.basename(file_path)}")
-                    progress_dialog.setModal(True)
-                    progress_dialog.show()
-                    progress_dialog.set_phase("uploading", 0)
-                    progress_dialog.update_progress(0, "Preparing to read file...")
-                    QtWidgets.QApplication.processEvents()
-                    
                     from unified_parser import UnifiedParser
                     parser = UnifiedParser()
                     
-                    progress_dialog.update_progress(10, "Reading file...")
-                    QtWidgets.QApplication.processEvents()
-                    
                     print(f"Parsing large file {os.path.basename(file_path)}...")
-                    
-                    def progress_callback(percentage, message):
-                        progress_dialog.update_progress(percentage * 0.8, message)  # Reserve 20% for database
-                        QtWidgets.QApplication.processEvents()
-                    
-                    df = parser.parse_linac_file(file_path, chunk_size=5000, progress_callback=progress_callback)
+                    df = parser.parse_linac_file(file_path, chunk_size=5000)
                     
                     if df.empty:
-                        progress_dialog.close()
                         print(f"No valid data found in {os.path.basename(file_path)}")
                         return 0
                     
                     print(f"✓ Data cleaned: {len(df)} records ready for database")
-                    
-                    # Switch to saving phase
-                    progress_dialog.set_phase("saving", 80)
-                    progress_dialog.update_progress(85, "Saving to database...")
-                    QtWidgets.QApplication.processEvents()
                     
                     # Insert data in optimized batches with timing
                     import time
@@ -3298,8 +3001,6 @@ Source: {result.get('source', 'unknown')} database
                     
                 except Exception as e:
                     print(f"Error importing {os.path.basename(file_path)}: {e}")
-                    if 'progress_dialog' in locals():
-                        progress_dialog.close()
                     return 0
 
             def _import_small_file(self, file_path):
@@ -3359,7 +3060,7 @@ Source: {result.get('source', 'unknown')} database
                     self.load_dashboard()
                     self._initialize_trend_controls()
                     self.update_trend_combos()
-                    self.update_data_table()
+                    # Data table removed - skip update
                     self.update_analysis_tab()
 
                     # Initialize default trend displays
@@ -3491,7 +3192,7 @@ Source: {result.get('source', 'unknown')} database
                             self.load_dashboard()
                             self._initialize_trend_controls()
                             self.update_trend_combos()
-                            self.update_data_table()
+                    # Data table removed - skip update
                             self.update_analysis_tab()
 
                             # Initialize default trend displays
@@ -3822,7 +3523,7 @@ Source: {result.get('source', 'unknown')} database
                         self.load_dashboard()
                         self._initialize_trend_controls()
                         self.update_trend_combos()
-                        self.update_data_table()
+                    # Data table removed - skip update
                         self.update_analysis_tab()
 
                         # Initialize default trend displays
@@ -3935,8 +3636,6 @@ Source: {result.get('source', 'unknown')} database
                             self._initialize_trend_controls()
                         if hasattr(self, 'update_trend_combos'):
                             self.update_trend_combos()
-                        if hasattr(self, 'update_data_table'):
-                            self.update_data_table()
                         if hasattr(self, 'update_analysis_tab'):
                             self.update_analysis_tab()
                             
@@ -4008,7 +3707,7 @@ Source: {result.get('source', 'unknown')} database
                             self.load_dashboard()
                             self._initialize_trend_controls()
                             self.update_trend_combos()
-                            self.update_data_table()
+                    # Data table removed - skip update
                             self.update_analysis_tab()
                             QtCore.QTimer.singleShot(500, self._refresh_all_trends)
                             
