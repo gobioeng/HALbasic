@@ -21,10 +21,10 @@ class Ui_MainWindow:
         self.tab_widget = None
         
         # Dashboard components
-        self.dashboard_tab = None
-        self.status_label = None
-        self.record_count_label = None
-        self.file_count_label = None
+        #self.dashboard_tab = None
+        #self.status_label = None
+        #self.record_count_label = None
+        #self.file_count_label = None
         
         # Trends components
         self.trends_tab = None
@@ -176,7 +176,7 @@ class Ui_MainWindow:
         self.tab_widget = QTabWidget()
         
         # Dashboard tab
-        self.create_dashboard_tab()
+        #self.create_dashboard_tab()
         
         # Trends tab with sub-tabs
         self.create_trends_tab()
