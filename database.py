@@ -33,6 +33,17 @@ class DatabaseManager:
         self.connection_pool = {}
         self.prepared_statements = {}
         
+        # Initialize error handling system
+        self.error_manager = None
+        try:
+            from error_handling_system import ErrorHandlingManager, DatabaseResilienceManager
+            self.error_manager = ErrorHandlingManager()
+            self.db_resilience = DatabaseResilienceManager(self)
+            print("✓ Database resilience system initialized")
+        except ImportError:
+            print("Warning: Database resilience system not available")
+            self.db_resilience = None
+        
         # Setup crash recovery and backup system
         self._setup_database_resilience()
         
