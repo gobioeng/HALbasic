@@ -406,13 +406,26 @@ class UnifiedParser:
         chunk_size: int = 1000,
         progress_callback=None,
         cancel_callback=None,
+        enable_validation: bool = True,
     ) -> pd.DataFrame:
-        """Parse LINAC log file with optimized chunked processing for large files"""
+        """Parse LINAC log file with optimized chunked processing and real-time validation"""
         records = []
+        
+        # Initialize validator if validation is enabled
+        validator = None
+        if enable_validation:
+            try:
+                from data_validator import DataValidator
+                validator = DataValidator(self.parameter_mapping)
+                print("✓ Data validation enabled during parsing")
+            except ImportError as e:
+                print(f"⚠️ Could not import DataValidator: {e}")
+                enable_validation = False
 
         try:
             # Optimized file reading - stream processing instead of loading entire file
             self.parsing_stats["lines_processed"] = 0
+            chunk_count = 0
 
             # Get file size for better progress estimation
             import os
@@ -440,20 +453,42 @@ class UnifiedParser:
                     # Process chunk when it reaches desired size
                     if len(chunk_lines) >= chunk_size:
                         chunk_records = self._process_chunk_optimized(chunk_lines)
+                        
+                        # Validate chunk if validation is enabled
+                        if enable_validation and validator and chunk_records:
+                            chunk_df = pd.DataFrame(chunk_records)
+                            validation_result = validator.validate_chunk(chunk_df, chunk_count)
+                            
+                            # Add validation info to progress callback if available
+                            if progress_callback and validation_result:
+                                quality_score = validation_result.get('chunk_quality_score', 0)
+                                anomalies = validation_result.get('chunk_anomalies', 0)
+                                progress_msg = f"Processing line {self.parsing_stats['lines_processed']:,}... (Quality: {quality_score:.1f}%, Anomalies: {anomalies})"
+                            else:
+                                progress_msg = f"Processing line {self.parsing_stats['lines_processed']:,}..."
+                        else:
+                            progress_msg = f"Processing line {self.parsing_stats['lines_processed']:,}..."
+                        
                         records.extend(chunk_records)
-
                         self.parsing_stats["lines_processed"] += len(chunk_lines)
+                        chunk_count += 1
 
                         if progress_callback:
                             # Better progress calculation
                             progress = min(95.0, (self.parsing_stats["lines_processed"] / max(estimated_total_lines, line_number)) * 100.0)
-                            progress_callback(progress, f"Processing line {self.parsing_stats['lines_processed']:,}...")
+                            progress_callback(progress, progress_msg)
 
                         chunk_lines = []  # Reset chunk
 
                 # Process remaining lines
                 if chunk_lines:
                     chunk_records = self._process_chunk_optimized(chunk_lines)
+                    
+                    # Validate final chunk
+                    if enable_validation and validator and chunk_records:
+                        chunk_df = pd.DataFrame(chunk_records)
+                        validator.validate_chunk(chunk_df, chunk_count)
+                    
                     records.extend(chunk_records)
                     self.parsing_stats["lines_processed"] += len(chunk_lines)
 
@@ -462,6 +497,14 @@ class UnifiedParser:
             self.parsing_stats["errors_encountered"] += 1
 
         df = pd.DataFrame(records)
+        
+        # Store validation results in parsing stats if validation was performed
+        if enable_validation and validator:
+            validation_summary = validator.get_validation_summary()
+            self.parsing_stats["validation_summary"] = validation_summary
+            print(f"✓ Validation completed - Quality Score: {validation_summary['overall_quality_score']:.1f}%, "
+                  f"Anomalies: {validation_summary['total_anomalies']}")
+        
         return self._clean_and_validate_data(df)
 
     def _process_chunk(self, chunk_lines: List[Tuple[int, str]]) -> List[Dict]:

@@ -33,6 +33,17 @@ class DatabaseManager:
         self.connection_pool = {}
         self.prepared_statements = {}
         
+        # Initialize error handling system
+        self.error_manager = None
+        try:
+            from error_handling_system import ErrorHandlingManager, DatabaseResilienceManager
+            self.error_manager = ErrorHandlingManager()
+            self.db_resilience = DatabaseResilienceManager(self)
+            print("✓ Database resilience system initialized")
+        except ImportError:
+            print("Warning: Database resilience system not available")
+            self.db_resilience = None
+        
         # Setup crash recovery and backup system
         self._setup_database_resilience()
         
@@ -139,6 +150,29 @@ class DatabaseManager:
                     records_imported INTEGER,
                     import_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     parsing_stats TEXT
+                )
+            """
+            )
+            
+            # Create import validation log table
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS import_validation_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT NOT NULL,
+                    import_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    overall_quality_score REAL,
+                    total_anomalies INTEGER DEFAULT 0,
+                    completeness_percentage REAL,
+                    records_processed INTEGER,
+                    records_passed INTEGER,
+                    records_failed INTEGER,
+                    validation_warnings_count INTEGER DEFAULT 0,
+                    validation_errors_count INTEGER DEFAULT 0,
+                    quality_grade TEXT,
+                    detailed_warnings TEXT,  -- JSON string of warnings
+                    detailed_errors TEXT,    -- JSON string of errors
+                    validation_report TEXT   -- Full validation report
                 )
             """
             )
@@ -316,6 +350,79 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error inserting file metadata: {e}")
             traceback.print_exc()
+    
+    def insert_validation_log(
+        self, filename: str, validation_summary: Dict, validation_report: str = ""
+    ):
+        """Insert validation results into import_validation_log table"""
+        try:
+            with self.get_connection() as conn:
+                import json
+                
+                # Extract validation summary data
+                quality_score = validation_summary.get('overall_quality_score', 0.0)
+                total_anomalies = validation_summary.get('total_anomalies', 0)
+                completeness = validation_summary.get('completeness_percentage', 0.0)
+                records_processed = validation_summary.get('records_processed', 0)
+                records_passed = validation_summary.get('records_passed', 0)
+                records_failed = validation_summary.get('records_failed', 0)
+                warnings_count = validation_summary.get('validation_warnings_count', 0)
+                errors_count = validation_summary.get('validation_errors_count', 0)
+                quality_grade = validation_summary.get('quality_grade', 'F')
+                
+                # Convert warnings and errors to JSON strings
+                warnings_json = json.dumps(validation_summary.get('detailed_warnings', []))
+                errors_json = json.dumps(validation_summary.get('detailed_errors', []))
+                
+                conn.execute(
+                    """
+                    INSERT INTO import_validation_log
+                    (filename, overall_quality_score, total_anomalies, completeness_percentage,
+                     records_processed, records_passed, records_failed,
+                     validation_warnings_count, validation_errors_count, quality_grade,
+                     detailed_warnings, detailed_errors, validation_report)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (filename, quality_score, total_anomalies, completeness,
+                     records_processed, records_passed, records_failed,
+                     warnings_count, errors_count, quality_grade,
+                     warnings_json, errors_json, validation_report),
+                )
+                
+                print(f"✓ Validation log inserted for {filename}")
+                
+        except Exception as e:
+            print(f"Error inserting validation log: {e}")
+            traceback.print_exc()
+    
+    def get_validation_history(self, limit: int = 50) -> pd.DataFrame:
+        """Get validation history from import_validation_log table"""
+        try:
+            with self.get_connection() as conn:
+                query = """
+                    SELECT
+                        filename,
+                        import_timestamp,
+                        overall_quality_score,
+                        total_anomalies,
+                        completeness_percentage,
+                        records_processed,
+                        records_passed,
+                        records_failed,
+                        quality_grade
+                    FROM import_validation_log
+                    ORDER BY import_timestamp DESC
+                    LIMIT ?
+                """
+                
+                return pd.read_sql_query(
+                    query, conn, params=[limit], parse_dates=["import_timestamp"]
+                )
+                
+        except Exception as e:
+            print(f"Error retrieving validation history: {e}")
+            traceback.print_exc()
+            return pd.DataFrame()
 
     def get_all_logs(
         self, limit: Optional[int] = None, chunk_size: int = None
