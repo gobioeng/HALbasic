@@ -787,6 +787,10 @@ class HALogApp:
                     if hasattr(self.ui, 'btnMultiMachineSelect'):
                         self.ui.btnMultiMachineSelect.clicked.connect(self.open_multi_machine_selection)
                         print("✓ Multi-machine selection button connected")
+                        
+                    if hasattr(self.ui, 'btnMachineComparison'):
+                        self.ui.btnMachineComparison.clicked.connect(self.open_machine_comparison_dialog)
+                        print("✓ Machine comparison button connected")
 
                     # Legacy trend controls (keep for backward compatibility)
                     if hasattr(self.ui, 'comboTrendSerial'):
@@ -3978,7 +3982,7 @@ Source: {result.get('source', 'unknown')} database
                     current_selected = self.machine_manager.get_selected_machines()
                     
                     dialog = MultiMachineSelectionDialog(
-                        available_machines, current_selected, parent=self
+                        available_machines, current_selected, self.machine_manager, parent=self
                     )
                     
                     if dialog.exec_() == QtWidgets.QDialog.Accepted:
@@ -4036,6 +4040,40 @@ Source: {result.get('source', 'unknown')} database
                     traceback.print_exc()
                     QtWidgets.QMessageBox.warning(
                         self, "Error", f"Error opening multi-machine selection: {str(e)}"
+                    )
+
+            def open_machine_comparison_dialog(self):
+                """Open machine comparison dialog for detailed A vs B analysis"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
+                        QtWidgets.QMessageBox.warning(
+                            self, "No Data", "Please import log files first to enable machine comparison."
+                        )
+                        return
+                    
+                    available_machines = self.machine_manager.get_available_machines()
+                    
+                    if len(available_machines) < 2:
+                        QtWidgets.QMessageBox.information(
+                            self, "Insufficient Machines", 
+                            "Need at least 2 machines to perform comparison. Currently available: " +
+                            (", ".join(available_machines) if available_machines else "None")
+                        )
+                        return
+                    
+                    # Import and open the comparison dialog
+                    from main_window import MachineComparisonDialog
+                    
+                    dialog = MachineComparisonDialog(self.machine_manager, parent=self)
+                    dialog.show()  # Use show() instead of exec_() for non-modal
+                    
+                    print(f"🔧 Machine comparison dialog opened with {len(available_machines)} machines")
+                    
+                except Exception as e:
+                    print(f"Error opening machine comparison dialog: {e}")
+                    traceback.print_exc()
+                    QtWidgets.QMessageBox.warning(
+                        self, "Error", f"Error opening machine comparison dialog: {str(e)}"
                     )
 
             def closeEvent(self, event):
