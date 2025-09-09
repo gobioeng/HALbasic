@@ -17,6 +17,19 @@ from typing import Dict, List, Optional, Any
 from database import DatabaseManager
 
 
+# Professional color palette for multi-machine visualization (10+ distinct colors)
+MACHINE_COLORS = {
+    'default': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5'],
+    'palette': {
+        'blue': '#1f77b4', 'orange': '#ff7f0e', 'green': '#2ca02c', 
+        'red': '#d62728', 'purple': '#9467bd', 'brown': '#8c564b',
+        'pink': '#e377c2', 'gray': '#7f7f7f', 'olive': '#bcbd22', 'cyan': '#17becf'
+    }
+}
+
+
 class MachineManager:
     """Manages machine-specific datasets and analysis contexts for multi-machine support"""
     
@@ -321,6 +334,343 @@ class MachineManager:
                 result[machine_id] = machine_data
         return result
     
+    def get_machine_color(self, machine_id: str) -> str:
+        """Get consistently assigned color for a machine ID
+        
+        Args:
+            machine_id: Machine ID to get color for
+            
+        Returns:
+            Hex color code for the machine
+        """
+        available_machines = self.get_available_machines()
+        
+        # Create consistent mapping by sorting machine IDs alphabetically  
+        if machine_id in available_machines:
+            index = sorted(available_machines).index(machine_id)
+            color_index = index % len(MACHINE_COLORS['default'])
+            return MACHINE_COLORS['default'][color_index]
+        
+        # Fallback to default blue for unknown machines
+        return MACHINE_COLORS['palette']['blue']
+    
+    def get_machine_metadata(self, machine_id: str) -> dict:
+        """Get machine metadata including color, display name, and status
+        
+        Args:
+            machine_id: Machine ID to get metadata for
+            
+        Returns:
+            Dictionary with color, display_name, status information
+        """
+        try:
+            available_machines = self.get_available_machines()
+            
+            if machine_id not in available_machines and machine_id != "All Machines":
+                return {
+                    'machine_id': machine_id,
+                    'color': MACHINE_COLORS['palette']['gray'],
+                    'display_name': machine_id,
+                    'status': 'unknown',
+                    'available': False
+                }
+            
+            # Get basic summary for status determination
+            summary = self.get_machine_summary(machine_id)
+            
+            # Determine status based on data availability
+            status = 'active'
+            if summary.get('record_count', 0) == 0:
+                status = 'inactive'
+            elif summary.get('parameter_count', 0) < 3:
+                status = 'limited'
+                
+            return {
+                'machine_id': machine_id,
+                'color': self.get_machine_color(machine_id),
+                'display_name': machine_id.replace('_', ' ').title(),
+                'status': status,
+                'available': True,
+                'record_count': summary.get('record_count', 0),
+                'parameter_count': summary.get('parameter_count', 0),
+                'date_range': (summary.get('start_date'), summary.get('end_date'))
+            }
+            
+        except Exception as e:
+            print(f"Error getting machine metadata for {machine_id}: {e}")
+            return {
+                'machine_id': machine_id,
+                'color': MACHINE_COLORS['palette']['gray'],
+                'display_name': machine_id,
+                'status': 'error',
+                'available': False
+            }
+    
+    def get_machine_comparison_data(self, machine1_id: str, machine2_id: str, parameter: str) -> dict:
+        """Get comparison data between two machines for a specific parameter
+        
+        Args:
+            machine1_id: First machine ID
+            machine2_id: Second machine ID  
+            parameter: Parameter type to compare
+            
+        Returns:
+            Dictionary with comparison data for both machines
+        """
+        try:
+            comparison_data = {
+                'machine1': {'id': machine1_id, 'data': pd.DataFrame()},
+                'machine2': {'id': machine2_id, 'data': pd.DataFrame()},
+                'parameter': parameter,
+                'comparison_stats': {},
+                'correlation': None
+            }
+            
+            # Get data for each machine
+            for machine_key, machine_id in [('machine1', machine1_id), ('machine2', machine2_id)]:
+                # Temporarily set selected machine to get filtered data
+                original_selection = self._selected_machine
+                self.set_selected_machine(machine_id)
+                
+                # Get parameter-specific data
+                with self.db.get_connection() as conn:
+                    query = """
+                        SELECT datetime, value, statistic_type, unit
+                        FROM water_logs 
+                        WHERE serial_number = ? AND parameter_type = ?
+                        ORDER BY datetime
+                    """
+                    data = pd.read_sql_query(
+                        query, conn, 
+                        params=[machine_id, parameter],
+                        parse_dates=['datetime']
+                    )
+                    
+                if not data.empty:
+                    # Calculate statistics for this machine
+                    avg_data = data[data['statistic_type'] == 'avg']['value']
+                    if not avg_data.empty:
+                        comparison_data[machine_key]['data'] = data
+                        comparison_data[machine_key]['stats'] = {
+                            'mean': avg_data.mean(),
+                            'std': avg_data.std(),
+                            'min': avg_data.min(), 
+                            'max': avg_data.max(),
+                            'count': len(avg_data)
+                        }
+                
+                # Restore original selection
+                self.set_selected_machine(original_selection)
+            
+            # Calculate cross-machine comparison statistics
+            if (not comparison_data['machine1']['data'].empty and 
+                not comparison_data['machine2']['data'].empty):
+                
+                m1_avg = comparison_data['machine1']['data'][comparison_data['machine1']['data']['statistic_type'] == 'avg']['value']
+                m2_avg = comparison_data['machine2']['data'][comparison_data['machine2']['data']['statistic_type'] == 'avg']['value']
+                
+                if len(m1_avg) > 1 and len(m2_avg) > 1:
+                    # Calculate correlation if we have enough data points
+                    min_len = min(len(m1_avg), len(m2_avg))
+                    try:
+                        correlation = m1_avg.iloc[:min_len].corr(m2_avg.iloc[:min_len])
+                        comparison_data['correlation'] = correlation
+                    except:
+                        comparison_data['correlation'] = None
+                
+                comparison_data['comparison_stats'] = {
+                    'mean_difference': comparison_data['machine1']['stats']['mean'] - comparison_data['machine2']['stats']['mean'],
+                    'std_difference': comparison_data['machine1']['stats']['std'] - comparison_data['machine2']['stats']['std'],
+                    'range_overlap': self._calculate_range_overlap(
+                        comparison_data['machine1']['stats'],
+                        comparison_data['machine2']['stats']
+                    )
+                }
+            
+            return comparison_data
+            
+        except Exception as e:
+            print(f"Error getting machine comparison data: {e}")
+            return {
+                'machine1': {'id': machine1_id, 'data': pd.DataFrame()},
+                'machine2': {'id': machine2_id, 'data': pd.DataFrame()},
+                'parameter': parameter,
+                'error': str(e)
+            }
+    
+    def get_multi_machine_stats(self) -> dict:
+        """Get comprehensive statistics for all machines
+        
+        Returns:
+            Dictionary with per-machine statistics and fleet summaries
+        """
+        try:
+            available_machines = self.get_available_machines()
+            
+            if not available_machines:
+                return {'machines': {}, 'fleet_stats': {}, 'error': 'No machines available'}
+            
+            machine_stats = {}
+            fleet_totals = {
+                'total_records': 0,
+                'total_parameters': set(),
+                'date_range': {'earliest': None, 'latest': None}
+            }
+            
+            # Get statistics for each machine
+            for machine_id in available_machines:
+                try:
+                    summary = self.get_machine_summary(machine_id)
+                    metadata = self.get_machine_metadata(machine_id)
+                    
+                    machine_stats[machine_id] = {
+                        **summary,
+                        **metadata,
+                        'performance_rank': 0  # Will be calculated later
+                    }
+                    
+                    # Accumulate fleet statistics
+                    fleet_totals['total_records'] += summary.get('record_count', 0)
+                    
+                    # Track date range
+                    start_date = summary.get('start_date')
+                    end_date = summary.get('end_date')
+                    
+                    if start_date and (not fleet_totals['date_range']['earliest'] or start_date < fleet_totals['date_range']['earliest']):
+                        fleet_totals['date_range']['earliest'] = start_date
+                        
+                    if end_date and (not fleet_totals['date_range']['latest'] or end_date > fleet_totals['date_range']['latest']):
+                        fleet_totals['date_range']['latest'] = end_date
+                        
+                except Exception as e:
+                    print(f"Error getting stats for machine {machine_id}: {e}")
+                    continue
+            
+            # Calculate performance rankings
+            machine_records = [(mid, stats.get('record_count', 0)) for mid, stats in machine_stats.items()]
+            machine_records.sort(key=lambda x: x[1], reverse=True)
+            
+            for rank, (machine_id, _) in enumerate(machine_records, 1):
+                if machine_id in machine_stats:
+                    machine_stats[machine_id]['performance_rank'] = rank
+            
+            fleet_stats = {
+                'total_machines': len(available_machines),
+                'active_machines': sum(1 for stats in machine_stats.values() if stats.get('status') == 'active'),
+                'total_records': fleet_totals['total_records'],
+                'average_records_per_machine': fleet_totals['total_records'] / len(available_machines) if available_machines else 0,
+                'fleet_date_range': fleet_totals['date_range']
+            }
+            
+            return {
+                'machines': machine_stats,
+                'fleet_stats': fleet_stats,
+                'color_mapping': {mid: self.get_machine_color(mid) for mid in available_machines}
+            }
+            
+        except Exception as e:
+            print(f"Error getting multi-machine stats: {e}")
+            return {'machines': {}, 'fleet_stats': {}, 'error': str(e)}
+    
+    def export_machine_comparison(self, machines: List[str], parameters: List[str]) -> pd.DataFrame:
+        """Export machine comparison data for specified machines and parameters
+        
+        Args:
+            machines: List of machine IDs to include
+            parameters: List of parameters to compare
+            
+        Returns:
+            DataFrame with comparison data suitable for export
+        """
+        try:
+            export_data = []
+            
+            for machine_id in machines:
+                machine_metadata = self.get_machine_metadata(machine_id)
+                
+                for parameter in parameters:
+                    # Get parameter data for this machine
+                    with self.db.get_connection() as conn:
+                        query = """
+                            SELECT datetime, value, statistic_type, unit
+                            FROM water_logs 
+                            WHERE serial_number = ? AND parameter_type = ?
+                            ORDER BY datetime
+                        """
+                        data = pd.read_sql_query(
+                            query, conn,
+                            params=[machine_id, parameter],
+                            parse_dates=['datetime']
+                        )
+                    
+                    if not data.empty:
+                        # Calculate summary statistics for export
+                        for stat_type in ['avg', 'min', 'max']:
+                            stat_data = data[data['statistic_type'] == stat_type]
+                            if not stat_data.empty:
+                                export_row = {
+                                    'Machine_ID': machine_id,
+                                    'Machine_Color': machine_metadata['color'],
+                                    'Parameter': parameter,
+                                    'Statistic_Type': stat_type,
+                                    'Value_Mean': stat_data['value'].mean(),
+                                    'Value_Std': stat_data['value'].std(),
+                                    'Value_Min': stat_data['value'].min(),
+                                    'Value_Max': stat_data['value'].max(),
+                                    'Data_Points': len(stat_data),
+                                    'Unit': stat_data['unit'].iloc[0] if not stat_data['unit'].isna().all() else '',
+                                    'Date_Range_Start': stat_data['datetime'].min(),
+                                    'Date_Range_End': stat_data['datetime'].max(),
+                                    'Machine_Status': machine_metadata['status']
+                                }
+                                export_data.append(export_row)
+            
+            if export_data:
+                return pd.DataFrame(export_data)
+            else:
+                # Return empty DataFrame with proper column structure
+                return pd.DataFrame(columns=[
+                    'Machine_ID', 'Machine_Color', 'Parameter', 'Statistic_Type',
+                    'Value_Mean', 'Value_Std', 'Value_Min', 'Value_Max', 'Data_Points',
+                    'Unit', 'Date_Range_Start', 'Date_Range_End', 'Machine_Status'
+                ])
+                
+        except Exception as e:
+            print(f"Error exporting machine comparison: {e}")
+            return pd.DataFrame()
+    
+    def _calculate_range_overlap(self, stats1: dict, stats2: dict) -> float:
+        """Calculate the overlap percentage between two machines' parameter ranges
+        
+        Args:
+            stats1: Statistics for first machine
+            stats2: Statistics for second machine
+            
+        Returns:
+            Overlap percentage (0.0 to 1.0)
+        """
+        try:
+            min1, max1 = stats1['min'], stats1['max']
+            min2, max2 = stats2['min'], stats2['max']
+            
+            # Calculate overlap
+            overlap_start = max(min1, min2)
+            overlap_end = min(max1, max2)
+            
+            if overlap_start >= overlap_end:
+                return 0.0  # No overlap
+            
+            overlap_range = overlap_end - overlap_start
+            total_range = max(max1, max2) - min(min1, min2)
+            
+            if total_range == 0:
+                return 1.0  # Both ranges are single points and they overlap
+                
+            return overlap_range / total_range
+            
+        except Exception:
+            return 0.0
+
     def get_machine_color_scheme(self) -> Dict[str, str]:
         """Get color scheme for multi-machine visualization
         
@@ -329,22 +679,8 @@ class MachineManager:
         """
         machines = self.get_available_machines() if not self._selected_machines else self._selected_machines
         
-        # Professional color palette for multiple machines
-        colors = [
-            '#2196F3',  # Blue
-            '#4CAF50',  # Green  
-            '#FF9800',  # Orange
-            '#9C27B0',  # Purple
-            '#F44336',  # Red
-            '#00BCD4',  # Cyan
-            '#795548',  # Brown
-            '#607D8B',  # Blue Grey
-            '#E91E63',  # Pink
-            '#3F51B5',  # Indigo
-        ]
-        
         machine_colors = {}
-        for i, machine in enumerate(machines):
-            machine_colors[machine] = colors[i % len(colors)]
+        for machine in machines:
+            machine_colors[machine] = self.get_machine_color(machine)
         
         return machine_colors

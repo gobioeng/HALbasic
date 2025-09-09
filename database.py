@@ -6,7 +6,7 @@ Enhanced with backup and recovery capabilities
 
 import sqlite3
 import pandas as pd
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any, Tuple
 import os
 from functools import reduce
 import time
@@ -888,6 +888,231 @@ class DatabaseManager:
         except:
             pass
     
+    def get_machine_performance_metrics(self, machine_id: str, date_range: tuple = None) -> Dict[str, Any]:
+        """Get performance metrics for a specific machine within a date range
+        
+        Args:
+            machine_id: Machine ID to analyze
+            date_range: Tuple of (start_date, end_date) as strings
+            
+        Returns:
+            Dictionary with performance metrics
+        """
+        try:
+            with self.get_connection() as conn:
+                # Base query
+                base_query = """
+                    SELECT parameter_type, statistic_type, value, datetime, unit
+                    FROM water_logs 
+                    WHERE serial_number = ?
+                """
+                params = [machine_id]
+                
+                # Add date range filter if provided
+                if date_range and len(date_range) == 2:
+                    base_query += " AND datetime BETWEEN ? AND ?"
+                    params.extend(date_range)
+                
+                base_query += " ORDER BY datetime"
+                
+                data = pd.read_sql_query(
+                    base_query, conn, params=params, parse_dates=['datetime']
+                )
+                
+                if data.empty:
+                    return {'machine_id': machine_id, 'metrics': {}, 'error': 'No data found'}
+                
+                metrics = {
+                    'machine_id': machine_id,
+                    'date_range': {
+                        'start': data['datetime'].min(),
+                        'end': data['datetime'].max(),
+                        'span_days': (data['datetime'].max() - data['datetime'].min()).days
+                    },
+                    'data_volume': {
+                        'total_records': len(data),
+                        'unique_parameters': data['parameter_type'].nunique(),
+                        'parameters': list(data['parameter_type'].unique())
+                    },
+                    'parameter_metrics': {}
+                }
+                
+                # Calculate metrics per parameter
+                for parameter in data['parameter_type'].unique():
+                    param_data = data[data['parameter_type'] == parameter]
+                    
+                    # Get statistics for this parameter
+                    param_metrics = {
+                        'record_count': len(param_data),
+                        'statistics': {}
+                    }
+                    
+                    for stat_type in ['avg', 'min', 'max']:
+                        stat_data = param_data[param_data['statistic_type'] == stat_type]['value'].dropna()
+                        if not stat_data.empty:
+                            param_metrics['statistics'][stat_type] = {
+                                'mean': stat_data.mean(),
+                                'std': stat_data.std(),
+                                'min': stat_data.min(),
+                                'max': stat_data.max(),
+                                'count': len(stat_data)
+                            }
+                    
+                    metrics['parameter_metrics'][parameter] = param_metrics
+                
+                return metrics
+                
+        except Exception as e:
+            print(f"Error getting machine performance metrics: {e}")
+            return {'machine_id': machine_id, 'metrics': {}, 'error': str(e)}
+    
+    def get_machine_comparison_stats(self, machine_ids: List[str], parameters: List[str]) -> pd.DataFrame:
+        """Get comparison statistics for multiple machines and parameters
+        
+        Args:
+            machine_ids: List of machine IDs to compare
+            parameters: List of parameters to include in comparison
+            
+        Returns:
+            DataFrame with comparison statistics
+        """
+        try:
+            if not machine_ids or not parameters:
+                return pd.DataFrame()
+                
+            comparison_data = []
+            
+            with self.get_connection() as conn:
+                for machine_id in machine_ids:
+                    for parameter in parameters:
+                        # Get statistics for this machine-parameter combination
+                        query = """
+                            SELECT 
+                                serial_number,
+                                parameter_type,
+                                statistic_type,
+                                AVG(value) as avg_value,
+                                STDEV(value) as std_value,
+                                MIN(value) as min_value,
+                                MAX(value) as max_value,
+                                COUNT(value) as record_count,
+                                MIN(datetime) as start_date,
+                                MAX(datetime) as end_date
+                            FROM water_logs
+                            WHERE serial_number = ? AND parameter_type = ?
+                            GROUP BY serial_number, parameter_type, statistic_type
+                        """
+                        
+                        stats_data = pd.read_sql_query(
+                            query, conn, params=[machine_id, parameter],
+                            parse_dates=['start_date', 'end_date']
+                        )
+                        
+                        if not stats_data.empty:
+                            comparison_data.append(stats_data)
+            
+            if comparison_data:
+                result_df = pd.concat(comparison_data, ignore_index=True)
+                return result_df
+            else:
+                return pd.DataFrame()
+                
+        except Exception as e:
+            print(f"Error getting machine comparison stats: {e}")
+            return pd.DataFrame()
+    
+    def get_machine_alert_summary(self, machine_id: str) -> Dict[str, Any]:
+        """Get alert summary for a machine (status indicators)
+        
+        Args:
+            machine_id: Machine ID to check
+            
+        Returns:
+            Dictionary with alert information
+        """
+        try:
+            with self.get_connection() as conn:
+                # Get recent data (last 24 hours)
+                recent_data_query = """
+                    SELECT COUNT(*) as recent_records
+                    FROM water_logs 
+                    WHERE serial_number = ? 
+                    AND datetime >= datetime('now', '-24 hours')
+                """
+                recent_count = conn.execute(recent_data_query, (machine_id,)).fetchone()[0]
+                
+                # Get total parameters
+                param_query = """
+                    SELECT COUNT(DISTINCT parameter_type) as param_count
+                    FROM water_logs 
+                    WHERE serial_number = ?
+                """
+                param_count = conn.execute(param_query, (machine_id,)).fetchone()[0]
+                
+                # Get latest data timestamp
+                latest_query = """
+                    SELECT MAX(datetime) as latest_datetime
+                    FROM water_logs 
+                    WHERE serial_number = ?
+                """
+                latest_result = conn.execute(latest_query, (machine_id,)).fetchone()
+                latest_datetime = latest_result[0] if latest_result[0] else None
+                
+                # Determine alert level
+                alert_level = 'normal'
+                alerts = []
+                
+                if recent_count == 0:
+                    alert_level = 'critical'
+                    alerts.append("No data received in last 24 hours")
+                elif recent_count < 10:
+                    alert_level = 'warning'
+                    alerts.append("Low data volume in last 24 hours")
+                
+                if param_count < 3:
+                    if alert_level == 'normal':
+                        alert_level = 'warning'
+                    alerts.append("Limited parameter monitoring")
+                
+                # Check data age
+                if latest_datetime:
+                    try:
+                        latest_dt = pd.to_datetime(latest_datetime)
+                        hours_old = (pd.Timestamp.now() - latest_dt).total_seconds() / 3600
+                        
+                        if hours_old > 48:
+                            if alert_level == 'normal':
+                                alert_level = 'warning'
+                            alerts.append(f"Latest data is {hours_old:.1f} hours old")
+                    except:
+                        pass
+                
+                return {
+                    'machine_id': machine_id,
+                    'alert_level': alert_level,  # 'normal', 'warning', 'critical'
+                    'alerts': alerts,
+                    'metrics': {
+                        'recent_records': recent_count,
+                        'parameter_count': param_count,
+                        'latest_data': latest_datetime
+                    },
+                    'status_color': {
+                        'normal': '#4CAF50',    # Green
+                        'warning': '#FF9800',   # Orange
+                        'critical': '#F44336'  # Red
+                    }.get(alert_level, '#808080')
+                }
+                
+        except Exception as e:
+            print(f"Error getting machine alert summary: {e}")
+            return {
+                'machine_id': machine_id,
+                'alert_level': 'error',
+                'alerts': [f"Error checking machine status: {str(e)}"],
+                'metrics': {},
+                'status_color': '#808080'
+            }
+
     def get_unique_serial_numbers(self) -> List[str]:
         """Get list of unique serial numbers from the database
         
