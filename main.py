@@ -781,6 +781,10 @@ class HALogApp:
                         self.ui.btnRefreshAnalysis.clicked.connect(self.update_analysis_tab)
                     if hasattr(self.ui, 'comboAnalysisFilter'):
                         self.ui.comboAnalysisFilter.currentIndexChanged.connect(self._filter_analysis_results)
+                    if hasattr(self.ui, 'comboAnalysisMachine'):
+                        self.ui.comboAnalysisMachine.currentTextChanged.connect(
+                            lambda: self.update_analysis_tab() if hasattr(self, 'df') and not self.df.empty else None
+                        )
 
                     # FAULT CODE TAB ACTIONS
                     if hasattr(self.ui, 'btnSearchCode'):
@@ -1893,6 +1897,10 @@ Source: {result.get('source', 'unknown')} database
                     # First, populate machine selection dropdown
                     if hasattr(self, 'machine_manager') and hasattr(self.ui, 'cmbMachineSelect'):
                         self._populate_machine_dropdown()
+                        
+                    # Populate analysis machine dropdown
+                    if hasattr(self, 'machine_manager') and hasattr(self.ui, 'comboAnalysisMachine'):
+                        self._populate_analysis_machine_dropdown()
 
                     # First, load only summary data for faster startup
                     start_time = time.time()
@@ -2250,6 +2258,47 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error updating trend combos: {e}")
 
+            def _get_analysis_data(self):
+                """Get data for analysis based on selected machine in analysis tab"""
+                try:
+                    if not hasattr(self, "df") or self.df.empty:
+                        return pd.DataFrame()
+                    
+                    # Get selected machine from analysis dropdown
+                    selected_machine = "All Machines"
+                    if hasattr(self.ui, 'comboAnalysisMachine'):
+                        selected_machine = self.ui.comboAnalysisMachine.currentText()
+                    
+                    # If "All Machines" or no machine manager, return full data
+                    if (selected_machine == "All Machines" or 
+                        not hasattr(self, 'machine_manager') or 
+                        not self.machine_manager):
+                        return self.df.copy()
+                    
+                    # Filter data by selected machine
+                    analysis_df = self.df.copy()
+                    if 'serial' in analysis_df.columns:
+                        # Use the correct column name for machine filtering
+                        serial_col = 'serial'
+                    elif 'serial_number' in analysis_df.columns:
+                        serial_col = 'serial_number'
+                    else:
+                        # No machine column found, return all data
+                        return analysis_df
+                    
+                    # Filter by selected machine
+                    filtered_df = analysis_df[analysis_df[serial_col] == selected_machine].copy()
+                    
+                    if filtered_df.empty:
+                        print(f"No data found for machine: {selected_machine}")
+                        return pd.DataFrame()
+                    
+                    return filtered_df
+                    
+                except Exception as e:
+                    print(f"Error getting analysis data: {e}")
+                    return self.df.copy() if hasattr(self, 'df') else pd.DataFrame()
+
             def update_analysis_tab(self):
                 """Update analysis tab with professional progress"""
                 try:
@@ -2271,7 +2320,8 @@ Source: {result.get('source', 'unknown')} database
                             progress_dialog.show()
 
                             analyzer = DataAnalyzer()
-                            worker = AnalysisWorker(analyzer, self.df)
+                            analysis_data = self._get_analysis_data()
+                            worker = AnalysisWorker(analyzer, analysis_data)
 
                             # Track worker for cleanup
                             if not hasattr(self, '_active_analysis_workers'):
@@ -2317,7 +2367,8 @@ Source: {result.get('source', 'unknown')} database
 
                     analyzer = DataAnalyzer()
 
-                    analysis_df = self.df.copy()
+                    # Get machine-filtered data for analysis
+                    analysis_df = self._get_analysis_data()
 
                     if (
                         "param" in analysis_df.columns
@@ -3615,6 +3666,40 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error populating machine dropdown: {e}")
                     traceback.print_exc()
+
+            def _populate_analysis_machine_dropdown(self):
+                """Populate the analysis machine selection dropdown with available machines"""
+                try:
+                    if not hasattr(self, 'machine_manager') or not hasattr(self.ui, 'comboAnalysisMachine'):
+                        return
+                        
+                    # Get available machine options
+                    machine_options = self.machine_manager.get_machine_dropdown_options()
+                    current_text = self.ui.comboAnalysisMachine.currentText()
+                    
+                    # Temporarily disconnect signal to avoid recursion
+                    self.ui.comboAnalysisMachine.blockSignals(True)
+                    
+                    # Clear and populate dropdown
+                    self.ui.comboAnalysisMachine.clear()
+                    self.ui.comboAnalysisMachine.addItems(machine_options)
+                    
+                    # Auto-select "All Machines" for analysis by default
+                    if "All Machines" in machine_options:
+                        index = machine_options.index("All Machines")
+                        self.ui.comboAnalysisMachine.setCurrentIndex(index)
+                    elif current_text and current_text in machine_options:
+                        # Keep current selection if valid
+                        index = machine_options.index(current_text)
+                        self.ui.comboAnalysisMachine.setCurrentIndex(index)
+                    
+                    # Re-enable signals
+                    self.ui.comboAnalysisMachine.blockSignals(False)
+                    
+                    print(f"✓ Analysis machine dropdown populated with {len(machine_options)} options")
+                    
+                except Exception as e:
+                    print(f"Error populating analysis machine dropdown: {e}")
 
             def on_machine_selection_changed(self, machine_id: str):
                 """Handle machine selection change in dropdown"""

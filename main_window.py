@@ -997,6 +997,13 @@ class Ui_MainWindow(object):
         ])
         controls_layout.addWidget(self.comboAnalysisFilter)
         
+        # Machine selection for analysis
+        controls_layout.addWidget(QLabel("Machine:"))
+        self.comboAnalysisMachine = QComboBox()
+        self.comboAnalysisMachine.setMinimumWidth(150)
+        self.comboAnalysisMachine.addItems(["All Machines"])  # Will be populated dynamically
+        controls_layout.addWidget(self.comboAnalysisMachine)
+        
         # Refresh button
         self.btnRefreshAnalysis = QPushButton("Refresh Analysis")
         self.btnRefreshAnalysis.setObjectName("primaryButton")

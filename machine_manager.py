@@ -153,11 +153,15 @@ class MachineManager:
         
         # If multiple machines selected, return data for all selected machines
         if self.is_multi_machine_selected():
-            filtered_data = data[data['serial_number'].isin(self._selected_machines)].copy()
+            # Use 'serial' column name for DataFrames from get_all_logs()
+            serial_col = 'serial' if 'serial' in data.columns else 'serial_number'
+            filtered_data = data[data[serial_col].isin(self._selected_machines)].copy()
             return filtered_data
         
         # Filter by single selected machine
-        filtered_data = data[data['serial_number'] == self._selected_machine].copy()
+        # Use 'serial' column name for DataFrames from get_all_logs()
+        serial_col = 'serial' if 'serial' in data.columns else 'serial_number'
+        filtered_data = data[data[serial_col] == self._selected_machine].copy()
         return filtered_data
     
     def get_machine_summary(self, machine_id: str = None) -> Dict[str, Any]:
@@ -299,16 +303,20 @@ class MachineManager:
         if not self._selected_machines or len(self._selected_machines) == 0:
             available_machines = self.get_available_machines()
             result = {}
+            # Use 'serial' column name for DataFrames from get_all_logs()
+            serial_col = 'serial' if 'serial' in data.columns else 'serial_number'
             for machine in available_machines:
-                machine_data = data[data['serial_number'] == machine].copy()
+                machine_data = data[data[serial_col] == machine].copy()
                 if not machine_data.empty:
                     result[machine] = machine_data
             return result
         
         # Return data for selected machines only
         result = {}
+        # Use 'serial' column name for DataFrames from get_all_logs()
+        serial_col = 'serial' if 'serial' in data.columns else 'serial_number'
         for machine_id in self._selected_machines:
-            machine_data = data[data['serial_number'] == machine_id].copy()
+            machine_data = data[data[serial_col] == machine_id].copy()
             if not machine_data.empty:
                 result[machine_id] = machine_data
         return result
