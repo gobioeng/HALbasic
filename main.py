@@ -498,6 +498,21 @@ class HALogApp:
                 """Safe attribute access method to prevent AttributeError"""
                 return getattr(self, attr_name, default_value)
 
+            def execute_with_retry(self, operation, *args, max_retries=3, delay=1, **kwargs):
+                """Execute operation with retry logic for database resilience"""
+                for attempt in range(max_retries):
+                    try:
+                        return operation(*args, **kwargs)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            print(f"Operation failed after {max_retries} attempts: {e}")
+                            raise e
+                        print(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
+                        import time
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                return None
+
             def apply_professional_styles(self):
                 """Apply comprehensive professional styling with VISIBLE MENU BAR"""
                 material_stylesheet = """
@@ -3711,7 +3726,7 @@ Source: {result.get('source', 'unknown')} database
                     
                     # Use error handling for database operations
                     if self.safe_get_attribute('db_resilience', True):
-                        records_inserted = self.db_resilience.execute_with_retry(
+                        records_inserted = self.execute_with_retry(
                             self.db.insert_data_batch, df, batch_size=500
                         )
                     else:
@@ -3758,7 +3773,7 @@ Source: {result.get('source', 'unknown')} database
                         filename = os.path.basename(file_path)
                         parsing_stats_json = "{}"
                         if self.safe_get_attribute('db_resilience', True):
-                            self.db_resilience.execute_with_retry(
+                            self.execute_with_retry(
                                 self.db.insert_file_metadata,
                                 filename=filename,
                                 file_size=file_size,

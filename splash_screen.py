@@ -89,28 +89,28 @@ class MinimalisticSplashScreen(QSplashScreen):
             painter.setFont(font)
             painter.drawText(logo_x, logo_y, logo_size, logo_size, Qt.AlignCenter, "HA")
         
-        # App name
-        painter.setPen(QColor(60, 60, 60))
-        font = QFont("Calibri", 15, QFont.Light)  # Changed to Calibri
+        # App name - Improved typography
+        painter.setPen(QColor(28, 28, 31))  # Darker text for better readability
+        font = QFont("Segoe UI", 20, QFont.Bold)  # Larger, bold font with better letter spacing
         painter.setFont(font)
-        name_y = logo_y + logo_size + 20
-        name_rect = QRect(0, name_y, pixmap.width(), 30)
-        painter.drawText(name_rect, Qt.AlignCenter, "HA[Log]")
+        name_y = logo_y + logo_size + 15  # Better spacing
+        name_rect = QRect(0, name_y, pixmap.width(), 35)
+        painter.drawText(name_rect, Qt.AlignCenter, "HALog")
         
-        # Subtitle
-        painter.setPen(QColor(120, 120, 120))
-        font = QFont("Calibri", 10, QFont.Normal)  # Changed to Calibri
+        # Subtitle - Improved spacing and typography
+        painter.setPen(QColor(102, 102, 102))  # Better contrast
+        font = QFont("Segoe UI", 11, QFont.Normal)  # Slightly larger for readability
         painter.setFont(font)
-        subtitle_y = name_y + 35
-        subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 20)
+        subtitle_y = name_y + 30  # Better spacing
+        subtitle_rect = QRect(0, subtitle_y, pixmap.width(), 22)
         painter.drawText(subtitle_rect, Qt.AlignCenter, "LINAC Log Analysis Tool")
         
-        # Version
-        painter.setPen(QColor(150, 150, 150))
-        font = QFont("Calibri", 9, QFont.Normal)  # Changed to Calibri
+        # Version - Better typography and spacing
+        painter.setPen(QColor(136, 136, 136))  # Improved color
+        font = QFont("Segoe UI", 10, QFont.Normal)  # Consistent font family
         painter.setFont(font)
-        version_y = subtitle_y + 25
-        version_rect = QRect(0, version_y, pixmap.width(), 15)
+        version_y = subtitle_y + 20  # Better spacing
+        version_rect = QRect(0, version_y, pixmap.width(), 18)
         painter.drawText(version_rect, Qt.AlignCenter, f"Version {self.app_version}")
         
         painter.end()
@@ -144,9 +144,10 @@ class MinimalisticSplashScreen(QSplashScreen):
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("""
             QLabel {
-                color: #888;
-                font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
-                font-size: 9px;
+                color: #555;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 10px;
+                font-weight: 400;
                 background: transparent;
             }
         """)
