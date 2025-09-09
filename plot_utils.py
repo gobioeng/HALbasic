@@ -25,7 +25,10 @@ import matplotlib.dates as mdates
 import pandas as pd
 import numpy as np
 from datetime import timedelta
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
+                            QCheckBox, QGroupBox, QSplitter, QTableWidget, QTableWidgetItem,
+                            QHeaderView, QPushButton, QDialog, QDialogButtonBox, QScrollArea)
+from PyQt5.QtCore import Qt, pyqtSignal
 from typing import Optional, Dict, List
 
 # Set matplotlib style for professional appearance
@@ -515,6 +518,102 @@ class EnhancedPlotWidget(QWidget):
             error_label.setStyleSheet("color: red; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7;")
             self.layout.addWidget(error_label)
     
+    def plot_multi_machine_parameter(self, data_dict: Dict[str, pd.DataFrame], parameter: str, colors: Dict[str, str]):
+        """Plot multi-machine parameter data with different colors per machine
+        
+        Args:
+            data_dict: Dictionary mapping machine IDs to their data
+            parameter: Parameter name for the plot title
+            colors: Dictionary mapping machine IDs to colors
+        """
+        try:
+            if self.figure is None:
+                return
+                
+            self.figure.clear()
+            ax = self.figure.add_subplot(111)
+            
+            # Apply professional styling
+            PlotUtils.setup_professional_style()
+            
+            if not data_dict:
+                ax.text(0.5, 0.5, f'No data available for {parameter}', 
+                       ha='center', va='center', transform=ax.transAxes, fontsize=14)
+                self.canvas.draw()
+                return
+
+            plotted_count = 0
+            legend_handles = []
+            legend_labels = []
+            
+            for machine_id, data in data_dict.items():
+                if data.empty:
+                    continue
+                    
+                # Process time data
+                if 'datetime' in data.columns:
+                    data_copy = data.copy()
+                    data_copy['datetime'] = pd.to_datetime(data_copy['datetime'])
+                    data_copy = data_copy.sort_values('datetime')
+                    
+                    color = colors.get(machine_id, '#1976D2')
+                    
+                    # Plot average values for multi-machine view
+                    if 'avg' in data_copy.columns:
+                        avg_data = data_copy.groupby(['datetime'])['avg'].mean().reset_index()
+                        if not avg_data.empty:
+                            line = ax.plot(avg_data['datetime'], avg_data['avg'], 
+                                         color=color, linewidth=2, marker='o', markersize=4,
+                                         alpha=0.8, label=machine_id)[0]
+                            legend_handles.append(line)
+                            legend_labels.append(machine_id)
+                            plotted_count += 1
+            
+            if plotted_count > 0:
+                ax.set_title(f"{parameter} - Multi-Machine Comparison", fontsize=12, fontweight='bold')
+                ax.set_xlabel('Time', fontsize=10)
+                ax.set_ylabel('Value', fontsize=10)
+                ax.grid(True, alpha=0.3)
+                
+                # Add legend with machine toggle capability
+                if legend_handles:
+                    legend = ax.legend(legend_handles, legend_labels, 
+                                     bbox_to_anchor=(1.05, 1), loc='upper left',
+                                     fontsize=9)
+                    legend.set_draggable(True)
+                
+                # Format datetime axis
+                if plotted_count > 0:
+                    try:
+                        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+                        self.figure.autofmt_xdate()
+                    except:
+                        pass  # Fallback if date formatting fails
+            else:
+                ax.text(0.5, 0.5, f'No valid data for {parameter}', 
+                       ha='center', va='center', transform=ax.transAxes, fontsize=14)
+            
+            self.figure.tight_layout()
+            
+            # Add interactive capabilities if canvas exists
+            if hasattr(self, 'canvas') and self.canvas:
+                self.canvas.draw()
+                
+                # Store machine visibility state for toggle functionality
+                if not hasattr(self, '_machine_visibility'):
+                    self._machine_visibility = {machine_id: True for machine_id in data_dict.keys()}
+                    
+        except Exception as e:
+            print(f"Error plotting multi-machine parameter: {e}")
+            if self.figure:
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                ax.text(0.5, 0.5, f'Plot error: {str(e)}', 
+                       ha='center', va='center', transform=ax.transAxes, 
+                       fontsize=12, color='red')
+                self.canvas.draw()
+
     def plot_parameter_trends(self, data: pd.DataFrame, parameter: str, 
                             title: str = "", show_statistics: bool = True):
         """Plot parameter trends with enhanced visualization using PlotUtils"""
@@ -806,6 +905,468 @@ class EnhancedDualPlotWidget(QWidget):
             # Y-axis label
             unit = data['unit'].iloc[0] if 'unit' in data.columns and not data.empty else ''
             ax.set_ylabel(f"Value ({unit})" if unit else "Value", fontsize=10)
+
+
+class MachineComparisonWidget(QWidget):
+    """Machine comparison widget with dual-pane comparison and synchronized plotting"""
+    
+    def __init__(self, machine_manager, parent=None):
+        super().__init__(parent)
+        self.machine_manager = machine_manager
+        self.init_ui()
+        
+    def init_ui(self):
+        """Initialize the machine comparison UI"""
+        layout = QVBoxLayout(self)
+        
+        # Machine selection panel
+        selection_panel = self.create_machine_selection_panel()
+        layout.addWidget(selection_panel)
+        
+        # Comparison content (splitter with two panes)
+        self.comparison_splitter = QSplitter(Qt.Horizontal)
+        
+        # Left pane - Machine A
+        self.machine_a_widget = self.create_machine_pane("Machine A")
+        self.comparison_splitter.addWidget(self.machine_a_widget)
+        
+        # Right pane - Machine B  
+        self.machine_b_widget = self.create_machine_pane("Machine B")
+        self.comparison_splitter.addWidget(self.machine_b_widget)
+        
+        layout.addWidget(self.comparison_splitter)
+        
+        # Statistics comparison table
+        self.stats_table = self.create_comparison_table()
+        layout.addWidget(self.stats_table)
+        
+    def create_machine_selection_panel(self):
+        """Create the machine selection panel"""
+        panel = QGroupBox("Machine Selection")
+        layout = QHBoxLayout(panel)
+        
+        # Machine A selector
+        layout.addWidget(QLabel("Machine A:"))
+        self.machine_a_combo = QComboBox()
+        self.machine_a_combo.currentTextChanged.connect(self.on_machine_selection_changed)
+        layout.addWidget(self.machine_a_combo)
+        
+        # Machine B selector
+        layout.addWidget(QLabel("Machine B:"))
+        self.machine_b_combo = QComboBox()
+        self.machine_b_combo.currentTextChanged.connect(self.on_machine_selection_changed)
+        layout.addWidget(self.machine_b_combo)
+        
+        # Parameter selector
+        layout.addWidget(QLabel("Parameter:"))
+        self.parameter_combo = QComboBox()
+        self.parameter_combo.currentTextChanged.connect(self.on_parameter_changed)
+        layout.addWidget(self.parameter_combo)
+        
+        # Refresh button
+        refresh_btn = QPushButton("Refresh Comparison")
+        refresh_btn.clicked.connect(self.refresh_comparison)
+        layout.addWidget(refresh_btn)
+        
+        # Populate combos
+        self.populate_machine_combos()
+        self.populate_parameter_combo()
+        
+        return panel
+    
+    def create_machine_pane(self, title: str):
+        """Create a machine comparison pane"""
+        pane = QGroupBox(title)
+        layout = QVBoxLayout(pane)
+        
+        # Plot widget for this machine
+        plot_widget = EnhancedPlotWidget()
+        layout.addWidget(plot_widget)
+        
+        return pane
+    
+    def create_comparison_table(self):
+        """Create the statistical comparison table"""
+        table = QTableWidget()
+        table.setColumnCount(3)
+        table.setHorizontalHeaderLabels(["Statistic", "Machine A", "Machine B"])
+        
+        # Set table properties
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setAlternatingRowColors(True)
+        table.setMaximumHeight(200)
+        
+        return table
+    
+    def populate_machine_combos(self):
+        """Populate machine selection combo boxes"""
+        if not self.machine_manager:
+            return
+            
+        machines = self.machine_manager.get_available_machines()
+        
+        self.machine_a_combo.clear()
+        self.machine_b_combo.clear()
+        
+        self.machine_a_combo.addItem("Select Machine A...")
+        self.machine_b_combo.addItem("Select Machine B...")
+        
+        for machine in machines:
+            self.machine_a_combo.addItem(machine)
+            self.machine_b_combo.addItem(machine)
+    
+    def populate_parameter_combo(self):
+        """Populate parameter selection combo box"""
+        # This would be populated based on available parameters in the data
+        self.parameter_combo.clear()
+        self.parameter_combo.addItem("Select Parameter...")
+        
+        # Add common parameters (this could be made dynamic)
+        parameters = [
+            "magnetronFlow", "magnetronTemp", "targetAndCirculatorFlow",
+            "FanremoteTempStatistics", "FanhumidityStatistics",
+            "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V", "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V"
+        ]
+        
+        for param in parameters:
+            self.parameter_combo.addItem(param)
+    
+    def on_machine_selection_changed(self):
+        """Handle machine selection changes"""
+        self.refresh_comparison()
+    
+    def on_parameter_changed(self):
+        """Handle parameter selection changes"""
+        self.refresh_comparison()
+    
+    def refresh_comparison(self):
+        """Refresh the machine comparison display"""
+        try:
+            machine_a = self.machine_a_combo.currentText()
+            machine_b = self.machine_b_combo.currentText()
+            parameter = self.parameter_combo.currentText()
+            
+            if (machine_a == "Select Machine A..." or 
+                machine_b == "Select Machine B..." or
+                parameter == "Select Parameter..." or
+                not self.machine_manager):
+                return
+            
+            # Get comparison data
+            comparison_data = self.machine_manager.get_machine_comparison_data(
+                machine_a, machine_b, parameter
+            )
+            
+            # Update plots
+            self.update_machine_plots(comparison_data)
+            
+            # Update statistics table
+            self.update_statistics_table(comparison_data)
+            
+        except Exception as e:
+            print(f"Error refreshing comparison: {e}")
+    
+    def update_machine_plots(self, comparison_data: dict):
+        """Update the plots for both machines"""
+        try:
+            # Get plot widgets from the panes
+            machine_a_plot = self.machine_a_widget.findChild(EnhancedPlotWidget)
+            machine_b_plot = self.machine_b_widget.findChild(EnhancedPlotWidget)
+            
+            if machine_a_plot and not comparison_data['machine1']['data'].empty:
+                machine_a_plot.plot_parameter_trends(
+                    comparison_data['machine1']['data'],
+                    comparison_data['parameter'],
+                    f"Machine A: {comparison_data['machine1']['id']}"
+                )
+            
+            if machine_b_plot and not comparison_data['machine2']['data'].empty:
+                machine_b_plot.plot_parameter_trends(
+                    comparison_data['machine2']['data'],
+                    comparison_data['parameter'],
+                    f"Machine B: {comparison_data['machine2']['id']}"
+                )
+                
+        except Exception as e:
+            print(f"Error updating machine plots: {e}")
+    
+    def update_statistics_table(self, comparison_data: dict):
+        """Update the statistical comparison table"""
+        try:
+            # Clear existing data
+            self.stats_table.setRowCount(0)
+            
+            machine1_stats = comparison_data['machine1'].get('stats', {})
+            machine2_stats = comparison_data['machine2'].get('stats', {})
+            
+            if not machine1_stats or not machine2_stats:
+                return
+            
+            # Statistics to display
+            stats_to_show = [
+                ('Mean', 'mean'),
+                ('Std Dev', 'std'),
+                ('Minimum', 'min'),
+                ('Maximum', 'max'),
+                ('Count', 'count')
+            ]
+            
+            self.stats_table.setRowCount(len(stats_to_show))
+            
+            for row, (stat_name, stat_key) in enumerate(stats_to_show):
+                # Statistic name
+                self.stats_table.setItem(row, 0, QTableWidgetItem(stat_name))
+                
+                # Machine A value
+                value_a = machine1_stats.get(stat_key, 'N/A')
+                if isinstance(value_a, (int, float)):
+                    value_a = f"{value_a:.2f}"
+                self.stats_table.setItem(row, 1, QTableWidgetItem(str(value_a)))
+                
+                # Machine B value
+                value_b = machine2_stats.get(stat_key, 'N/A')
+                if isinstance(value_b, (int, float)):
+                    value_b = f"{value_b:.2f}"
+                self.stats_table.setItem(row, 2, QTableWidgetItem(str(value_b)))
+            
+            # Add correlation if available
+            if 'correlation' in comparison_data and comparison_data['correlation'] is not None:
+                row_count = self.stats_table.rowCount()
+                self.stats_table.setRowCount(row_count + 1)
+                self.stats_table.setItem(row_count, 0, QTableWidgetItem("Correlation"))
+                corr_text = f"{comparison_data['correlation']:.3f}"
+                self.stats_table.setItem(row_count, 1, QTableWidgetItem(corr_text))
+                self.stats_table.setItem(row_count, 2, QTableWidgetItem(corr_text))
+                
+        except Exception as e:
+            print(f"Error updating statistics table: {e}")
+
+
+class MultiMachineDashboardWidget(QWidget):
+    """Multi-machine dashboard with status indicators and real-time monitoring"""
+    
+    def __init__(self, machine_manager, parent=None):
+        super().__init__(parent)
+        self.machine_manager = machine_manager
+        self.init_ui()
+        
+    def init_ui(self):
+        """Initialize the multi-machine dashboard UI"""
+        layout = QVBoxLayout(self)
+        
+        # Machine status grid
+        status_group = QGroupBox("Machine Status")
+        self.status_layout = QVBoxLayout(status_group)
+        self.machine_status_widgets = {}
+        layout.addWidget(status_group)
+        
+        # Real-time parameter comparison charts
+        charts_group = QGroupBox("Parameter Comparison")
+        charts_layout = QHBoxLayout(charts_group)
+        
+        self.comparison_plot = EnhancedPlotWidget()
+        charts_layout.addWidget(self.comparison_plot)
+        layout.addWidget(charts_group)
+        
+        # Alert panel
+        alerts_group = QGroupBox("Machine Alerts")
+        self.alerts_layout = QVBoxLayout(alerts_group)
+        layout.addWidget(alerts_group)
+        
+        # Performance ranking table
+        ranking_group = QGroupBox("Performance Ranking")
+        self.ranking_table = QTableWidget()
+        self.ranking_table.setColumnCount(5)
+        self.ranking_table.setHorizontalHeaderLabels([
+            "Rank", "Machine", "Status", "Records", "Score"
+        ])
+        self.ranking_table.horizontalHeader().setStretchLastSection(True)
+        ranking_layout = QVBoxLayout(ranking_group)
+        ranking_layout.addWidget(self.ranking_table)
+        layout.addWidget(ranking_group)
+        
+        # Initialize dashboard
+        self.refresh_dashboard()
+    
+    def refresh_dashboard(self):
+        """Refresh all dashboard components"""
+        try:
+            if not self.machine_manager:
+                return
+                
+            # Get multi-machine stats
+            stats = self.machine_manager.get_multi_machine_stats()
+            
+            # Update machine status indicators
+            self.update_machine_status(stats.get('machines', {}))
+            
+            # Update performance ranking
+            self.update_performance_ranking(stats.get('machines', {}))
+            
+            # Update alerts (placeholder for now)
+            self.update_alerts(stats.get('machines', {}))
+            
+            # Update comparison chart with available data
+            self.update_comparison_chart(stats.get('machines', {}))
+            
+        except Exception as e:
+            print(f"Error refreshing dashboard: {e}")
+    
+    def update_machine_status(self, machines: Dict):
+        """Update machine status indicators"""
+        try:
+            # Clear existing status widgets
+            for widget in self.machine_status_widgets.values():
+                widget.setParent(None)
+            self.machine_status_widgets.clear()
+            
+            # Create status indicators for each machine
+            for machine_id, machine_data in machines.items():
+                status_widget = self.create_machine_status_indicator(machine_id, machine_data)
+                self.status_layout.addWidget(status_widget)
+                self.machine_status_widgets[machine_id] = status_widget
+                
+        except Exception as e:
+            print(f"Error updating machine status: {e}")
+    
+    def create_machine_status_indicator(self, machine_id: str, machine_data: Dict):
+        """Create a status indicator widget for a machine"""
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        
+        # Status indicator (colored circle)
+        status = machine_data.get('status', 'unknown')
+        color = machine_data.get('color', '#808080')
+        
+        status_colors = {
+            'active': '#4CAF50',    # Green
+            'limited': '#FF9800',   # Orange  
+            'inactive': '#F44336',  # Red
+            'unknown': '#808080'    # Gray
+        }
+        
+        indicator_color = status_colors.get(status, '#808080')
+        
+        status_label = QLabel("●")
+        status_label.setStyleSheet(f"color: {indicator_color}; font-size: 16px; font-weight: bold;")
+        layout.addWidget(status_label)
+        
+        # Machine name
+        name_label = QLabel(machine_id)
+        name_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(name_label)
+        
+        # Record count
+        record_count = machine_data.get('record_count', 0)
+        count_label = QLabel(f"{record_count:,} records")
+        layout.addWidget(count_label)
+        
+        # Status text
+        status_text = QLabel(status.title())
+        layout.addWidget(status_text)
+        
+        layout.addStretch()
+        
+        return widget
+    
+    def update_performance_ranking(self, machines: Dict):
+        """Update the performance ranking table"""
+        try:
+            # Sort machines by performance rank
+            ranked_machines = sorted(machines.items(), 
+                                   key=lambda x: x[1].get('performance_rank', 999))
+            
+            self.ranking_table.setRowCount(len(ranked_machines))
+            
+            for row, (machine_id, machine_data) in enumerate(ranked_machines):
+                # Rank
+                rank = machine_data.get('performance_rank', 'N/A')
+                self.ranking_table.setItem(row, 0, QTableWidgetItem(str(rank)))
+                
+                # Machine name
+                self.ranking_table.setItem(row, 1, QTableWidgetItem(machine_id))
+                
+                # Status
+                status = machine_data.get('status', 'Unknown').title()
+                self.ranking_table.setItem(row, 2, QTableWidgetItem(status))
+                
+                # Records
+                records = machine_data.get('record_count', 0)
+                self.ranking_table.setItem(row, 3, QTableWidgetItem(f"{records:,}"))
+                
+                # Score (based on record count for now)
+                score = records / 1000 if records > 0 else 0
+                self.ranking_table.setItem(row, 4, QTableWidgetItem(f"{score:.1f}"))
+                
+        except Exception as e:
+            print(f"Error updating performance ranking: {e}")
+    
+    def update_alerts(self, machines: Dict):
+        """Update the alerts panel"""
+        try:
+            # Clear existing alerts
+            for i in reversed(range(self.alerts_layout.count())):
+                self.alerts_layout.itemAt(i).widget().setParent(None)
+            
+            # Check for alert conditions
+            alerts_found = False
+            
+            for machine_id, machine_data in machines.items():
+                status = machine_data.get('status', 'unknown')
+                
+                if status == 'inactive':
+                    alert = QLabel(f"⚠️ {machine_id}: No recent data")
+                    alert.setStyleSheet("color: #F44336; font-weight: bold;")
+                    self.alerts_layout.addWidget(alert)
+                    alerts_found = True
+                elif status == 'limited':
+                    alert = QLabel(f"⚠️ {machine_id}: Limited parameter data")
+                    alert.setStyleSheet("color: #FF9800; font-weight: bold;")
+                    self.alerts_layout.addWidget(alert)
+                    alerts_found = True
+            
+            if not alerts_found:
+                no_alerts = QLabel("✅ No alerts - All systems normal")
+                no_alerts.setStyleSheet("color: #4CAF50; font-weight: bold;")
+                self.alerts_layout.addWidget(no_alerts)
+                
+        except Exception as e:
+            print(f"Error updating alerts: {e}")
+    
+    def update_comparison_chart(self, machines: Dict):
+        """Update the real-time comparison chart"""
+        try:
+            # This would plot a comparison of key parameters across machines
+            # For now, just show a placeholder
+            if self.comparison_plot and self.comparison_plot.figure:
+                self.comparison_plot.figure.clear()
+                ax = self.comparison_plot.figure.add_subplot(111)
+                
+                machine_names = list(machines.keys())
+                record_counts = [machines[m].get('record_count', 0) for m in machine_names]
+                colors = [machines[m].get('color', '#1976D2') for m in machine_names]
+                
+                if machine_names and record_counts:
+                    bars = ax.bar(machine_names, record_counts, color=colors, alpha=0.7)
+                    ax.set_title('Machine Data Volume Comparison', fontsize=12, fontweight='bold')
+                    ax.set_ylabel('Records Count')
+                    
+                    # Add value labels on bars
+                    for bar, count in zip(bars, record_counts):
+                        if count > 0:
+                            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(record_counts)*0.01,
+                                   f'{count:,}', ha='center', va='bottom', fontsize=9)
+                    
+                    plt.xticks(rotation=45)
+                else:
+                    ax.text(0.5, 0.5, 'No machine data available', 
+                           ha='center', va='center', transform=ax.transAxes, fontsize=14)
+                
+                self.comparison_plot.figure.tight_layout()
+                self.comparison_plot.canvas.draw()
+                
+        except Exception as e:
+            print(f"Error updating comparison chart: {e}")
 
 
 # Maintain backwards compatibility - alias the enhanced classes
