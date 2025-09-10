@@ -52,13 +52,14 @@ class FaultNotesManager:
             print(f"Error saving fault notes: {e}")
             return False
     
-    def save_note(self, fault_code: str, note_text: str, author: str = "User") -> bool:
+    def save_note(self, fault_code: str, note_text: str, machine: str = "both", author: str = "User") -> bool:
         """
         Save a note for a specific fault code
         
         Args:
             fault_code: The fault code (e.g., "400027")
             note_text: The note content
+            machine: Which machine the note applies to ('hal', 'tb', 'both')
             author: Who wrote the note (optional)
         
         Returns:
@@ -69,9 +70,10 @@ class FaultNotesManager:
             if not fault_code:
                 return False
             
-            # Create note entry with metadata
+            # Create note entry with metadata and machine specification
             note_entry = {
                 "note": note_text.strip(),
+                "machine": machine.lower(),
                 "author": author,
                 "created_date": datetime.now().isoformat(),
                 "last_modified": datetime.now().isoformat()

@@ -1702,16 +1702,20 @@ Source: {result.get('source', 'unknown')} database
 
                         self.ui.txtFaultResult.setText(formatted_result)
 
-                        # Update individual description boxes based on source
+                        # Update individual description boxes using the new multi-database method
+                        descriptions = self.fault_parser.get_fault_descriptions_by_database(code)
+                        
                         if hasattr(self.ui, 'txtHALDescription'):
-                            if result.get('source') == 'uploaded':
-                                self.ui.txtHALDescription.setText(result['description'])
+                            hal_desc = descriptions.get('hal_description', '')
+                            if hal_desc:
+                                self.ui.txtHALDescription.setText(hal_desc)
                             else:
                                 self.ui.txtHALDescription.setText("No HAL description available for this code")
 
                         if hasattr(self.ui, 'txtTBDescription'):
-                            if result.get('source') == 'tb':
-                                self.ui.txtTBDescription.setText(result['description'])
+                            tb_desc = descriptions.get('tb_description', '')
+                            if tb_desc:
+                                self.ui.txtTBDescription.setText(tb_desc)
                             else:
                                 self.ui.txtTBDescription.setText("No TB description available for this code")
                         
@@ -1807,8 +1811,17 @@ Source: {result.get('source', 'unknown')} database
                         )
                         return
                     
-                    # Save the note
-                    success = self.fault_notes_manager.save_note(fault_code, note_text)
+                    # Get the selected machine from radio buttons
+                    machine = "both"  # default
+                    if hasattr(self.ui, 'rbNoteHAL') and self.ui.rbNoteHAL.isChecked():
+                        machine = "hal"
+                    elif hasattr(self.ui, 'rbNoteTB') and self.ui.rbNoteTB.isChecked():
+                        machine = "tb"
+                    elif hasattr(self.ui, 'rbNoteBoth') and self.ui.rbNoteBoth.isChecked():
+                        machine = "both"
+                    
+                    # Save the note with machine specification
+                    success = self.fault_notes_manager.save_note(fault_code, note_text, machine)
                     if success:
                         self._update_note_info(fault_code)
                         QtWidgets.QMessageBox.information(
@@ -1876,14 +1889,31 @@ Source: {result.get('source', 'unknown')} database
                     note_data = self.fault_notes_manager.get_note(fault_code)
                     if note_data:
                         self.ui.txtUserNote.setText(note_data.get('note', ''))
+                        
+                        # Set the appropriate machine radio button
+                        machine = note_data.get('machine', 'both')
+                        if hasattr(self.ui, 'rbNoteHAL') and hasattr(self.ui, 'rbNoteTB') and hasattr(self.ui, 'rbNoteBoth'):
+                            if machine == "hal":
+                                self.ui.rbNoteHAL.setChecked(True)
+                            elif machine == "tb":
+                                self.ui.rbNoteTB.setChecked(True)
+                            else:  # both or unknown
+                                self.ui.rbNoteBoth.setChecked(True)
+                        
                         self._update_note_info(fault_code, note_data)
                     else:
                         self.ui.txtUserNote.clear()
+                        # Reset to default selection when no note exists
+                        if hasattr(self.ui, 'rbNoteBoth'):
+                            self.ui.rbNoteBoth.setChecked(True)
                         self._update_note_info(fault_code)
                         
                 except Exception as e:
                     print(f"Error loading fault note for {fault_code}: {e}")
                     self.ui.txtUserNote.clear()
+                    # Reset to default selection on error
+                    if hasattr(self.ui, 'rbNoteBoth'):
+                        self.ui.rbNoteBoth.setChecked(True)
                     self._update_note_info(fault_code)
 
             def _clear_fault_note_display(self):
@@ -1909,6 +1939,7 @@ Source: {result.get('source', 'unknown')} database
                         created_date = note_data.get('created_date', '')
                         last_modified = note_data.get('last_modified', '')
                         author = note_data.get('author', 'User')
+                        machine = note_data.get('machine', 'both')
                         
                         # Parse dates for display
                         try:
@@ -1916,7 +1947,17 @@ Source: {result.get('source', 'unknown')} database
                             if last_modified:
                                 mod_date = datetime.fromisoformat(last_modified.replace('Z', '+00:00'))
                                 date_str = mod_date.strftime('%Y-%m-%d %H:%M')
-                                info_text = f"Note by {author}, last modified: {date_str}"
+                                
+                                # Include machine information in display
+                                machine_text = ""
+                                if machine == "hal":
+                                    machine_text = " (HAL only)"
+                                elif machine == "tb":
+                                    machine_text = " (TB only)"
+                                elif machine == "both":
+                                    machine_text = " (Both machines)"
+                                
+                                info_text = f"Note by {author}{machine_text}, last modified: {date_str}"
                             else:
                                 info_text = f"Note by {author}"
                         except:

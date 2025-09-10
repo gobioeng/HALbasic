@@ -46,13 +46,21 @@ class UnifiedParser:
 
         if fault_code in self.fault_codes:
             fault_data = self.fault_codes[fault_code]
-            source = fault_data.get('source', '')
-            description = fault_data.get('description', '')
-
-            if source == 'hal' or source == 'uploaded':  # HAL database
-                hal_description = description
-            elif source == 'tb':  # TB database
-                tb_description = description
+            
+            # Check if we have multiple descriptions
+            if 'descriptions' in fault_data and isinstance(fault_data['descriptions'], dict):
+                descriptions = fault_data['descriptions']
+                hal_description = descriptions.get('hal', descriptions.get('uploaded', ''))
+                tb_description = descriptions.get('tb', '')
+            else:
+                # Legacy single description format
+                source = fault_data.get('source', '')
+                description = fault_data.get('description', '')
+                
+                if source == 'hal' or source == 'uploaded':  # HAL database
+                    hal_description = description
+                elif source == 'tb':  # TB database
+                    tb_description = description
 
         return {
             'hal_description': hal_description,
@@ -853,13 +861,32 @@ class UnifiedParser:
                         else:
                             db_desc = f'{source_type.upper()} Description'
 
-                        self.fault_codes[code] = {
-                            'description': fault_info['description'],
-                            'source': source_type,
-                            'line_number': line_num,
-                            'database_description': db_desc,
-                            'type': fault_info.get('type', 'Fault')
-                        }
+                        # Support multiple sources per fault code
+                        if code in self.fault_codes:
+                            # Fault code already exists, add additional source
+                            existing = self.fault_codes[code]
+                            if not isinstance(existing.get('descriptions'), dict):
+                                # Convert existing single description to multi-source format
+                                existing_source = existing.get('source', 'unknown')
+                                existing_desc = existing.get('description', '')
+                                existing['descriptions'] = {
+                                    existing_source: existing_desc
+                                }
+                            # Add new source description
+                            existing['descriptions'][source_type] = fault_info['description']
+                            # Update main fields to reflect both sources exist
+                            existing['source'] = 'multiple'
+                            existing['description'] = f"Available in: {', '.join(existing['descriptions'].keys())}"
+                        else:
+                            # New fault code
+                            self.fault_codes[code] = {
+                                'description': fault_info['description'],
+                                'descriptions': {source_type: fault_info['description']},
+                                'source': source_type,
+                                'line_number': line_num,
+                                'database_description': db_desc,
+                                'type': fault_info.get('type', 'Fault')
+                            }
 
             loaded_count = len([c for c in self.fault_codes.values() if c['source'] == source_type])
             print(f"✓ Loaded {loaded_count} fault codes from {source_type.upper()} database")

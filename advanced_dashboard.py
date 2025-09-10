@@ -898,21 +898,8 @@ class AdvancedDashboard(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
         
-        # Dashboard controls
+        # Dashboard controls - keep only refresh button
         controls_layout = QHBoxLayout()
-        
-        add_widget_btn = QPushButton("Add Widget")
-        add_widget_btn.clicked.connect(self.show_add_widget_dialog)
-        controls_layout.addWidget(add_widget_btn)
-        
-        layout_btn = QPushButton("Save Layout")
-        layout_btn.clicked.connect(self.save_layout)
-        controls_layout.addWidget(layout_btn)
-        
-        load_btn = QPushButton("Load Layout")  
-        load_btn.clicked.connect(self.load_layout)
-        controls_layout.addWidget(load_btn)
-        
         controls_layout.addStretch()
         
         refresh_btn = QPushButton("Refresh All")
@@ -1001,23 +988,7 @@ class AdvancedDashboard(QWidget):
             
             del self.widgets[widget_id]
     
-    def show_add_widget_dialog(self):
-        """Show dialog to add new widget"""
-        dialog = AddWidgetDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            widget_type, widget_id, title = dialog.get_widget_info()
-            
-            # Map widget type to class
-            widget_classes = {
-                'MetricCard': MetricCard,
-                'TrendChart': TrendChart,
-                'AlertPanel': AlertPanel,
-                'StatusIndicator': StatusIndicator,
-                'GaugeWidget': GaugeWidget
-            }
-            
-            if widget_type in widget_classes:
-                self.add_widget(widget_id, widget_classes[widget_type], title)
+
     
     def start_auto_refresh(self, interval_seconds: int):
         """Start auto refresh timer"""
@@ -1096,145 +1067,8 @@ class AdvancedDashboard(QWidget):
             # Save configuration
             self.layout_config[widget_id] = config
     
-    def save_layout(self, file_path: str = None):
-        """Save current dashboard layout to JSON"""
-        if not file_path:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "Save Dashboard Layout", 
-                "dashboard_layout.json",
-                "JSON Files (*.json)"
-            )
-            if not file_path:
-                return
-        
-        layout_data = {
-            'widgets': {},
-            'auto_refresh_interval': self.auto_refresh_timer.interval() // 1000,
-            'saved_at': datetime.now().isoformat()
-        }
-        
-        for widget_id, widget_info in self.widgets.items():
-            widget = widget_info['widget']
-            layout_data['widgets'][widget_id] = {
-                'class': widget_info['class'],
-                'title': widget.title,
-                'position': widget_info['position'],
-                'config': widget.get_config()
-            }
-        
-        try:
-            with open(file_path, 'w') as f:
-                json.dump(layout_data, f, indent=2)
-            QMessageBox.information(self, "Success", f"Layout saved to {file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not save layout: {e}")
+
     
-    def load_layout(self, file_path: str = None):
-        """Load dashboard layout from JSON"""
-        if not file_path:
-            file_path, _ = QFileDialog.getOpenFileName(
-                self, "Load Dashboard Layout",
-                "",
-                "JSON Files (*.json)"
-            )
-            if not file_path:
-                return
-        
-        try:
-            with open(file_path, 'r') as f:
-                layout_data = json.load(f)
-            
-            # Clear existing widgets
-            for widget_id in list(self.widgets.keys()):
-                self.remove_widget(widget_id)
-            
-            # Create widgets from layout
-            widget_classes = {
-                'MetricCard': MetricCard,
-                'TrendChart': TrendChart,
-                'AlertPanel': AlertPanel,
-                'StatusIndicator': StatusIndicator,
-                'GaugeWidget': GaugeWidget
-            }
-            
-            for widget_id, widget_data in layout_data['widgets'].items():
-                widget_class_name = widget_data['class']
-                if widget_class_name in widget_classes:
-                    widget = self.add_widget(
-                        widget_id,
-                        widget_classes[widget_class_name],
-                        widget_data['title'],
-                        tuple(widget_data['position'])
-                    )
-                    
-                    # Apply saved configuration
-                    if 'config' in widget_data:
-                        widget.set_config(widget_data['config'])
-            
-            # Apply auto refresh interval
-            if 'auto_refresh_interval' in layout_data:
-                self.start_auto_refresh(layout_data['auto_refresh_interval'])
-            
-            QMessageBox.information(self, "Success", f"Layout loaded from {file_path}")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not load layout: {e}")
 
 
-class AddWidgetDialog(QDialog):
-    """Dialog for adding new widgets to dashboard"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Add Widget")
-        self.setMinimumSize(300, 200)
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        """Setup add widget dialog UI"""
-        layout = QVBoxLayout(self)
-        
-        form_layout = QFormLayout()
-        
-        # Widget type
-        self.widget_type = QComboBox()
-        self.widget_type.addItems([
-            "MetricCard", "TrendChart", "AlertPanel", 
-            "StatusIndicator", "GaugeWidget"
-        ])
-        form_layout.addRow("Widget Type:", self.widget_type)
-        
-        # Widget ID
-        self.widget_id = QLineEdit()
-        self.widget_id.setPlaceholderText("e.g., metric_pressure")
-        form_layout.addRow("Widget ID:", self.widget_id)
-        
-        # Widget title
-        self.widget_title = QLineEdit()
-        self.widget_title.setPlaceholderText("e.g., System Pressure")
-        form_layout.addRow("Title:", self.widget_title)
-        
-        layout.addLayout(form_layout)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-        
-        ok_btn = QPushButton("Add")
-        ok_btn.clicked.connect(self.accept)
-        ok_btn.setDefault(True)
-        button_layout.addWidget(ok_btn)
-        
-        layout.addLayout(button_layout)
-    
-    def get_widget_info(self) -> Tuple[str, str, str]:
-        """Get widget information from dialog"""
-        return (
-            self.widget_type.currentText(),
-            self.widget_id.text() or f"widget_{int(time.time())}",
-            self.widget_title.text() or "New Widget"
-        )
+
