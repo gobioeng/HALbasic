@@ -348,9 +348,6 @@ class Ui_MainWindow(object):
         self.actionExit.setStatusTip("Exit the application")
         self.menuFile.addAction(self.actionExit)
 
-        # View Menu - cleaned up per requirements (removed refresh action)
-        self.menuView = self.menubar.addMenu("&View")
-
         # Data Menu
         self.menuData = self.menubar.addMenu("&Data")
         self.actionClearAllData = QAction(MainWindow)
@@ -391,9 +388,9 @@ class Ui_MainWindow(object):
         self.setup_about_tab()
 
     def setup_dashboard_tab(self):
-        self.tabDashboard = QWidget()
-        self.tabWidget.addTab(self.tabDashboard, "📊 Dashboard")
-        layout = QVBoxLayout(self.tabDashboard)
+        self.dashboardTab = QWidget()
+        self.tabWidget.addTab(self.dashboardTab, "📊 Dashboard")
+        layout = QVBoxLayout(self.dashboardTab)
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 

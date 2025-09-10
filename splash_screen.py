@@ -24,11 +24,11 @@ class MinimalisticSplashScreen(QSplashScreen):
         pixmap = QPixmap(400, 250)  # Smaller, more compact size
         super().__init__(pixmap)
         
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)  # Added Qt.Tool to prevent blocking
         self.app_version = app_version
         self.start_time = time.time()
-        # FIXED: Increased minimum display time for better visibility during startup and data processing
-        self.minimum_display_time = 3.0  # Increased from 1.0 to 3.0 seconds to stay visible during processing
+        # FIXED: Reduced minimum display time to prevent blocking menu access
+        self.minimum_display_time = 1.5  # Reduced from 3.0 to 1.5 seconds to prevent menu blocking
         
         # OPTIMIZED: Less frequent animation updates to reduce CPU usage
         self.animation_timer = QTimer(self)
@@ -175,7 +175,7 @@ class MinimalisticSplashScreen(QSplashScreen):
             self.progress_bar.setValue(progress_value)
 
     def finish(self, main_window):
-        """Finish splash screen with minimum display time"""
+        """Finish splash screen with minimum display time and aggressive cleanup"""
         try:
             elapsed = time.time() - self.start_time
             if elapsed < self.minimum_display_time:
@@ -183,6 +183,9 @@ class MinimalisticSplashScreen(QSplashScreen):
                 QTimer.singleShot(remaining_time, lambda: self._do_finish(main_window))
             else:
                 self._do_finish(main_window)
+                
+            # Additional safety: Force cleanup after 5 seconds regardless
+            QTimer.singleShot(5000, lambda: self._force_cleanup())
         except Exception as e:
             print(f"Error in splash finish: {e}")
             # Fallback: try to finish immediately
@@ -191,12 +194,18 @@ class MinimalisticSplashScreen(QSplashScreen):
             except Exception as fallback_error:
                 print(f"Fallback finish failed: {fallback_error}")
                 # Last resort: hide splash screen
-                try:
-                    self.hide()
-                    self.close()
-                    self.finished.emit()
-                except:
-                    pass
+                self._force_cleanup()
+
+    def _force_cleanup(self):
+        """Force cleanup of splash screen to prevent menu blocking"""
+        try:
+            if hasattr(self, 'animation_timer'):
+                self.animation_timer.stop()
+            self.hide()
+            self.close()
+            self.finished.emit()
+        except:
+            pass  # Ignore cleanup errors
 
     def _do_finish(self, main_window):
         """Complete the splash screen"""
