@@ -1217,7 +1217,7 @@ class HALogApp:
                     return param_name
 
             def refresh_trend_tab(self, group_name):
-                """Refresh trend data for specific parameter group with new dropdown structure"""
+                """Refresh trend data for specific parameter group - SIMPLIFIED as requested"""
                 try:
                     # Ensure full data is loaded for trend analysis
                     self._ensure_full_data_loaded()
@@ -1227,139 +1227,94 @@ class HALogApp:
                         print(f"⚠️ No data available in database for {group_name}")
                         return
 
-                    # Get the appropriate combo boxes and graph widgets based on group
-                    top_combo = None
-                    bottom_combo = None
-                    graph_top = None
-                    graph_bottom = None
-
-                    if group_name == 'flow':  # Water System
-                        top_combo = getattr(self.ui, 'comboWaterTopGraph', None)
-                        bottom_combo = getattr(self.ui, 'comboWaterBottomGraph', None)
-                        graph_top = getattr(self.ui, 'waterGraphTop', None)
-                        graph_bottom = getattr(self.ui, 'waterGraphBottom', None)
-                    elif group_name == 'voltage':
-                        top_combo = getattr(self.ui, 'comboVoltageTopGraph', None)
-                        bottom_combo = getattr(self.ui, 'comboVoltageBottomGraph', None)
-                        graph_top = getattr(self.ui, 'voltageGraphTop', None)
-                        graph_bottom = getattr(self.ui, 'voltageGraphBottom', None)
-                    elif group_name == 'temperature':
-                        top_combo = getattr(self.ui, 'comboTempTopGraph', None)
-                        bottom_combo = getattr(self.ui, 'comboTempBottomGraph', None)
-                        graph_top = getattr(self.ui, 'tempGraphTop', None)
-                        graph_bottom = getattr(self.ui, 'tempGraphBottom', None)
-                    elif group_name == 'humidity':
-                        top_combo = getattr(self.ui, 'comboHumidityTopGraph', None)
-                        bottom_combo = getattr(self.ui, 'comboHumidityBottomGraph', None)
-                        graph_top = getattr(self.ui, 'humidityGraphTop', None)
-                        graph_bottom = getattr(self.ui, 'humidityGraphBottom', None)
-                    elif group_name == 'fan_speed':
-                        top_combo = getattr(self.ui, 'comboFanTopGraph', None)
-                        bottom_combo = getattr(self.ui, 'comboFanBottomGraph', None)
-                        graph_top = getattr(self.ui, 'fanGraphTop', None)
-                        graph_bottom = getattr(self.ui, 'fanGraphBottom', None)
-
-                    if not all([top_combo, bottom_combo, graph_top, graph_bottom]):
-                        print(f"⚠️ Dropdown or graph widgets not found for {group_name}")
+                    # SIMPLIFIED: Use the single trendGraph widget instead of multiple widgets
+                    if not hasattr(self.ui, 'trendGraph'):
+                        print(f"⚠️ Trend graph widget not found")
                         return
 
-                    # Get selected parameters from dropdowns
-                    selected_top_param = top_combo.currentText() if top_combo.currentIndex() > 0 else None
-                    selected_bottom_param = bottom_combo.currentText() if bottom_combo.currentIndex() > 0 else None
-
-                    # If no parameters selected, use default ones for this group
-                    if not selected_top_param or selected_top_param == "Select parameter...":
-                        if group_name == 'flow':
-                            selected_top_param = "Mag Flow"
-                        elif group_name == 'voltage':
-                            selected_top_param = "MLC Bank A 24V"
-                        elif group_name == 'temperature':
-                            selected_top_param = "Temp Room"
-                        elif group_name == 'humidity':
-                            selected_top_param = "Room Humidity"
-                        elif group_name == 'fan_speed':
-                            selected_top_param = "Speed FAN 1"
-
-                    if not selected_bottom_param or selected_bottom_param == "Select parameter...":
-                        if group_name == 'flow':
-                            selected_bottom_param = "Pump Pressure"  # Updated to use pump pressure as default
-                        elif group_name == 'voltage':
-                            selected_bottom_param = "MLC Bank B 24V"
-                        elif group_name == 'temperature':
-                            selected_bottom_param = "Temp Magnetron"
-                        elif group_name == 'humidity':
-                            selected_bottom_param = "Temp Room"  # Fallback if only humidity param available
-                        elif group_name == 'fan_speed':
-                            selected_bottom_param = "Speed FAN 2"
-
-                    print(f"🔄 Refreshing {group_name} trends - Top: {selected_top_param}, Bottom: {selected_bottom_param}")
-
-                    # Import plotting utilities
-                    from utils_plot import PlotUtils
-                    import pandas as pd
-
-                    # Check if multi-machine mode is active
-                    is_multi_machine = (hasattr(self, 'machine_manager') and 
-                                      self.machine_manager and 
-                                      self.machine_manager.is_multi_machine_selected())
-
-                    if is_multi_machine:
-                        # Get color scheme for machines
-                        machine_colors = self.machine_manager.get_machine_color_scheme()
+                    # Focus on FLOW TARGET parameters only as requested in requirements
+                    if group_name == 'flow':
+                        # Look for flow target parameters in the data
+                        flow_params = self.df[self.df['parameter_type'].str.contains('flow', case=False, na=False)]
                         
-                        # Plot top graph - multi-machine
-                        if selected_top_param and selected_top_param != "Select parameter...":
-                            machine_data_top = self._get_multi_machine_parameter_data(selected_top_param)
-                            if machine_data_top:
-                                PlotUtils._plot_parameter_data_multi_machine(
-                                    graph_top, machine_data_top, selected_top_param, machine_colors
-                                )
-                            else:
-                                PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
-                                                                    f"No data available for {selected_top_param}")
+                        if not flow_params.empty:
+                            # Get the most relevant flow parameter (preferably target flow)
+                            target_patterns = ['target.*flow', 'flow.*target', 'magnetronflow']
+                            selected_param = None
+                            
+                            for pattern in target_patterns:
+                                matching_params = flow_params[flow_params['parameter_type'].str.contains(pattern, case=False, regex=True)]
+                                if not matching_params.empty:
+                                    selected_param = matching_params['parameter_type'].iloc[0]
+                                    break
+                            
+                            if not selected_param:
+                                # Use first available flow parameter
+                                selected_param = flow_params['parameter_type'].iloc[0]
+                            
+                            # Update the trend graph with flow target data
+                            print(f"🔄 Refreshing simplified trend for: {selected_param}")
+                            self._plot_simplified_trend(selected_param)
                         else:
-                            PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
-                                                                "Select a parameter from dropdown")
-
-                        # Plot bottom graph - multi-machine
-                        if selected_bottom_param and selected_bottom_param != "Select parameter...":
-                            machine_data_bottom = self._get_multi_machine_parameter_data(selected_bottom_param)
-                            if machine_data_bottom:
-                                PlotUtils._plot_parameter_data_multi_machine(
-                                    graph_bottom, machine_data_bottom, selected_bottom_param, machine_colors
-                                )
-                            else:
-                                PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
-                                                                    f"No data available for {selected_bottom_param}")
-                        else:
-                            PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
-                                                                "Select a parameter from dropdown")
+                            print(f"⚠️ No flow parameters found")
                     else:
-                        # Single machine mode - use existing logic
-                        # Plot top graph
-                        if selected_top_param and selected_top_param != "Select parameter...":
-                            data_top = self._get_parameter_data_by_description(selected_top_param)
-                            if not data_top.empty:
-                                PlotUtils._plot_parameter_data_single(graph_top, data_top, selected_top_param)
-                            else:
-                                PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
-                                                                    f"No data available for {selected_top_param}")
-                        else:
-                            PlotUtils._plot_parameter_data_single(graph_top, pd.DataFrame(), 
-                                                                "Select a parameter from dropdown")
+                        # For other groups, use a generic approach with simplified plotting
+                        available_params = self.df['parameter_type'].unique()
+                        if len(available_params) > 0:
+                            # Use first available parameter for the trend
+                            selected_param = available_params[0]
+                            print(f"🔄 Refreshing simplified trend for: {selected_param}")
+                            self._plot_simplified_trend(selected_param)
 
-                        # Plot bottom graph
-                        if selected_bottom_param and selected_bottom_param != "Select parameter...":
-                            data_bottom = self._get_parameter_data_by_description(selected_bottom_param)
-                            if not data_bottom.empty:
-                                PlotUtils._plot_parameter_data_single(graph_bottom, data_bottom, selected_bottom_param)
-                            else:
-                                PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), 
-                                                                    f"No data available for {selected_bottom_param}")
-                        else:
-                            PlotUtils._plot_parameter_data_single(graph_bottom, pd.DataFrame(), "Select a parameter from dropdown")
+                except Exception as e:
+                    print(f"❌ Error refreshing {group_name} trends: {e}")
+                    import traceback
+                    traceback.print_exc()
 
-                    print(f"✓ Successfully refreshed {group_name} trends")
+            def _plot_simplified_trend(self, parameter_name):
+                """Plot simplified trend for a single parameter - CLEAN and SIMPLE as requested"""
+                try:
+                    if not hasattr(self.ui, 'trendGraph'):
+                        return
+                    
+                    # Get data for the parameter
+                    param_data = self.df[self.df['parameter_type'] == parameter_name].copy()
+                    if param_data.empty:
+                        return
+                    
+                    # Convert datetime and sort
+                    param_data['datetime'] = pd.to_datetime(param_data['datetime'])
+                    param_data = param_data.sort_values('datetime')
+                    
+                    # Use the existing update_simplified_trend method if available
+                    if hasattr(self.ui, 'update_simplified_trend'):
+                        self.ui.update_simplified_trend()
+                    elif hasattr(self.ui, 'trendGraph') and hasattr(self.ui.trendGraph, 'figure'):
+                        # Simple matplotlib plotting
+                        self.ui.trendGraph.figure.clear()
+                        ax = self.ui.trendGraph.figure.add_subplot(111)
+                        
+                        # Plot the data as a simple line chart
+                        ax.plot(param_data['datetime'], param_data['value'], 
+                               linewidth=2, color='#1976D2', alpha=0.8)
+                        ax.fill_between(param_data['datetime'], param_data['value'], 
+                                       alpha=0.1, color='#1976D2')
+                        
+                        # Clean, simple styling as requested
+                        ax.set_title(f"Flow Target Trend", fontsize=14, fontweight='600')
+                        ax.set_xlabel("Time")
+                        ax.set_ylabel("Value")
+                        ax.grid(True, alpha=0.3)
+                        
+                        # Update the canvas
+                        if hasattr(self.ui.trendGraph, 'canvas'):
+                            self.ui.trendGraph.canvas.draw()
+                    
+                    print(f"✓ Plotted simplified trend for {parameter_name}")
+                    
+                except Exception as e:
+                    print(f"Error plotting simplified trend: {e}")
+
 
                 except Exception as e:
                     print(f"❌ Error refreshing {group_name} trends: {e}")
@@ -2094,6 +2049,12 @@ Source: {result.get('source', 'unknown')} database
                         if hasattr(self.ui, 'dashboardTab'):
                             dashboard_tab = self.ui.dashboardTab
                             
+                            # Check if ModernDashboard already exists to prevent duplicates
+                            if hasattr(self, 'modern_dashboard') and self.modern_dashboard:
+                                print("🔄 Refreshing existing dashboard instead of creating new one")
+                                self.modern_dashboard.refresh_dashboard()
+                                return
+                            
                             # FIXED: Check if layout exists and create if None
                             if dashboard_tab.layout() is None:
                                 print("🔧 Creating new QVBoxLayout for dashboard tab")
@@ -2108,7 +2069,7 @@ Source: {result.get('source', 'unknown')} database
                                     if child and child.widget():
                                         child.widget().deleteLater()
                             
-                            # Create modern dashboard instance
+                            # Create modern dashboard instance only if it doesn't exist
                             from modern_dashboard import ModernDashboard
                             
                             # Initialize modern dashboard with database and machine manager
@@ -3378,7 +3339,7 @@ Source: {result.get('source', 'unknown')} database
                                     total_records_imported += records
                                     successful_imports += 1
                             else:
-                                # Regular machine log file - import all data for MPC, trend, analysis
+                                # Regular machine log file - import all data for trend analysis
                                 print(f"📊 Processing machine log file: {filename}")
                                 if file_size < 5 * 1024 * 1024:
                                     records = self._import_small_file_single(file_path)
@@ -3437,9 +3398,6 @@ Source: {result.get('source', 'unknown')} database
 
                         # Initialize default trend displays
                         QtCore.QTimer.singleShot(500, self._refresh_all_trends)
-
-                        # Initialize MPC tab with new data
-                        QtCore.QTimer.singleShot(300, self.refresh_latest_mpc)
 
                         # Mark as complete and keep progress dialog until user sees success message
                         self.progress_dialog.mark_complete()
@@ -3916,8 +3874,7 @@ Source: {result.get('source', 'unknown')} database
                     # Initialize default trend displays
                     QtCore.QTimer.singleShot(500, self._refresh_all_trends)
 
-                    # Initialize MPC tab with new data
-                    QtCore.QTimer.singleShot(300, self.refresh_latest_mpc)
+
 
                     # Show success message only once
                     if not hasattr(self, '_import_success_shown'):
@@ -4378,9 +4335,6 @@ Source: {result.get('source', 'unknown')} database
 
                         # Initialize default trend displays
                         QtCore.QTimer.singleShot(500, self._refresh_all_trends)
-
-                        # Initialize MPC tab with new data
-                        QtCore.QTimer.singleShot(300, self.refresh_latest_mpc)
 
                         QtWidgets.QMessageBox.information(
                             self,

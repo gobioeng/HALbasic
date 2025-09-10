@@ -52,7 +52,7 @@ def get_modern_native_stylesheet():
         border-color: #adb5bd;
     }
 
-    /* Modern Group Boxes - Card Style */
+    /* Modern Group Boxes - Card Style with Better Sizing */
     QGroupBox {
         font-weight: 600;
         color: #212529;
@@ -62,6 +62,7 @@ def get_modern_native_stylesheet():
         padding-top: 20px;
         background-color: white;
         font-size: 10pt;
+        min-height: 60px;  /* Prevent boxes from collapsing */
     }
     QGroupBox::title {
         subcontrol-origin: margin;
@@ -148,7 +149,7 @@ def get_modern_native_stylesheet():
         border-color: #adb5bd;
     }
 
-    /* Modern Tables */
+    /* Modern Tables with Responsive Sizing */
     QTableWidget {
         background-color: white;
         border: 1px solid #dee2e6;
@@ -157,6 +158,7 @@ def get_modern_native_stylesheet():
         selection-color: #212529;
         border-radius: 6px;
         font-size: 9pt;
+        min-height: 200px;  /* Ensure minimum height */
     }
     QHeaderView::section {
         background-color: #f8f9fa;
@@ -165,6 +167,7 @@ def get_modern_native_stylesheet():
         padding: 8px;
         font-weight: 600;
         color: #495057;
+        min-height: 30px;  /* Ensure header visibility */
     }
     
     /* Modern ComboBoxes */
@@ -401,6 +404,7 @@ def get_dark_theme_stylesheet():
 def apply_responsive_layout(widget):
     """
     Apply responsive layout adjustments based on widget size
+    Enhanced for better box sizing and overlap prevention
     """
     try:
         from PyQt5.QtCore import QTimer
@@ -413,20 +417,51 @@ def apply_responsive_layout(widget):
                 widget_size = widget.size()
 
                 # Adjust font sizes and spacing based on screen/widget size
+                responsive_style = ""
+                
                 if widget_size.width() < 1000:
                     # Compact layout for smaller screens
-                    widget.setStyleSheet(widget.styleSheet() + """
+                    responsive_style = """
                         QTabBar::tab { padding: 8px 12px; font-size: 12px; }
                         QPushButton { padding: 8px 16px; font-size: 12px; }
-                        QGroupBox { font-size: 13px; }
-                    """)
+                        QGroupBox { font-size: 12px; min-height: 50px; margin: 4px; }
+                        QTableWidget { font-size: 8pt; min-height: 150px; }
+                        QHeaderView::section { min-height: 25px; padding: 6px; }
+                        QComboBox { min-width: 100px; padding: 4px 8px; }
+                    """
                 elif widget_size.width() > 1600:
                     # Expanded layout for larger screens
-                    widget.setStyleSheet(widget.styleSheet() + """
+                    responsive_style = """
                         QTabBar::tab { padding: 16px 28px; font-size: 15px; }
                         QPushButton { padding: 14px 28px; font-size: 15px; }
-                        QGroupBox { font-size: 16px; }
-                    """)
+                        QGroupBox { font-size: 14px; min-height: 80px; margin: 8px; }
+                        QTableWidget { font-size: 10pt; min-height: 300px; }
+                        QHeaderView::section { min-height: 35px; padding: 10px; }
+                        QComboBox { min-width: 140px; padding: 8px 16px; }
+                    """
+                else:
+                    # Standard layout
+                    responsive_style = """
+                        QTabBar::tab { padding: 12px 20px; font-size: 13px; }
+                        QPushButton { padding: 10px 20px; font-size: 13px; }
+                        QGroupBox { font-size: 13px; min-height: 60px; margin: 6px; }
+                        QTableWidget { font-size: 9pt; min-height: 200px; }
+                        QHeaderView::section { min-height: 30px; padding: 8px; }
+                        QComboBox { min-width: 120px; padding: 6px 12px; }
+                    """
+                
+                # Apply responsive styles
+                current_style = widget.styleSheet()
+                # Remove any existing responsive styles
+                import re
+                current_style = re.sub(r'/\* RESPONSIVE \*/.*?/\* END RESPONSIVE \*/', '', current_style, flags=re.DOTALL)
+                
+                # Add new responsive styles
+                widget.setStyleSheet(current_style + f"""
+                /* RESPONSIVE */
+                {responsive_style}
+                /* END RESPONSIVE */
+                """)
 
         # Apply initial adjustments
         adjust_layout()
