@@ -215,21 +215,34 @@ class ModernDashboard(QWidget):
     
     def _create_no_data_ui(self, layout):
         """Create UI for when no data is available"""
-        # Show basic metric cards with zero values
-        metrics_layout = QHBoxLayout()
+        # Create responsive grid layout for metric cards (4 cards per row)
+        metrics_grid = QGridLayout()
+        metrics_grid.setSpacing(16)
+        metrics_grid.setContentsMargins(0, 0, 0, 16)
         
+        # Show basic metric cards with zero values
         self.metric_cards = {
-            "total_records": MetricCard("Total Records", "0", "", "#1976D2"),
-            "active_machines": MetricCard("Active Machines", "0", "machines", "#388E3C"),
+            "total_records": MetricCard("Total Records", "0", "entries", "#1976D2"),
+            "active_machines": MetricCard("Active Machines", "0", "systems", "#388E3C"),
             "parameters": MetricCard("Parameters", "0", "types", "#FF7043"),
-            "status": MetricCard("Status", "No Data", "", "#FF9800")
+            "pump_pressure": MetricCard("Pump Pressure", "-- PSI", "offline", "#9E9E9E"),
+            "flow_rate": MetricCard("Flow Rate", "-- L/min", "offline", "#9E9E9E"),
+            "temperature": MetricCard("Temperature", "-- °C", "offline", "#9E9E9E"),
+            "voltage": MetricCard("Voltage", "-- V", "offline", "#9E9E9E"),
+            "status": MetricCard("System Status", "No Data", "", "#FF9800")
         }
         
-        for card in self.metric_cards.values():
-            metrics_layout.addWidget(card)
-        metrics_layout.addStretch()
+        # Add cards to grid in responsive 4-column layout
+        cards_list = list(self.metric_cards.values())
+        for i, card in enumerate(cards_list):
+            row = i // 4
+            col = i % 4
+            metrics_grid.addWidget(card, row, col)
         
-        layout.addLayout(metrics_layout)
+        # Create container widget for the grid
+        metrics_container = QWidget()
+        metrics_container.setLayout(metrics_grid)
+        layout.addWidget(metrics_container)
         
         # No data prompt
         no_data_frame = QFrame()
@@ -416,8 +429,10 @@ class ModernDashboard(QWidget):
     
     def _create_dashboard_with_data(self, layout, stats):
         """Create dashboard UI when data is available"""
-        # Metrics row
-        metrics_layout = QHBoxLayout()
+        # Create responsive grid layout for metric cards (4 cards per row)
+        metrics_grid = QGridLayout()
+        metrics_grid.setSpacing(16)
+        metrics_grid.setContentsMargins(0, 0, 0, 16)
         
         # Create metric cards with actual data
         machines_count = len(self.machine_manager.get_available_machines()) if self.machine_manager else 0
@@ -436,18 +451,32 @@ class ModernDashboard(QWidget):
             title_suffix = " (All Machines)"
             status_text = "System Operational"
         
+        # Enhanced metric cards with pump pressure focus
         self.metric_cards = {
-            "total_records": MetricCard(f"Records{title_suffix}", f"{machine_records:,}", "", "#1976D2"),
-            "active_machines": MetricCard("Available Machines", str(machines_count), "units", "#388E3C"),
+            "total_records": MetricCard(f"Total Records{title_suffix}", f"{machine_records:,}", "entries", "#1976D2"),
+            "active_machines": MetricCard("Active Machines", str(machines_count), "systems", "#388E3C"),
             "parameters": MetricCard(f"Parameters{title_suffix}", str(machine_params), "types", "#FF7043"),
-            "status": MetricCard("Status", status_text, "", "#4CAF50" if machine_records > 0 else "#FF9800")
+            "pump_pressure": MetricCard("Pump Pressure", "-- PSI", "current", "#9C27B0"),
+            "flow_rate": MetricCard("Flow Rate", "-- L/min", "current", "#FF5722"),
+            "temperature": MetricCard("Temperature", "-- °C", "current", "#FF9800"),
+            "voltage": MetricCard("Voltage", "-- V", "current", "#607D8B"),
+            "status": MetricCard("System Status", status_text, "", "#4CAF50" if machine_records > 0 else "#FF9800")
         }
         
-        for card in self.metric_cards.values():
-            metrics_layout.addWidget(card)
-        metrics_layout.addStretch()
+        # Add cards to grid in responsive 4-column layout
+        cards_list = list(self.metric_cards.values())
+        for i, card in enumerate(cards_list):
+            row = i // 4
+            col = i % 4
+            metrics_grid.addWidget(card, row, col)
         
-        layout.addLayout(metrics_layout)
+        # Create container widget for the grid to ensure proper sizing
+        metrics_container = QWidget()
+        metrics_container.setLayout(metrics_grid)
+        layout.addWidget(metrics_container)
+        
+        # Update real-time values for parameter cards
+        self._update_metric_card_values()
         
         # Machine status section (show when multiple machines available)
         if machines_count > 1:
@@ -599,3 +628,41 @@ class ModernDashboard(QWidget):
                 # You would need to replace the chart in the layout here
                 # For now, we'll just refresh the dashboard
                 self.refresh_dashboard()
+    
+    def _update_metric_card_values(self):
+        """Update metric cards with real-time parameter values"""
+        try:
+            if not self.machine_manager:
+                return
+                
+            # Get current filtered data
+            data = self.machine_manager.get_filtered_data()
+            if data.empty:
+                return
+            
+            # Update pump pressure card
+            pump_data = data[data['parameter_type'].str.contains('pump', case=False, na=False)]
+            if not pump_data.empty:
+                latest_pump = pump_data.iloc[-1]
+                self.metric_cards["pump_pressure"].update_value(f"{latest_pump['value']:.1f}")
+            
+            # Update flow rate card
+            flow_data = data[data['parameter_type'].str.contains('flow', case=False, na=False)]
+            if not flow_data.empty:
+                latest_flow = flow_data.iloc[-1]
+                self.metric_cards["flow_rate"].update_value(f"{latest_flow['value']:.1f}")
+            
+            # Update temperature card
+            temp_data = data[data['parameter_type'].str.contains('temp', case=False, na=False)]
+            if not temp_data.empty:
+                latest_temp = temp_data.iloc[-1]
+                self.metric_cards["temperature"].update_value(f"{latest_temp['value']:.1f}")
+            
+            # Update voltage card
+            voltage_data = data[data['parameter_type'].str.contains('volt', case=False, na=False)]
+            if not voltage_data.empty:
+                latest_voltage = voltage_data.iloc[-1]
+                self.metric_cards["voltage"].update_value(f"{latest_voltage['value']:.1f}")
+                
+        except Exception as e:
+            print(f"Error updating metric card values: {e}")
