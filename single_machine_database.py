@@ -50,6 +50,66 @@ class SingleMachineDatabaseManager:
         
         print("✓ Single Machine Database Manager initialized")
     
+    def add_sample_data_for_testing(self):
+        """Add sample data to machine databases for testing purposes"""
+        from datetime import datetime, timedelta
+        
+        machines = ["2123", "2207", "2350"]
+        sample_parameters = [
+            ("magnetronFlow", "L/min", "Mag Flow"),
+            ("pumpPressure", "PSI", "Pump Pressure"), 
+            ("FanremoteTempStatistics", "°C", "Temp Room"),
+            ("targetAndCirculatorFlow", "L/min", "Flow Target")
+        ]
+        
+        for machine_id in machines:
+            if self.create_machine_database(machine_id):
+                if self.switch_to_machine(machine_id):
+                    print(f"Adding sample data for machine {machine_id}...")
+                    
+                    # Generate sample data for last 24 hours
+                    base_time = datetime.now() - timedelta(hours=24)
+                    sample_records = []
+                    
+                    for i in range(48):  # Every 30 minutes for 24 hours
+                        timestamp = base_time + timedelta(minutes=30 * i)
+                        timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        for param_name, unit, description in sample_parameters:
+                            # Generate realistic values
+                            if "Flow" in param_name:
+                                base_value = 10.0 + float(machine_id) / 1000  # Slight variation per machine
+                                value = base_value + (i % 10) * 0.5  # Vary over time
+                            elif "Pressure" in param_name:
+                                base_value = 20.0 + float(machine_id) / 1000 
+                                value = base_value + (i % 8) * 0.8
+                            else:  # Temperature
+                                base_value = 22.0 + float(machine_id) / 1000
+                                value = base_value + (i % 6) * 0.3
+                            
+                            sample_records.append({
+                                'datetime': timestamp_str,
+                                'serial_number': machine_id,
+                                'parameter_type': param_name,
+                                'statistic_type': 'avg',
+                                'value': round(value, 2),
+                                'count': 10,
+                                'unit': unit,
+                                'description': description,
+                                'data_quality': 'good',
+                                'raw_parameter': param_name,
+                                'line_number': i + 1
+                            })
+                    
+                    # Insert sample data
+                    import pandas as pd
+                    sample_df = pd.DataFrame(sample_records)
+                    self.insert_data_batch(sample_df)
+                    print(f"✓ Added {len(sample_records)} sample records for machine {machine_id}")
+        
+        # Clear cache to refresh machine discovery
+        self._available_machines_cache.clear()
+    
     def _ensure_directories(self):
         """Ensure all required directories exist"""
         self.app_data_dir.mkdir(exist_ok=True)
@@ -75,12 +135,17 @@ class SingleMachineDatabaseManager:
                 if filename.startswith("halog_machine_") and filename.endswith(".db"):
                     machine_id = filename[14:-3]  # Remove "halog_machine_" and ".db"
                     
-                    # Verify the database is valid and not empty
+                    # Verify the database is valid (allow empty databases for now)
                     try:
                         with sqlite3.connect(str(db_file)) as conn:
-                            cursor = conn.execute("SELECT COUNT(*) FROM water_logs")
-                            record_count = cursor.fetchone()[0]
-                            if record_count > 0:
+                            # Check if table exists
+                            cursor = conn.execute("""
+                                SELECT name FROM sqlite_master 
+                                WHERE type='table' AND name='water_logs'
+                            """)
+                            if cursor.fetchone():
+                                cursor = conn.execute("SELECT COUNT(*) FROM water_logs")
+                                record_count = cursor.fetchone()[0]
                                 machine_ids.append(machine_id)
                                 # Cache basic info
                                 self._available_machines_cache[machine_id] = {

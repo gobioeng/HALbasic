@@ -161,7 +161,29 @@ class MachineManager:
             Filtered DataFrame for selected machine
         """
         if data is None:
-            # Load raw data from database using a simple query
+            # Use single-machine architecture if available
+            if self._use_single_machine_architecture and self.single_machine_db and self._selected_machine:
+                try:
+                    # Switch to selected machine database and load its data
+                    if self.single_machine_db.switch_to_machine(self._selected_machine):
+                        with self.single_machine_db.get_connection() as conn:
+                            data = pd.read_sql_query("""
+                                SELECT datetime, serial_number, parameter_type, 
+                                       statistic_type, value, count, unit, description
+                                FROM water_logs
+                                ORDER BY datetime
+                            """, conn)
+                            # Convert datetime with flexible parsing
+                            if not data.empty and 'datetime' in data.columns:
+                                try:
+                                    data['datetime'] = pd.to_datetime(data['datetime'], format='mixed')
+                                except:
+                                    data['datetime'] = pd.to_datetime(data['datetime'], errors='coerce')
+                            return data
+                except Exception as e:
+                    print(f"Error loading data from single-machine database: {e}")
+                    
+            # Fallback to legacy combined database approach
             try:
                 with self.db.get_connection() as conn:
                     data = pd.read_sql_query("""
