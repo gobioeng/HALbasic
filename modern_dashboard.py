@@ -112,7 +112,11 @@ class ModernDashboard(QWidget):
     
     def init_ui(self):
         """Initialize modern dashboard UI"""
-        layout = QVBoxLayout(self)
+        # Check if widget already has a layout
+        if self.layout() is None:
+            layout = QVBoxLayout(self)
+        else:
+            layout = self.layout()
         
         # Header with machine selector and refresh button
         header_layout = QHBoxLayout()
@@ -371,7 +375,7 @@ class ModernDashboard(QWidget):
     def refresh_dashboard(self):
         """Refresh all dashboard data with optimized performance"""
         try:
-            # Clear the current layout and rebuild
+            # Clear the current layout content and rebuild
             self.clear_layout()
             self.init_ui()
             
@@ -380,10 +384,22 @@ class ModernDashboard(QWidget):
     
     def clear_layout(self):
         """Clear all widgets from the layout"""
-        while self.layout().count():
-            child = self.layout().takeAt(0)
+        if self.layout():
+            while self.layout().count():
+                child = self.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+                elif child.layout():
+                    self._clear_sublayout(child.layout())
+    
+    def _clear_sublayout(self, layout):
+        """Helper method to clear nested layouts"""
+        while layout.count():
+            child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+            elif child.layout():
+                self._clear_sublayout(child.layout())
     
     def get_summary_statistics(self):
         """Get summary statistics from database"""

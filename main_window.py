@@ -138,12 +138,10 @@ class Ui_MainWindow(object):
             QPushButton:hover {
                 background-color: #0b5ed7;
                 border-color: #0b5ed7;
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background-color: #0a58ca;
                 border-color: #0a58ca;
-                transform: translateY(0px);
             }
             QPushButton:disabled {
                 background-color: #e9ecef;

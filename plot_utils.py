@@ -27,7 +27,7 @@ import numpy as np
 from datetime import timedelta
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
                             QCheckBox, QGroupBox, QSplitter, QTableWidget, QTableWidgetItem,
-                            QHeaderView, QPushButton, QDialog, QDialogButtonBox, QScrollArea)
+                            QHeaderView, QPushButton, QDialog, QDialogButtonBox, QScrollArea, QFrame)
 from PyQt5.QtCore import Qt, pyqtSignal
 from typing import Optional, Dict, List
 

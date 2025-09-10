@@ -95,11 +95,9 @@ class AboutDialog(QDialog):
             }
             QPushButton:hover {
                 background: #0b5ed7;
-                transform: translateY(-1px);
             }
             QPushButton:pressed {
                 background: #0a58ca;
-                transform: translateY(0px);
             }
             QTextBrowser {
                 background: white;
