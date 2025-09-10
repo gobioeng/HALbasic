@@ -391,9 +391,9 @@ class Ui_MainWindow(object):
         self.setup_about_tab()
 
     def setup_dashboard_tab(self):
-        self.tabDashboard = QWidget()
-        self.tabWidget.addTab(self.tabDashboard, "📊 Dashboard")
-        layout = QVBoxLayout(self.tabDashboard)
+        self.dashboardTab = QWidget()  # Fixed: Use dashboardTab instead of tabDashboard for consistency with main.py
+        self.tabWidget.addTab(self.dashboardTab, "📊 Dashboard")
+        layout = QVBoxLayout(self.dashboardTab)
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 
