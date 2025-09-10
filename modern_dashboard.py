@@ -224,16 +224,13 @@ class ModernDashboard(QWidget):
         metrics_grid.setSpacing(16)
         metrics_grid.setContentsMargins(0, 0, 0, 16)
         
-        # Show basic metric cards with zero values
+        # Show basic metric cards with focus on FLOW TARGET (as requested)
         self.metric_cards = {
             "total_records": MetricCard("Total Records", "0", "entries", "#1976D2"),
             "active_machines": MetricCard("Active Machines", "0", "systems", "#388E3C"),
-            "parameters": MetricCard("Parameters", "0", "types", "#FF7043"),
-            "pump_pressure": MetricCard("Pump Pressure", "-- PSI", "offline", "#9E9E9E"),
-            "flow_rate": MetricCard("Flow Rate", "-- L/min", "offline", "#9E9E9E"),
-            "temperature": MetricCard("Temperature", "-- °C", "offline", "#9E9E9E"),
-            "voltage": MetricCard("Voltage", "-- V", "offline", "#9E9E9E"),
-            "status": MetricCard("System Status", "No Data", "", "#FF9800")
+            "flow_target": MetricCard("Flow Target", "-- L/min", "offline", "#9E9E9E"),  # Primary focus
+            "flow_status": MetricCard("Flow Status", "Offline", "", "#FF9800"),
+            "system_health": MetricCard("System Health", "No Data", "", "#FF9800")
         }
         
         # Add cards to grid in responsive 4-column layout
@@ -529,16 +526,13 @@ class ModernDashboard(QWidget):
             title_suffix = " (All Machines)"
             status_text = "System Operational"
         
-        # Enhanced metric cards with pump pressure focus
+        # Enhanced metric cards with FLOW TARGET focus (as requested)
         self.metric_cards = {
             "total_records": MetricCard(f"Total Records{title_suffix}", f"{machine_records:,}", "entries", "#1976D2"),
             "active_machines": MetricCard("Active Machines", str(machines_count), "systems", "#388E3C"),
-            "parameters": MetricCard(f"Parameters{title_suffix}", str(machine_params), "types", "#FF7043"),
-            "pump_pressure": MetricCard("Pump Pressure", "-- PSI", "current", "#9C27B0"),
-            "flow_rate": MetricCard("Flow Rate", "-- L/min", "current", "#FF5722"),
-            "temperature": MetricCard("Temperature", "-- °C", "current", "#FF9800"),
-            "voltage": MetricCard("Voltage", "-- V", "current", "#607D8B"),
-            "status": MetricCard("System Status", status_text, "", "#4CAF50" if machine_records > 0 else "#FF9800")
+            "flow_target": MetricCard("Flow Target", "-- L/min", "realtime", "#4CAF50"),  # Primary focus as requested
+            "flow_status": MetricCard("Flow Status", "Monitoring", "", "#2196F3"),
+            "system_health": MetricCard("System Health", "Good", "", "#4CAF50" if machine_records > 0 else "#FF9800")
         }
         
         # Add cards to grid in responsive 4-column layout
@@ -708,7 +702,7 @@ class ModernDashboard(QWidget):
                 self.refresh_dashboard()
     
     def _update_metric_card_values(self):
-        """Update metric cards with real-time parameter values"""
+        """Update metric cards with real-time FLOW TARGET values (as requested)"""
         try:
             if not self.machine_manager:
                 return
@@ -718,29 +712,52 @@ class ModernDashboard(QWidget):
             if data.empty:
                 return
             
-            # Update pump pressure card
-            pump_data = data[data['parameter_type'].str.contains('pump', case=False, na=False)]
-            if not pump_data.empty:
-                latest_pump = pump_data.iloc[-1]
-                self.metric_cards["pump_pressure"].update_value(f"{latest_pump['value']:.1f}")
+            # Focus on FLOW TARGET data only (as requested in requirements)
+            # Look for various flow target parameter names
+            flow_target_patterns = [
+                'targetandcirculatorflow', 'flow.*target', 'target.*flow', 
+                'magnetronflow', 'flow_target', 'flowTarget'
+            ]
             
-            # Update flow rate card
-            flow_data = data[data['parameter_type'].str.contains('flow', case=False, na=False)]
-            if not flow_data.empty:
-                latest_flow = flow_data.iloc[-1]
-                self.metric_cards["flow_rate"].update_value(f"{latest_flow['value']:.1f}")
+            flow_target_data = None
+            for pattern in flow_target_patterns:
+                target_data = data[data['parameter_type'].str.contains(pattern, case=False, na=False, regex=True)]
+                if not target_data.empty:
+                    flow_target_data = target_data
+                    break
             
-            # Update temperature card
-            temp_data = data[data['parameter_type'].str.contains('temp', case=False, na=False)]
-            if not temp_data.empty:
-                latest_temp = temp_data.iloc[-1]
-                self.metric_cards["temperature"].update_value(f"{latest_temp['value']:.1f}")
-            
-            # Update voltage card
-            voltage_data = data[data['parameter_type'].str.contains('volt', case=False, na=False)]
-            if not voltage_data.empty:
-                latest_voltage = voltage_data.iloc[-1]
-                self.metric_cards["voltage"].update_value(f"{latest_voltage['value']:.1f}")
+            if flow_target_data is not None and not flow_target_data.empty:
+                # Get latest flow target value
+                latest_flow_target = flow_target_data.iloc[-1]
+                flow_value = latest_flow_target['value']
+                
+                # Update flow target card with current value
+                if 'flow_target' in self.metric_cards:
+                    self.metric_cards["flow_target"].update_value(f"{flow_value:.1f}")
+                
+                # Update flow status based on flow target value
+                if 'flow_status' in self.metric_cards:
+                    if flow_value > 0:
+                        self.metric_cards["flow_status"].update_value("Active")
+                    else:
+                        self.metric_cards["flow_status"].update_value("Inactive")
+                
+                # Update system health based on flow target
+                if 'system_health' in self.metric_cards:
+                    if flow_value > 5.0:  # Threshold for healthy flow
+                        self.metric_cards["system_health"].update_value("Good")
+                    elif flow_value > 1.0:
+                        self.metric_cards["system_health"].update_value("Warning")
+                    else:
+                        self.metric_cards["system_health"].update_value("Low")
+            else:
+                # No flow target data available
+                if 'flow_target' in self.metric_cards:
+                    self.metric_cards["flow_target"].update_value("-- L/min")
+                if 'flow_status' in self.metric_cards:
+                    self.metric_cards["flow_status"].update_value("No Data")
+                if 'system_health' in self.metric_cards:
+                    self.metric_cards["system_health"].update_value("Unknown")
                 
         except Exception as e:
-            print(f"Error updating metric card values: {e}")
+            print(f"Error updating flow target values: {e}")
