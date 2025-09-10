@@ -563,8 +563,8 @@ class Ui_MainWindow(object):
         graph_group = QGroupBox("Trend Visualization")
         graph_layout = QVBoxLayout(graph_group)
         
-        # Interactive usage hint
-        usage_hint = QLabel("💡 Interactive Graph: Mouse wheel to zoom, drag to pan, double-click to fit all data")
+        # Interactive usage hint with specific shortcuts
+        usage_hint = QLabel("💡 Interactive Features: Mouse wheel zoom • Drag to pan • Double-click fit all • Keys: h(1hr) d(1day) w(week) m(month) r(reset) f(fit) +/- arrows")
         usage_hint.setStyleSheet("""
             QLabel {
                 padding: 8px;
@@ -584,11 +584,18 @@ class Ui_MainWindow(object):
             self.trendGraph = EnhancedPlotWidget()
             self.trendGraph.setMinimumHeight(400)
             self.trendGraph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graph_layout.addWidget(self.trendGraph)
             
-            # Enable interactive features
-            self.trendGraph.enable_interactive_time_navigation()
-            self.trendGraph.enable_timeline_scrubber() 
+            # ENHANCED: Connect time window buttons to existing interactive features
+            self.btn1Day.clicked.connect(lambda: self._set_enhanced_time_window("1day"))
+            self.btn1Week.clicked.connect(lambda: self._set_enhanced_time_window("1week"))
+            self.btn1Month.clicked.connect(lambda: self._set_enhanced_time_window("1month"))
+            
+            # Connect scale controls to enhanced plot widget
+            self.scaleAutoCheckbox.stateChanged.connect(self._update_enhanced_scaling)
+            self.scaleMinInput.valueChanged.connect(self._update_enhanced_scaling)
+            self.scaleMaxInput.valueChanged.connect(self._update_enhanced_scaling)
+            
+            graph_layout.addWidget(self.trendGraph)
             
         except ImportError:
             # Fallback to simple frame if enhanced plotting not available
@@ -614,6 +621,73 @@ class Ui_MainWindow(object):
         # Initialize with default parameter
         QTimer.singleShot(100, self.update_simplified_trend)
 
+    def _set_enhanced_time_window(self, window):
+        """Set time window using enhanced plot widget's interactive features"""
+        print(f"Setting enhanced time window to: {window}")
+        
+        try:
+            if hasattr(self, 'trendGraph') and hasattr(self.trendGraph, 'time_slider'):
+                # Use the DynamicTimeSlider's quick buttons
+                if window == "1day":
+                    # Trigger 1D button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1D" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1D"].click()
+                elif window == "1week":
+                    # Trigger 1W button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1W" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1W"].click()
+                elif window == "1month":
+                    # Trigger 1M button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1M" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1M"].click()
+            
+            # Also use keyboard shortcuts for time navigation
+            elif hasattr(self, 'trendGraph') and hasattr(self.trendGraph, 'interactive_manager'):
+                manager = self.trendGraph.interactive_manager
+                if manager and hasattr(manager, '_zoom_to_time_range_smooth'):
+                    if window == "1day":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24)
+                    elif window == "1week":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24*7)
+                    elif window == "1month":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24*30)
+                        
+        except Exception as e:
+            print(f"Error setting enhanced time window: {e}")
+            # Fallback to original method
+            self.set_time_window(window)
+    
+    def _update_enhanced_scaling(self):
+        """Update scaling using enhanced plot widget features"""
+        try:
+            if not hasattr(self, 'trendGraph') or not hasattr(self.trendGraph, 'figure'):
+                return
+                
+            is_auto = self.scaleAutoCheckbox.isChecked()
+            
+            for ax in self.trendGraph.figure.get_axes():
+                if is_auto:
+                    # Auto scale - let matplotlib handle it
+                    ax.autoscale(enable=True, axis='y', tight=False)
+                    ax.margins(y=0.1)  # Add 10% margin
+                else:
+                    # Manual scale - use spinbox values
+                    min_val = self.scaleMinInput.value()
+                    max_val = self.scaleMaxInput.value()
+                    if min_val < max_val:  # Validate range
+                        ax.set_ylim(min_val, max_val)
+                        ax.autoscale(enable=False, axis='y')
+            
+            # Refresh the canvas
+            if hasattr(self.trendGraph, 'canvas'):
+                self.trendGraph.canvas.draw()
+                
+        except Exception as e:
+            print(f"Error updating enhanced scaling: {e}")
+    
     def on_scale_mode_changed(self, checked):
         """Handle auto/manual scale mode change"""
         is_manual = not checked
@@ -689,7 +763,7 @@ class Ui_MainWindow(object):
             print(f"Error applying time filter to trend: {e}")
     
     def update_simplified_trend(self):
-        """Update the simplified single trend graph"""
+        """Update the simplified single trend graph using enhanced plotting features"""
         try:
             selected_param = self.parameterDropdown.currentText()
             if not selected_param:
@@ -703,15 +777,51 @@ class Ui_MainWindow(object):
                 if hasattr(parent, '_get_parameter_data_by_description'):
                     param_data = parent._get_parameter_data_by_description(selected_param)
                     
-                    # Plot on the single graph
+                    # Plot on the single graph using enhanced features
                     if hasattr(self, 'trendGraph') and not param_data.empty:
                         try:
+                            # Use enhanced plot widget's plotting capabilities
                             if hasattr(self.trendGraph, 'plot_parameter_trends'):
                                 self.trendGraph.plot_parameter_trends(param_data, selected_param)
+                            elif hasattr(self.trendGraph, 'figure'):
+                                # Direct matplotlib plotting with enhanced features
+                                self.trendGraph.figure.clear()
+                                ax = self.trendGraph.figure.add_subplot(111)
+                                
+                                # Plot the trend data
+                                ax.plot(pd.to_datetime(param_data['datetime']), 
+                                       param_data['avg'], 
+                                       linewidth=2, alpha=0.8, color='#1976D2',
+                                       label=selected_param)
+                                       
+                                ax.set_title(f"{selected_param} - Trend Analysis", fontweight='bold', fontsize=14)
+                                ax.set_xlabel("Time", fontsize=12)
+                                ax.set_ylabel(f"{selected_param}", fontsize=12)
+                                ax.grid(True, alpha=0.3)
+                                ax.legend()
+                                
+                                # Apply professional styling
+                                from plot_utils import PlotUtils
+                                PlotUtils.setup_professional_style()
+                                
+                                # Update interactive manager if it exists
+                                if hasattr(self.trendGraph, 'interactive_manager') and self.trendGraph.interactive_manager:
+                                    self.trendGraph.interactive_manager.ax = [ax]
+                                    self.trendGraph.interactive_manager._store_initial_view()
+                                
+                                # Refresh canvas
+                                if hasattr(self.trendGraph, 'canvas'):
+                                    self.trendGraph.canvas.draw()
+                                    
+                                # Apply current scale settings
+                                self._update_enhanced_scaling()
+                                
                             else:
-                                print("Enhanced plotting method not available")
+                                print("Enhanced plotting methods not available")
                         except Exception as plot_error:
                             print(f"Error plotting trend: {plot_error}")
+                            import traceback
+                            traceback.print_exc()
                     break
                 parent = parent.parent()
             else:
@@ -719,6 +829,8 @@ class Ui_MainWindow(object):
                 
         except Exception as e:
             print(f"Error updating simplified trend: {e}")
+            import traceback
+            traceback.print_exc()
     
     def export_trend_data(self):
         """Export current trend data to file"""
