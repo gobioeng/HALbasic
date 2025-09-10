@@ -427,6 +427,164 @@ class Ui_MainWindow(object):
             }
         """)
         layout.addWidget(info_label)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        header_label = QLabel("<h2>LINAC Water System Monitor</h2>")
+        header_label.setAlignment(Qt.AlignCenter)
+        header_label.setWordWrap(True)
+        layout.addWidget(header_label)
+
+        # Machine selection header
+        machine_header_layout = QHBoxLayout()
+        machine_header_layout.setContentsMargins(0, 10, 0, 10)
+        
+        # Machine selection label and combo box
+        machine_label = QLabel("Select Machine:")
+        machine_label.setFont(QFont("Calibri", 10))
+        machine_label.setAlignment(Qt.AlignVCenter)
+        
+        self.cmbMachineSelect = QComboBox()
+        self.cmbMachineSelect.setFont(QFont("Calibri", 10))
+        self.cmbMachineSelect.setMinimumWidth(200)
+        self.cmbMachineSelect.setToolTip("Select machine to analyze based on serial number")
+        # Style the combo box to match the app theme
+        self.cmbMachineSelect.setStyleSheet("""
+            QComboBox {
+                padding: 6px 12px;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: white;
+                font-family: Calibri;
+                font-size: 10pt;
+            }
+            QComboBox:focus {
+                border-color: #2196F3;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+                margin: 2px;
+            }
+        """)
+        
+        machine_header_layout.addStretch()
+        machine_header_layout.addWidget(machine_label)
+        machine_header_layout.addWidget(self.cmbMachineSelect)
+        
+        # Add multi-selection button for advanced machine selection
+        self.btnMultiMachineSelect = QPushButton("Multi-Select")
+        self.btnMultiMachineSelect.setFont(QFont("Calibri", 10))
+        self.btnMultiMachineSelect.setMaximumWidth(100)
+        self.btnMultiMachineSelect.setToolTip("Select multiple machines for comparison")
+        self.btnMultiMachineSelect.setStyleSheet("""
+            QPushButton {
+                padding: 6px 12px;
+                border: 2px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: white;
+                font-family: Calibri;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                border-color: #2196F3;
+                background-color: #F5F5F5;
+            }
+            QPushButton:pressed {
+                background-color: #E3F2FD;
+            }
+        """)
+        machine_header_layout.addWidget(self.btnMultiMachineSelect)
+        
+        # Add machine comparison button
+        self.btnMachineComparison = QPushButton("Compare A vs B")
+        self.btnMachineComparison.setFont(QFont("Calibri", 10))
+        self.btnMachineComparison.setMaximumWidth(120)
+        self.btnMachineComparison.setToolTip("Open detailed comparison dialog between two machines")
+        self.btnMachineComparison.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:pressed {
+                background-color: #E65100;
+            }
+        """)
+        machine_header_layout.addWidget(self.btnMachineComparison)
+        
+        machine_header_layout.addStretch()
+        
+        layout.addLayout(machine_header_layout)
+        
+        # Add machine database status indicator
+        status_layout = QHBoxLayout()
+        status_layout.setContentsMargins(10, 5, 10, 5)
+        
+        self.lblMachineStatus = QLabel("Database: Combined (Legacy Mode)")
+        self.lblMachineStatus.setFont(QFont("Calibri", 9))
+        self.lblMachineStatus.setStyleSheet("""
+            QLabel {
+                color: #666666;
+                background-color: #F5F5F5;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid #E0E0E0;
+            }
+        """)
+        
+        status_layout.addWidget(self.lblMachineStatus)
+        status_layout.addStretch()
+        
+        layout.addLayout(status_layout)
+
+        cards_layout = QHBoxLayout()
+        cards_layout.setSpacing(12)
+
+        status_group = QGroupBox("System Status")
+        status_layout = QGridLayout(status_group)
+        status_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.lblSerial = QLabel("Serial: -")
+        self.lblSerial.setWordWrap(True)
+        self.lblDate = QLabel("Date: -")
+        self.lblDate.setWordWrap(True)
+        self.lblDuration = QLabel("Duration: -")
+        self.lblDuration.setWordWrap(True)
+
+        status_layout.addWidget(self.lblSerial, 0, 0)
+        status_layout.addWidget(self.lblDate, 1, 0)
+        status_layout.addWidget(self.lblDuration, 2, 0)
+        cards_layout.addWidget(status_group)
+
+        data_group = QGroupBox("Data Summary")
+        data_layout = QGridLayout(data_group)
+        data_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.lblRecordCount = QLabel("Total Records: 0")
+        self.lblRecordCount.setWordWrap(True)
+        self.lblParameterCount = QLabel("Parameters: 0")
+        self.lblParameterCount.setWordWrap(True)
+
+        data_layout.addWidget(self.lblRecordCount, 0, 0)
+        data_layout.addWidget(self.lblParameterCount, 1, 0)
+        cards_layout.addWidget(data_group)
+        cards_layout.addStretch()
+
+        layout.addLayout(cards_layout)
+        layout.addStretch()
+
     def setup_trends_tab(self):
         self.tabTrends = QWidget()
         self.tabWidget.addTab(self.tabTrends, "📈 Trends")

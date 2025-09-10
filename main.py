@@ -2016,230 +2016,72 @@ Source: {result.get('source', 'unknown')} database
                     )
 
             def load_dashboard(self):
-                """Load dashboard with professional optimizations and lazy loading"""
+                """Load modern dashboard with advanced features"""
                 try:
                     if not hasattr(self, "db"):
                         print("Database not initialized")
                         return
 
-                    # First, populate machine selection dropdown
-                    if hasattr(self, 'machine_manager') and hasattr(self.ui, 'cmbMachineSelect'):
-                        self._populate_machine_dropdown()
-                        
-                    # Populate analysis machine dropdown
-                    if hasattr(self, 'machine_manager') and hasattr(self.ui, 'comboAnalysisMachine'):
-                        self._populate_analysis_machine_dropdown()
-
-                    # First, load only summary data for faster startup
-                    start_time = time.time()
+                    print("🚀 Loading modern dashboard...")
                     
-                    # Load metadata only initially for fast startup
-                    summary_stats = self.db.get_summary_statistics()
-                    if not summary_stats:
-                        print("⚠️ No data available in database")
-                        # Run diagnostic to provide more details
-                        if hasattr(self.db, 'diagnose_data_issues'):
-                            diagnosis = self.db.diagnose_data_issues()
-                            print(f"Data health: {diagnosis.get('data_health', 'unknown')}")
-                            if diagnosis.get('issues_found'):
-                                print(f"Issues found: {', '.join(diagnosis['issues_found'])}")
-                            if diagnosis.get('recommendations'):
-                                print(f"Recommendations: {', '.join(diagnosis['recommendations'])}")
-                        return
+                    # Replace dashboard placeholder with actual ModernDashboard widget
+                    if hasattr(self.ui, 'dashboardTab'):
+                        # Clear existing layout
+                        for i in reversed(range(self.ui.dashboardTab.layout().count())):
+                            child = self.ui.dashboardTab.layout().itemAt(i)
+                            if child.widget():
+                                child.widget().deleteLater()
+                        
+                        # Create modern dashboard instance
+                        from modern_dashboard import ModernDashboard
+                        
+                        # Initialize modern dashboard with database and machine manager
+                        machine_manager = getattr(self, 'machine_manager', None)
+                        self.modern_dashboard = ModernDashboard(machine_manager, self.db)
+                        
+                        # Add to dashboard tab
+                        self.ui.dashboardTab.layout().addWidget(self.modern_dashboard)
+                        
+                        print("✅ Modern dashboard loaded successfully")
                     
-                    # Load only a sample of recent data for UI initialization (last 1000 records)
-                    try:
-                        raw_df = self.db.get_recent_logs(limit=1000)
-                    except (TypeError, AttributeError):
-                        # Fallback: Load minimal data for UI setup
-                        try:
-                            raw_df = self.db.get_all_logs(chunk_size=1000)
-                            if len(raw_df) > 1000:
-                                raw_df = raw_df.tail(1000)  # Keep only last 1000 for startup
-                        except TypeError:
-                            raw_df = self.db.get_all_logs()
-                            if len(raw_df) > 1000:
-                                raw_df = raw_df.tail(1000)
-
-                    # Apply machine filtering if machine manager is available
-                    if hasattr(self, 'machine_manager'):
-                        self.df = self.machine_manager.get_filtered_data(raw_df)
-                    else:
-                        self.df = raw_df
-
-                    # Mark that we have partial data loaded
-                    self._full_data_loaded = False
-                    self._mark_data_updated()
+                    # Load summary data for other components
+                    self._load_summary_data_for_ui()
                     
-                    load_time = time.time() - start_time
-                    print(f"⚡ Dashboard quick-loaded with {len(self.df)} sample records in {load_time:.2f}s")
-
-                    if not self.df.empty:
-                        # Find correct column names dynamically
-                        serial_col = None
-                        param_col = None
-                        for col in self.df.columns:
-                            if col in ['serial', 'serial_number']:
-                                serial_col = col
-                            elif col in ['param', 'parameter_type', 'parameter_name']:
-                                param_col = col
-
-                        latest = self.df.sort_values("datetime").iloc[-1]
-
-                        # Display serial using correct column
-                        if serial_col:
-                            self.ui.lblSerial.setText(f"Serial: {latest[serial_col]}")
-                        else:
-                            self.ui.lblSerial.setText("Serial: Unknown")
-
-                        self.ui.lblDate.setText(f"Date: {latest['datetime'].date()}")
-
-                        dt_min = self.df["datetime"].min()
-                        dt_max = self.df["datetime"].max()
-                        duration = dt_max - dt_min
-                        
-                        # Calculate data age and add contextual information
-                        import pandas as pd
-                        latest_dt = pd.to_datetime(latest['datetime'])
-                        oldest_dt = pd.to_datetime(dt_min) 
-                        now = pd.Timestamp.now()
-                        
-                        days_old = (now - latest_dt).total_seconds() / (24 * 3600)
-                        data_range_days = (latest_dt - oldest_dt).total_seconds() / (24 * 3600)
-                        
-                        # Enhanced duration display with data freshness context
-                        duration_text = f"Duration: {duration}"
-                        if days_old <= 14:
-                            freshness = "🟢 Current"
-                        elif days_old <= 28:
-                            freshness = "🔵 Recent"
-                        elif days_old <= 60:
-                            freshness = "🟠 Available"
-                        else:
-                            freshness = "⚪ Older"
-                        
-                        # Show data range with freshness indicator
-                        range_info = f" ({oldest_dt.date()} to {latest_dt.date()})"
-                        self.ui.lblDuration.setText(f"{duration_text}{range_info} - {freshness}")
-                        
-                        # Enhanced record count with data context
-                        record_info = f"Total Records: {len(self.df):,}"
-                        if data_range_days > 0:
-                            records_per_day = len(self.df) / max(1, data_range_days)
-                            record_info += f" ({records_per_day:.0f}/day avg)"
-                        
-                        self.ui.lblRecordCount.setText(record_info)
-
-                        # Count unique parameters using correct column
-                        if param_col:
-                            unique_params = self.df[param_col].nunique()
-                            self.ui.lblParameterCount.setText(
-                                f"Parameters: {unique_params}"
-                            )
-                        else:
-                            self.ui.lblParameterCount.setText("Parameters: 0")
-
-                        print(f"✓ Dashboard updated - Records: {len(self.df):,}, Parameters: {unique_params if param_col else 0}")
-                    else:
-                        self.ui.lblSerial.setText("Serial: No data imported")
-                        self.ui.lblDate.setText("Date: No data imported")
-                        self.ui.lblDuration.setText("Duration: No data imported")
-                        self.ui.lblRecordCount.setText("Total Records: 0")
-                        self.ui.lblParameterCount.setText("Parameters: 0")
-                        print("⚠️ Dashboard shows no data - import log files first")
-
-                    # Add multi-machine status indicators
-                    self._update_multi_machine_status()
-                    
-                    # Load modern dashboard is already handled in unified initialization above
-                    # self._load_modern_dashboard()  # Removed duplicate
-
-                    # Update UI components
-                    self.update_trend_combos()
-                    # Data table removed - skip update
-                    self.update_analysis_tab()
-
-                    # Initialize trend graphs with default parameters only if we have data
-                    if not self.df.empty:
-                        QtCore.QTimer.singleShot(300, self._refresh_all_trends)
-                        QtCore.QTimer.singleShot(200, self.refresh_latest_mpc)
-
                 except Exception as e:
-                    print(f"Error loading dashboard: {e}")
+                    print(f"❌ Error loading modern dashboard: {e}")
+                    import traceback
                     traceback.print_exc()
+                    # Fallback to basic display
+                    self._show_dashboard_error(str(e))
                     
-            def _update_multi_machine_status(self):
-                """Update dashboard with multi-machine status indicators"""
+            def _load_summary_data_for_ui(self):
+                """Load summary data for UI components that need it"""
                 try:
-                    if not hasattr(self, 'machine_manager') or not self.machine_manager:
-                        return
-                        
-                    available_machines = self.machine_manager.get_available_machines()
-                    
-                    if len(available_machines) <= 1:
-                        return  # Single machine mode, no need for multi-machine status
-                        
-                    # Get multi-machine statistics
-                    multi_stats = self.machine_manager.get_multi_machine_stats()
-                    
-                    if 'fleet_stats' in multi_stats:
-                        fleet_stats = multi_stats['fleet_stats']
-                        
-                        # Update existing labels to show fleet information
-                        if hasattr(self.ui, 'lblSerial'):
-                            total_machines = fleet_stats.get('total_machines', 0)
-                            active_machines = fleet_stats.get('active_machines', 0)
-                            self.ui.lblSerial.setText(
-                                f"Fleet: {active_machines}/{total_machines} machines active"
-                            )
-                            
-                        if hasattr(self.ui, 'lblRecordCount'):
-                            total_records = fleet_stats.get('total_records', 0)
-                            avg_per_machine = fleet_stats.get('average_records_per_machine', 0)
-                            self.ui.lblRecordCount.setText(
-                                f"Fleet Records: {total_records:,} (avg: {avg_per_machine:.0f}/machine)"
-                            )
-                    
-                    # Show machine status indicators in console (could be enhanced with UI later)
-                    machine_statuses = []
-                    machines = multi_stats.get('machines', {})
-                    for machine_id, machine_data in machines.items():
-                        status = machine_data.get('status', 'unknown')
-                        color = machine_data.get('color', '#808080')
-                        record_count = machine_data.get('record_count', 0)
-                        
-                        status_symbol = {
-                            'active': '🟢',
-                            'limited': '🟡', 
-                            'inactive': '🔴',
-                            'unknown': '⚪'
-                        }.get(status, '⚪')
-                        
-                        machine_statuses.append(f"{status_symbol} {machine_id}: {record_count:,} records")
-                        
-                    if machine_statuses:
-                        print("🏭 Multi-Machine Fleet Status:")
-                        for status_line in machine_statuses:
-                            print(f"  {status_line}")
-                            
-                    # Check for alerts
-                    alerts = []
-                    for machine_id in available_machines:
-                        try:
-                            alert_summary = self.db.get_machine_alert_summary(machine_id)
-                            if alert_summary.get('alert_level') in ['warning', 'critical']:
-                                alerts.extend([f"{machine_id}: {alert}" for alert in alert_summary.get('alerts', [])])
-                        except:
-                            pass
-                            
-                    if alerts:
-                        print("⚠️ Multi-Machine Alerts:")
-                        for alert in alerts[:5]:  # Show first 5 alerts
-                            print(f"  • {alert}")
-                            
+                    # Load minimal data for other UI components
+                    summary_stats = self.db.get_summary_statistics()
+                    if summary_stats:
+                        # Store for other components that might need it
+                        self._summary_stats = summary_stats
+                        print(f"📊 Summary loaded: {summary_stats.get('total_records', 0)} records")
                 except Exception as e:
-                    print(f"Error updating multi-machine status: {e}")
+                    print(f"Error loading summary data: {e}")
                     
+            def _show_dashboard_error(self, error_msg):
+                """Show dashboard error message"""
+                if hasattr(self.ui, 'dashboardTab'):
+                    error_label = QtWidgets.QLabel(f"Dashboard Error: {error_msg}")
+                    error_label.setAlignment(QtCore.Qt.AlignCenter)
+                    error_label.setStyleSheet("""
+                        QLabel {
+                            color: #d32f2f;
+                            font-size: 14px;
+                            padding: 20px;
+                            background: #ffebee;
+                            border: 1px solid #ffcdd2;
+                            border-radius: 4px;
+                        }
+                    """)
+                    self.ui.dashboardTab.layout().addWidget(error_label)
             def _load_basic_dashboard(self):
                 """Fallback basic dashboard loading"""
                 print("Loading basic dashboard fallback...")
