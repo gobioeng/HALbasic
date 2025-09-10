@@ -192,10 +192,9 @@ class TouchOptimizedButton(QPushButton):
                     min-height: {self.layout_manager.get_touch_target_size()}px;
                 }}
                 QPushButton:hover {{
-                    transform: scale(1.05);
+                    background-color: rgba(0, 120, 212, 0.8);
                 }}
                 QPushButton:pressed {{
-                    transform: scale(0.95);
                     background-color: rgba(0, 0, 0, 0.1);
                 }}
             """)
