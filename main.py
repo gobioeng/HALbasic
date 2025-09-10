@@ -818,9 +818,11 @@ class HALogApp:
                         )
                         print("✓ About Qt action connected")
 
-                    # BUTTON ACTIONS
-                    self.ui.btnClearDB.clicked.connect(self.clear_database)
-                    self.ui.btnRefreshData.clicked.connect(self.load_dashboard)
+                    # BUTTON ACTIONS - only for buttons that still exist
+                    if hasattr(self.ui, 'btnClearDB'):
+                        self.ui.btnClearDB.clicked.connect(self.clear_database)
+                    if hasattr(self.ui, 'btnRefreshData'):
+                        self.ui.btnRefreshData.clicked.connect(self.load_dashboard)
 
                     # MACHINE SELECTION CONTROLS
                     if hasattr(self.ui, 'cmbMachineSelect'):
@@ -835,7 +837,7 @@ class HALogApp:
                         self.ui.btnMachineComparison.clicked.connect(self.open_machine_comparison_dialog)
                         print("✓ Machine comparison button connected")
 
-                    # Legacy trend controls (keep for backward compatibility)
+                    # Modern trend controls - removed legacy backward compatibility
                     if hasattr(self.ui, 'comboTrendSerial'):
                         self.ui.comboTrendSerial.currentIndexChanged.connect(self.update_trend)
                     if hasattr(self.ui, 'comboTrendParam'):
@@ -852,6 +854,16 @@ class HALogApp:
                         self.ui.btnRefreshHumidity.clicked.connect(lambda: self.refresh_trend_tab('humidity'))
                     if hasattr(self.ui, 'btnRefreshFan'):
                         self.ui.btnRefreshFan.clicked.connect(lambda: self.refresh_trend_tab('fan_speed'))
+
+                    # TIME SCALE BUTTON ACTIONS - Water System
+                    if hasattr(self.ui, 'btnWaterTime1Day'):
+                        self.ui.btnWaterTime1Day.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1day'))
+                    if hasattr(self.ui, 'btnWaterTime1Week'):
+                        self.ui.btnWaterTime1Week.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1week'))
+                    if hasattr(self.ui, 'btnWaterTime1Month'):
+                        self.ui.btnWaterTime1Month.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1month'))
+                    if hasattr(self.ui, 'btnWaterTimeCustom'):
+                        self.ui.btnWaterTimeCustom.clicked.connect(lambda: self._show_custom_time_dialog('flow'))
 
                     # NEW TREND DROPDOWN CHANGE EVENTS (auto-update on selection)
                     if hasattr(self.ui, 'comboWaterTopGraph'):
@@ -1432,6 +1444,174 @@ class HALogApp:
                     print(f"Error getting multi-machine parameter data: {e}")
                     return {}
 
+            def _apply_time_filter_and_refresh(self, group_name, time_scale):
+                """Apply time filtering and refresh trend graphs"""
+                try:
+                    print(f"📅 Applying {time_scale} filter to {group_name} trends")
+                    
+                    # Filter data based on time scale
+                    if hasattr(self, 'df') and not self.df.empty:
+                        # Save original data if not already saved
+                        if not hasattr(self, '_original_df'):
+                            self._original_df = self.df.copy()
+                        
+                        # Apply time filter
+                        filtered_df = self._filter_data_by_time_scale(self._original_df, time_scale)
+                        
+                        # Temporarily replace df with filtered data
+                        original_df = self.df
+                        self.df = filtered_df
+                        
+                        # Refresh the specific trend group
+                        self.refresh_trend_tab(group_name)
+                        
+                        # Restore original df
+                        self.df = original_df
+                        
+                        print(f"✓ Time filter applied: {len(filtered_df)} records for {time_scale}")
+                    else:
+                        print(f"⚠️ No data available to filter")
+                        
+                except Exception as e:
+                    print(f"Error applying time filter: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            def _filter_data_by_time_scale(self, df, time_scale):
+                """Filter dataframe by time scale"""
+                try:
+                    from datetime import datetime, timedelta
+                    import pandas as pd
+                    
+                    if df.empty:
+                        return df
+                    
+                    # Ensure datetime column exists and is properly formatted
+                    if 'datetime' not in df.columns:
+                        return df
+                    
+                    # Convert datetime column to datetime if it isn't already
+                    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+                    
+                    # Get current time for relative filtering
+                    now = datetime.now()
+                    
+                    # Calculate time threshold based on scale
+                    if time_scale == '1day':
+                        threshold = now - timedelta(days=1)
+                    elif time_scale == '1week':
+                        threshold = now - timedelta(weeks=1)
+                    elif time_scale == '1month':
+                        threshold = now - timedelta(days=30)
+                    else:
+                        # Default to 1 day if unknown scale
+                        threshold = now - timedelta(days=1)
+                    
+                    # Filter data
+                    filtered_df = df[df['datetime'] >= threshold].copy()
+                    
+                    print(f"📊 Time filter: {len(df)} → {len(filtered_df)} records ({time_scale})")
+                    return filtered_df
+                    
+                except Exception as e:
+                    print(f"Error filtering data by time: {e}")
+                    return df
+            
+            def _show_custom_time_dialog(self, group_name):
+                """Show custom time range selection dialog"""
+                try:
+                    from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QDateTimeEdit, QPushButton, QMessageBox
+                    from PyQt5.QtCore import QDateTime
+                    
+                    dialog = QDialog(self)
+                    dialog.setWindowTitle("Custom Time Range")
+                    dialog.setModal(True)
+                    dialog.resize(300, 150)
+                    
+                    layout = QVBoxLayout(dialog)
+                    
+                    # Start time
+                    start_layout = QHBoxLayout()
+                    start_layout.addWidget(QLabel("Start Time:"))
+                    start_edit = QDateTimeEdit()
+                    start_edit.setDateTime(QDateTime.currentDateTime().addDays(-7))
+                    start_edit.setDisplayFormat("yyyy-MM-dd hh:mm:ss")
+                    start_layout.addWidget(start_edit)
+                    layout.addLayout(start_layout)
+                    
+                    # End time
+                    end_layout = QHBoxLayout()
+                    end_layout.addWidget(QLabel("End Time:"))
+                    end_edit = QDateTimeEdit()
+                    end_edit.setDateTime(QDateTime.currentDateTime())
+                    end_edit.setDisplayFormat("yyyy-MM-dd hh:mm:ss")
+                    end_layout.addWidget(end_edit)
+                    layout.addLayout(end_layout)
+                    
+                    # Buttons
+                    button_layout = QHBoxLayout()
+                    apply_btn = QPushButton("Apply")
+                    cancel_btn = QPushButton("Cancel")
+                    
+                    def apply_custom_range():
+                        start_time = start_edit.dateTime().toPyDateTime()
+                        end_time = end_edit.dateTime().toPyDateTime()
+                        
+                        if start_time >= end_time:
+                            QMessageBox.warning(dialog, "Invalid Range", "Start time must be before end time.")
+                            return
+                        
+                        # Apply custom filter
+                        self._apply_custom_time_filter_and_refresh(group_name, start_time, end_time)
+                        dialog.accept()
+                    
+                    apply_btn.clicked.connect(apply_custom_range)
+                    cancel_btn.clicked.connect(dialog.reject)
+                    
+                    button_layout.addWidget(apply_btn)
+                    button_layout.addWidget(cancel_btn)
+                    layout.addLayout(button_layout)
+                    
+                    dialog.exec_()
+                    
+                except Exception as e:
+                    print(f"Error showing custom time dialog: {e}")
+                    
+            def _apply_custom_time_filter_and_refresh(self, group_name, start_time, end_time):
+                """Apply custom time range filter and refresh trends"""
+                try:
+                    print(f"📅 Applying custom time filter to {group_name}: {start_time} to {end_time}")
+                    
+                    if hasattr(self, 'df') and not self.df.empty:
+                        # Save original data if not already saved
+                        if not hasattr(self, '_original_df'):
+                            self._original_df = self.df.copy()
+                        
+                        # Apply custom time filter
+                        import pandas as pd
+                        df_copy = self._original_df.copy()
+                        df_copy['datetime'] = pd.to_datetime(df_copy['datetime'], errors='coerce')
+                        
+                        filtered_df = df_copy[
+                            (df_copy['datetime'] >= start_time) & 
+                            (df_copy['datetime'] <= end_time)
+                        ].copy()
+                        
+                        # Temporarily replace df with filtered data
+                        original_df = self.df
+                        self.df = filtered_df
+                        
+                        # Refresh the specific trend group
+                        self.refresh_trend_tab(group_name)
+                        
+                        # Restore original df
+                        self.df = original_df
+                        
+                        print(f"✓ Custom time filter applied: {len(filtered_df)} records")
+                        
+                except Exception as e:
+                    print(f"Error applying custom time filter: {e}")
+
             def refresh_latest_mpc(self):
                 """Load and display MPC results from database with single date selection"""
                 try:
@@ -1676,9 +1856,8 @@ class HALogApp:
                     print(f"Error updating MPC statistics: {e}")
 
             def compare_mpc_results(self):
-                """Legacy function - kept for backward compatibility"""
-                # This function is no longer needed but kept to avoid errors
-                print("⚠️ MPC comparison function deprecated - using latest MPC data display instead")
+                """Enhanced MPC results display - using modern latest MPC data display"""
+                # Use enhanced MPC functionality instead of legacy comparison
                 self.refresh_latest_mpc()
 
             def search_fault_code(self):
@@ -3368,12 +3547,12 @@ Source: {result.get('source', 'unknown')} database
                     self.performance_manager.clear_cache("performance")
 
             def update_trend(self):
-                """Update trend visualization with professional styling - Legacy compatibility"""
+                """Update trend visualization with professional styling - Modern implementation"""
                 try:
                     if not hasattr(self, "df") or self.df.empty:
                         return
 
-                    # Check if legacy trend controls exist
+                    # Check if modern trend controls exist
                     if hasattr(self.ui, 'comboTrendSerial') and hasattr(self.ui, 'comboTrendParam'):
                         serial = self.ui.comboTrendSerial.currentText()
                         param = self.ui.comboTrendParam.currentText()
@@ -3392,7 +3571,7 @@ Source: {result.get('source', 'unknown')} database
 
                         from utils_plot import plot_trend
 
-                        # Check if legacy plotWidget exists
+                        # Check if modern plotWidget exists
                         if hasattr(self.ui, 'plotWidget'):
                             if len(df_trend) > 10000:
                                 print(f"Downsampling large trend data: {len(df_trend)} points")
@@ -3400,10 +3579,10 @@ Source: {result.get('source', 'unknown')} database
                             else:
                                 plot_trend(self.ui.plotWidget, df_trend)
                         else:
-                            print("Legacy plotWidget not found - using new trend system")
+                            print("PlotWidget not found - using new trend system")
                     else:
-                        # If legacy controls don't exist, initialize default trend displays for new system
-                        print("Initializing trend displays with new system")
+                        # Use new trend system
+                        print("Initializing trend displays with modern system")
                         self._initialize_default_trend_displays()
 
                 except Exception as e:
@@ -4715,7 +4894,7 @@ Source: {result.get('source', 'unknown')} database
                             """)
                     else:
                         # Combined database mode
-                        status_text = "Database: halog_water.db (Combined) • Mode: Legacy"
+                        status_text = "Database: halog_water.db (Combined) • Mode: Multi-Machine"
                         self.ui.lblMachineStatus.setStyleSheet("""
                             QLabel {
                                 color: #FF8F00;

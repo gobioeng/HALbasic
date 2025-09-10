@@ -547,23 +547,6 @@ class Ui_MainWindow(object):
         cards_layout.addStretch()
 
         layout.addLayout(cards_layout)
-
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
-
-        self.btnClearDB = QPushButton("Clear All Data")
-        self.btnClearDB.setObjectName("dangerButton")
-        self.btnClearDB.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-
-        self.btnRefreshData = QPushButton("Refresh Data")
-        self.btnRefreshData.setObjectName("successButton")
-        self.btnRefreshData.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-
-        button_layout.addWidget(self.btnClearDB)
-        button_layout.addWidget(self.btnRefreshData)
-        button_layout.addStretch()
-
-        layout.addLayout(button_layout)
         layout.addStretch()
 
     def setup_trends_tab(self):
@@ -598,44 +581,99 @@ class Ui_MainWindow(object):
         layout = QVBoxLayout(self.tabWaterSystem)
         layout.setContentsMargins(16, 16, 16, 16)
         
-        # Controls
-        controls_group = QGroupBox("Water System Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
+    def setup_water_system_tab(self):
+        self.tabWaterSystem = QWidget()
+        self.trendSubTabs.addTab(self.tabWaterSystem, "🌊 Water System")
+        layout = QVBoxLayout(self.tabWaterSystem)
+        layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Controls group with time scale selection
+        controls_group = QGroupBox("Water System Controls")
+        controls_main_layout = QVBoxLayout(controls_group)
+        
+        # Time scale controls row
+        time_controls_layout = QHBoxLayout()
+        time_controls_layout.addWidget(QLabel("Time Range:"))
+        
+        # Time scale buttons
+        self.btnWaterTime1Day = QPushButton("1 Day")
+        self.btnWaterTime1Week = QPushButton("1 Week") 
+        self.btnWaterTime1Month = QPushButton("1 Month")
+        self.btnWaterTimeCustom = QPushButton("Custom Range")
+        
+        # Style time scale buttons
+        time_buttons = [self.btnWaterTime1Day, self.btnWaterTime1Week, 
+                       self.btnWaterTime1Month, self.btnWaterTimeCustom]
+        for btn in time_buttons:
+            btn.setCheckable(True)
+            btn.setMinimumWidth(80)
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 6px 12px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    border-radius: 4px;
+                }
+                QPushButton:checked {
+                    background: #1976D2;
+                    color: white;
+                    border-color: #1976D2;
+                }
+                QPushButton:hover:!checked {
+                    background: #f5f5f5;
+                }
+            """)
+            time_controls_layout.addWidget(btn)
+        
+        # Set default selection
+        self.btnWaterTime1Day.setChecked(True)
+        
+        # Create button group for exclusive selection
+        self.waterTimeButtonGroup = QButtonGroup()
+        for btn in time_buttons:
+            self.waterTimeButtonGroup.addButton(btn)
+        
+        time_controls_layout.addStretch()
+        controls_main_layout.addLayout(time_controls_layout)
+        
+        # Parameter selection controls row
+        param_controls_layout = QHBoxLayout()
+        param_controls_layout.setSpacing(12)
         
         # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
+        param_controls_layout.addWidget(QLabel("Top Graph:"))
         self.comboWaterTopGraph = QComboBox()
         self.comboWaterTopGraph.setMinimumWidth(160)
         self.comboWaterTopGraph.addItems([
             "Mag Flow",  # Remove "Select parameter..." and make first item default
             "Flow Target", 
             "Flow Chiller Water",
-            "Cooling Pump Pressure"
+            "Pump Pressure"  # Updated to match unified parser
         ])
         # Set default selection to first parameter
         self.comboWaterTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboWaterTopGraph)
+        param_controls_layout.addWidget(self.comboWaterTopGraph)
         
         # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
+        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
         self.comboWaterBottomGraph = QComboBox()
         self.comboWaterBottomGraph.setMinimumWidth(160)
         self.comboWaterBottomGraph.addItems([
-            "Flow Target",  # Remove "Select parameter..." and set different default
+            "Pump Pressure",  # Updated to focus on pump pressure
             "Mag Flow",
-            "Flow Chiller Water", 
-            "Cooling Pump Pressure"
+            "Flow Target",
+            "Flow Chiller Water"
         ])
-        # Set default selection to first parameter (different from top graph)
+        # Set default selection to pump pressure
         self.comboWaterBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboWaterBottomGraph)
+        param_controls_layout.addWidget(self.comboWaterBottomGraph)
         
-        self.btnRefreshWater = QPushButton("Update Graphs")
+        self.btnRefreshWater = QPushButton("🔄 Update Graphs")
         self.btnRefreshWater.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshWater)
-        controls_layout.addStretch()
+        param_controls_layout.addWidget(self.btnRefreshWater)
+        param_controls_layout.addStretch()
         
+        controls_main_layout.addLayout(param_controls_layout)
         layout.addWidget(controls_group)
         
         # Two graphs layout (top and bottom)
