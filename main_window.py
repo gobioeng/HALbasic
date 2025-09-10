@@ -591,47 +591,21 @@ class Ui_MainWindow(object):
         controls_group = QGroupBox("Water System Controls")
         controls_main_layout = QVBoxLayout(controls_group)
         
-        # Time scale controls row
+        # Time scale controls integrated into plot widgets with dynamic sliders
         time_controls_layout = QHBoxLayout()
-        time_controls_layout.addWidget(QLabel("Time Range:"))
-        
-        # Time scale buttons
-        self.btnWaterTime1Day = QPushButton("1 Day")
-        self.btnWaterTime1Week = QPushButton("1 Week") 
-        self.btnWaterTime1Month = QPushButton("1 Month")
-        self.btnWaterTimeCustom = QPushButton("Custom Range")
-        
-        # Style time scale buttons
-        time_buttons = [self.btnWaterTime1Day, self.btnWaterTime1Week, 
-                       self.btnWaterTime1Month, self.btnWaterTimeCustom]
-        for btn in time_buttons:
-            btn.setCheckable(True)
-            btn.setMinimumWidth(80)
-            btn.setStyleSheet("""
-                QPushButton {
-                    padding: 6px 12px;
-                    border: 1px solid #ddd;
-                    background: white;
-                    border-radius: 4px;
-                }
-                QPushButton:checked {
-                    background: #1976D2;
-                    color: white;
-                    border-color: #1976D2;
-                }
-                QPushButton:hover:!checked {
-                    background: #f5f5f5;
-                }
-            """)
-            time_controls_layout.addWidget(btn)
-        
-        # Set default selection
-        self.btnWaterTime1Day.setChecked(True)
-        
-        # Create button group for exclusive selection
-        self.waterTimeButtonGroup = QButtonGroup()
-        for btn in time_buttons:
-            self.waterTimeButtonGroup.addButton(btn)
+        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
+        time_info_label.setStyleSheet("""
+            QLabel {
+                padding: 8px 12px;
+                background: #E3F2FD;
+                color: #1565C0;
+                border: 1px solid #2196F3;
+                border-radius: 4px;
+                font-weight: 500;
+                font-size: 9pt;
+            }
+        """)
+        time_controls_layout.addWidget(time_info_label)
         
         time_controls_layout.addStretch()
         controls_main_layout.addLayout(time_controls_layout)
@@ -726,47 +700,21 @@ class Ui_MainWindow(object):
         controls_group = QGroupBox("Voltage Controls")
         controls_main_layout = QVBoxLayout(controls_group)
         
-        # Time scale controls row
+        # Time scale controls integrated into plot widgets with dynamic sliders
         time_controls_layout = QHBoxLayout()
-        time_controls_layout.addWidget(QLabel("Time Range:"))
-        
-        # Time scale buttons
-        self.btnVoltageTime1Day = QPushButton("1 Day")
-        self.btnVoltageTime1Week = QPushButton("1 Week") 
-        self.btnVoltageTime1Month = QPushButton("1 Month")
-        self.btnVoltageTimeCustom = QPushButton("Custom Range")
-        
-        # Style time scale buttons
-        voltage_time_buttons = [self.btnVoltageTime1Day, self.btnVoltageTime1Week, 
-                               self.btnVoltageTime1Month, self.btnVoltageTimeCustom]
-        for btn in voltage_time_buttons:
-            btn.setCheckable(True)
-            btn.setMinimumWidth(80)
-            btn.setStyleSheet("""
-                QPushButton {
-                    padding: 6px 12px;
-                    border: 1px solid #ddd;
-                    background: white;
-                    border-radius: 4px;
-                }
-                QPushButton:checked {
-                    background: #1976D2;
-                    color: white;
-                    border-color: #1976D2;
-                }
-                QPushButton:hover:!checked {
-                    background: #f5f5f5;
-                }
-            """)
-            time_controls_layout.addWidget(btn)
-        
-        # Set default selection
-        self.btnVoltageTime1Day.setChecked(True)
-        
-        # Create button group for exclusive selection
-        self.voltageTimeButtonGroup = QButtonGroup()
-        for btn in voltage_time_buttons:
-            self.voltageTimeButtonGroup.addButton(btn)
+        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
+        time_info_label.setStyleSheet("""
+            QLabel {
+                padding: 8px 12px;
+                background: #E3F2FD;
+                color: #1565C0;
+                border: 1px solid #2196F3;
+                border-radius: 4px;
+                font-weight: 500;
+                font-size: 9pt;
+            }
+        """)
+        time_controls_layout.addWidget(time_info_label)
         
         time_controls_layout.addStretch()
         controls_main_layout.addLayout(time_controls_layout)

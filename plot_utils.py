@@ -55,9 +55,15 @@ class InteractivePlotManager:
         self.ax = ax if isinstance(ax, list) else [ax]  # Support multiple axes
         self.canvas = canvas
         self.press = None
+        self.current_ax = None
         self.initial_xlim = None
         self.initial_ylim = None
         self.tooltip_annotation = None
+        
+        # Enhanced interactive features
+        self.time_range_indicator = None
+        self.animation_duration = 0.3  # seconds for smooth transitions
+        self.right_click_menu = None
 
         # Store initial view for reset functionality
         self._store_initial_view()
@@ -91,20 +97,69 @@ class InteractivePlotManager:
         
         # Time scale shortcuts
         if event.key == 'h':  # Zoom to last hour
-            self._zoom_to_time_range(ax, hours=1)
+            self._zoom_to_time_range_smooth(ax, hours=1)
         elif event.key == 'd':  # Zoom to last day
-            self._zoom_to_time_range(ax, hours=24)
+            self._zoom_to_time_range_smooth(ax, hours=24)
         elif event.key == 'w':  # Zoom to last week
-            self._zoom_to_time_range(ax, hours=24*7)
+            self._zoom_to_time_range_smooth(ax, hours=24*7)
         elif event.key == 'm':  # Zoom to last month
-            self._zoom_to_time_range(ax, hours=24*30)
+            self._zoom_to_time_range_smooth(ax, hours=24*30)
         elif event.key == 'r':  # Reset view
-            self.reset_view()
+            self.reset_view_smooth()
         elif event.key == 'f':  # Fit all data
-            self._fit_all_data(ax)
+            self._fit_all_data_smooth(ax)
+        elif event.key in ['plus', 'equal']:  # Zoom in
+            self._zoom_keyboard(ax, 0.8)
+        elif event.key == 'minus':  # Zoom out
+            self._zoom_keyboard(ax, 1.25)
+        elif event.key in ['left', 'right', 'up', 'down']:  # Pan
+            self._pan_keyboard(ax, event.key)
             
-    def _zoom_to_time_range(self, ax, hours=24):
-        """Zoom to show last N hours of data"""
+    def _zoom_keyboard(self, ax, scale_factor):
+        """Zoom using keyboard shortcuts"""
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        
+        xcenter = (xlim[0] + xlim[1]) / 2
+        ycenter = (ylim[0] + ylim[1]) / 2
+        
+        x_range = (xlim[1] - xlim[0]) * scale_factor
+        y_range = (ylim[1] - ylim[0]) * scale_factor
+        
+        new_xlim = [xcenter - x_range / 2, xcenter + x_range / 2]
+        new_ylim = [ycenter - y_range / 2, ycenter + y_range / 2]
+        
+        self._animate_to_limits(ax, new_xlim, new_ylim)
+        
+    def _pan_keyboard(self, ax, direction):
+        """Pan using keyboard arrows"""
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        
+        x_range = xlim[1] - xlim[0]
+        y_range = ylim[1] - ylim[0]
+        
+        pan_factor = 0.1  # 10% of current range
+        
+        if direction == 'left':
+            new_xlim = [xlim[0] - x_range * pan_factor, xlim[1] - x_range * pan_factor]
+            new_ylim = ylim
+        elif direction == 'right':
+            new_xlim = [xlim[0] + x_range * pan_factor, xlim[1] + x_range * pan_factor]
+            new_ylim = ylim
+        elif direction == 'up':
+            new_xlim = xlim
+            new_ylim = [ylim[0] + y_range * pan_factor, ylim[1] + y_range * pan_factor]
+        elif direction == 'down':
+            new_xlim = xlim
+            new_ylim = [ylim[0] - y_range * pan_factor, ylim[1] - y_range * pan_factor]
+        else:
+            return
+            
+        self._animate_to_limits(ax, new_xlim, new_ylim)
+            
+    def _zoom_to_time_range_smooth(self, ax, hours=24):
+        """Zoom to show last N hours of data with smooth animation"""
         try:
             # Get the latest time from all lines in the axis
             latest_time = None
@@ -121,14 +176,138 @@ class InteractivePlotManager:
                 hours_in_days = hours / 24.0
                 start_time = latest_time - hours_in_days
                 
-                ax.set_xlim([start_time, latest_time])
-                self.canvas.draw()
+                new_xlim = [start_time, latest_time]
+                current_ylim = ax.get_ylim()
+                
+                self._animate_to_limits(ax, new_xlim, current_ylim)
+                self._update_time_range_indicator(ax, start_time, latest_time)
                 
         except Exception as e:
             print(f"Error zooming to time range: {e}")
 
+    def _animate_to_limits(self, ax, new_xlim, new_ylim, duration=None):
+        """Smoothly animate to new axis limits"""
+        import time
+        from threading import Thread
+        
+        if duration is None:
+            duration = self.animation_duration
+            
+        current_xlim = ax.get_xlim()
+        current_ylim = ax.get_ylim()
+        
+        steps = 20  # Number of animation steps
+        step_duration = duration / steps
+        
+        def animate():
+            for i in range(steps + 1):
+                t = i / steps
+                # Use easing function for smooth animation
+                t_eased = self._ease_in_out_cubic(t)
+                
+                # Interpolate limits
+                xlim = [
+                    current_xlim[0] + (new_xlim[0] - current_xlim[0]) * t_eased,
+                    current_xlim[1] + (new_xlim[1] - current_xlim[1]) * t_eased
+                ]
+                ylim = [
+                    current_ylim[0] + (new_ylim[0] - current_ylim[0]) * t_eased,
+                    current_ylim[1] + (new_ylim[1] - current_ylim[1]) * t_eased
+                ]
+                
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
+                self.canvas.draw_idle()
+                
+                if i < steps:
+                    time.sleep(step_duration)
+        
+        # Run animation in separate thread to avoid blocking UI
+        Thread(target=animate, daemon=True).start()
+
+    def _ease_in_out_cubic(self, t):
+        """Cubic easing function for smooth animations"""
+        if t < 0.5:
+            return 4 * t * t * t
+        else:
+            return 1 - pow(-2 * t + 2, 3) / 2
+
+    def _update_time_range_indicator(self, ax, start_time, end_time):
+        """Update floating time range indicator"""
+        try:
+            # Remove existing indicator
+            if self.time_range_indicator:
+                self.time_range_indicator.remove()
+            
+            # Format time range for display
+            import matplotlib.dates as mdates
+            start_str = mdates.num2date(start_time).strftime('%Y-%m-%d %H:%M')
+            end_str = mdates.num2date(end_time).strftime('%Y-%m-%d %H:%M')
+            duration_hours = (end_time - start_time) * 24
+            
+            if duration_hours < 1:
+                duration_str = f"{duration_hours*60:.0f}m"
+            elif duration_hours < 24:
+                duration_str = f"{duration_hours:.1f}h"
+            else:
+                duration_str = f"{duration_hours/24:.1f}d"
+            
+            indicator_text = f"Range: {duration_str}\n{start_str} - {end_str}"
+            
+            # Add floating indicator in top-right corner
+            self.time_range_indicator = ax.text(
+                0.98, 0.98, indicator_text,
+                transform=ax.transAxes,
+                fontsize=9,
+                verticalalignment='top',
+                horizontalalignment='right',
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='gray'),
+                zorder=1000
+            )
+            
+        except Exception as e:
+            print(f"Error updating time range indicator: {e}")
+
+    def reset_view_smooth(self):
+        """Reset all axes to initial view with smooth animation"""
+        for i, ax in enumerate(self.ax):
+            if i < len(self.initial_views):
+                new_xlim = self.initial_views[i]['xlim']
+                new_ylim = self.initial_views[i]['ylim']
+                self._animate_to_limits(ax, new_xlim, new_ylim)
+
+    def _fit_all_data_smooth(self, ax):
+        """Fit all data in view with smooth animation"""
+        try:
+            # Find data bounds
+            xmin, xmax, ymin, ymax = float('inf'), float('-inf'), float('inf'), float('-inf')
+            
+            for line in ax.get_lines():
+                xdata = line.get_xdata()
+                ydata = line.get_ydata()
+                
+                if len(xdata) > 0 and len(ydata) > 0:
+                    xmin = min(xmin, min(xdata))
+                    xmax = max(xmax, max(xdata))
+                    ymin = min(ymin, min(ydata))
+                    ymax = max(ymax, max(ydata))
+            
+            if xmin != float('inf'):
+                # Add 5% margin
+                x_margin = (xmax - xmin) * 0.05
+                y_margin = (ymax - ymin) * 0.05
+                
+                new_xlim = [xmin - x_margin, xmax + x_margin]
+                new_ylim = [ymin - y_margin, ymax + y_margin]
+                
+                self._animate_to_limits(ax, new_xlim, new_ylim)
+                self._update_time_range_indicator(ax, xmin, xmax)
+                
+        except Exception as e:
+            print(f"Error fitting data: {e}")
+
     def _handle_zoom(self, event):
-        """Handle mouse wheel zoom"""
+        """Handle mouse wheel zoom with smooth animation and time indicator updates"""
         if event.inaxes is None:
             return
 
@@ -152,27 +331,81 @@ class InteractivePlotManager:
         new_xlim = [xdata - x_range / 2, xdata + x_range / 2]
         new_ylim = [ydata - y_range / 2, ydata + y_range / 2]
 
-        # Set new limits
-        ax.set_xlim(new_xlim)
-        ax.set_ylim(new_ylim)
-
-        # Redraw
-        self.canvas.draw()
+        # Apply zoom with smooth animation (shorter duration for responsiveness)
+        self._animate_to_limits(ax, new_xlim, new_ylim, duration=0.1)
+        
+        # Update time range indicator if this looks like time data
+        try:
+            if new_xlim[1] - new_xlim[0] > 0:  # Valid time range
+                self._update_time_range_indicator(ax, new_xlim[0], new_xlim[1])
+        except:
+            pass  # Silently handle non-time data
 
     def _handle_button_press(self, event):
         """Handle button press events"""
         if event.inaxes is None:
             return
 
-        # Double-click to reset view
-        if event.dblclick:
-            self.reset_view()
+        # Double-click to auto-fit all data
+        if event.dblclick and event.button == 1:
+            self._fit_all_data_smooth(event.inaxes)
+            return
+
+        # Right-click for context menu
+        if event.button == 3:  # Right mouse button
+            self._show_context_menu(event)
             return
 
         # Start pan operation on left mouse button
         if event.button == 1:  # Left mouse button
             self.press = (event.xdata, event.ydata)
             self.current_ax = event.inaxes
+
+    def _show_context_menu(self, event):
+        """Show right-click context menu with quick time ranges"""
+        try:
+            from PyQt5.QtWidgets import QMenu, QAction
+            from PyQt5.QtCore import QPoint
+            
+            if not hasattr(self.canvas, 'parentWidget') or not self.canvas.parentWidget():
+                return
+                
+            menu = QMenu(self.canvas.parentWidget())
+            
+            # Quick time range actions
+            ranges = [
+                ("Last Hour", 1),
+                ("Last 6 Hours", 6), 
+                ("Last Day", 24),
+                ("Last Week", 24*7),
+                ("Last Month", 24*30),
+                ("", None),  # Separator
+                ("Fit All Data", "fit"),
+                ("Reset View", "reset")
+            ]
+            
+            for label, hours in ranges:
+                if not label:  # Separator
+                    menu.addSeparator()
+                    continue
+                    
+                action = QAction(label, menu)
+                
+                if hours == "fit":
+                    action.triggered.connect(lambda: self._fit_all_data_smooth(event.inaxes))
+                elif hours == "reset":
+                    action.triggered.connect(self.reset_view_smooth)
+                else:
+                    action.triggered.connect(lambda checked, h=hours: self._zoom_to_time_range_smooth(event.inaxes, h))
+                
+                menu.addAction(action)
+            
+            # Show menu at mouse position
+            cursor_pos = self.canvas.mapToGlobal(QPoint(int(event.x), int(self.canvas.height() - event.y)))
+            menu.exec_(cursor_pos)
+            
+        except Exception as e:
+            print(f"Error showing context menu: {e}")
 
     def _handle_button_release(self, event):
         """Handle button release events"""
@@ -200,8 +433,18 @@ class InteractivePlotManager:
             ylim = ax.get_ylim()
 
             # Apply pan
-            ax.set_xlim([xlim[0] - dx, xlim[1] - dx])
-            ax.set_ylim([ylim[0] - dy, ylim[1] - dy])
+            new_xlim = [xlim[0] - dx, xlim[1] - dx]
+            new_ylim = [ylim[0] - dy, ylim[1] - dy]
+            
+            ax.set_xlim(new_xlim)
+            ax.set_ylim(new_ylim)
+
+            # Update time range indicator during panning
+            try:
+                if new_xlim[1] - new_xlim[0] > 0:  # Valid time range
+                    self._update_time_range_indicator(ax, new_xlim[0], new_xlim[1])
+            except:
+                pass  # Silently handle non-time data
 
             self.canvas.draw_idle()
 
@@ -1148,6 +1391,237 @@ class PlotUtils:
             print(f"Error in time axis synchronization: {e}")
 
 
+class DynamicTimeSlider(QWidget):
+    """Interactive time slider widget for dynamic time range selection"""
+    
+    timeRangeChanged = pyqtSignal(float, float)  # Signal: start_time, end_time
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.data_start_time = None
+        self.data_end_time = None
+        self.current_start = None
+        self.current_end = None
+        self.slider_pressed = False
+        
+        self.init_ui()
+        
+    def init_ui(self):
+        """Initialize the slider UI"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Time range display
+        time_display_layout = QHBoxLayout()
+        self.start_time_label = QLabel("Start: --")
+        self.end_time_label = QLabel("End: --")
+        self.duration_label = QLabel("Duration: --")
+        
+        for label in [self.start_time_label, self.end_time_label, self.duration_label]:
+            label.setStyleSheet("font-size: 9pt; color: #555; margin: 2px;")
+            
+        time_display_layout.addWidget(self.start_time_label)
+        time_display_layout.addStretch()
+        time_display_layout.addWidget(self.duration_label)
+        time_display_layout.addStretch()
+        time_display_layout.addWidget(self.end_time_label)
+        
+        layout.addLayout(time_display_layout)
+        
+        # Slider container
+        slider_layout = QHBoxLayout()
+        
+        # Quick range buttons
+        self.quick_buttons = {}
+        quick_ranges = [
+            ("1H", 1),
+            ("6H", 6),
+            ("1D", 24),
+            ("1W", 24*7),
+            ("1M", 24*30),
+            ("All", "all")
+        ]
+        
+        for label, hours in quick_ranges:
+            btn = QPushButton(label)
+            btn.setMaximumWidth(40)
+            btn.setMaximumHeight(25)
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 3px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    border-radius: 3px;
+                    font-size: 8pt;
+                }
+                QPushButton:hover {
+                    background: #f0f0f0;
+                }
+                QPushButton:pressed {
+                    background: #e0e0e0;
+                }
+            """)
+            
+            if hours == "all":
+                btn.clicked.connect(self.select_all_data)
+            else:
+                btn.clicked.connect(lambda checked, h=hours: self.select_last_hours(h))
+                
+            slider_layout.addWidget(btn)
+            self.quick_buttons[label] = btn
+        
+        slider_layout.addStretch()
+        layout.addLayout(slider_layout)
+        
+        # Custom range slider (using two sliders for range selection)
+        range_layout = QHBoxLayout()
+        
+        from PyQt5.QtWidgets import QSlider
+        from PyQt5.QtCore import Qt
+        
+        range_layout.addWidget(QLabel("Range:"))
+        
+        self.start_slider = QSlider(Qt.Horizontal)
+        self.end_slider = QSlider(Qt.Horizontal)
+        
+        for slider in [self.start_slider, self.end_slider]:
+            slider.setRange(0, 1000)
+            slider.setValue(0)
+            slider.setStyleSheet("""
+                QSlider::groove:horizontal {
+                    border: 1px solid #999999;
+                    height: 8px;
+                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #B1B1B1, stop:1 #c4c4c4);
+                    margin: 2px 0;
+                    border-radius: 4px;
+                }
+                QSlider::handle:horizontal {
+                    background: #1976D2;
+                    border: 1px solid #1976D2;
+                    width: 18px;
+                    height: 18px;
+                    margin: -5px 0;
+                    border-radius: 9px;
+                }
+                QSlider::handle:horizontal:hover {
+                    background: #1565C0;
+                }
+            """)
+        
+        self.start_slider.valueChanged.connect(self._on_slider_changed)
+        self.end_slider.valueChanged.connect(self._on_slider_changed)
+        
+        range_layout.addWidget(self.start_slider)
+        range_layout.addWidget(QLabel("-"))
+        range_layout.addWidget(self.end_slider)
+        
+        layout.addLayout(range_layout)
+        
+    def set_data_range(self, start_time, end_time):
+        """Set the available data time range"""
+        self.data_start_time = start_time
+        self.data_end_time = end_time
+        self.current_start = start_time
+        self.current_end = end_time
+        
+        # Update sliders
+        self.start_slider.setValue(0)
+        self.end_slider.setValue(1000)
+        
+        self._update_display()
+        
+    def select_last_hours(self, hours):
+        """Select the last N hours of data"""
+        if self.data_end_time is None:
+            return
+            
+        # Calculate time range in matplotlib date units (days)
+        hours_in_days = hours / 24.0
+        new_start = self.data_end_time - hours_in_days
+        new_end = self.data_end_time
+        
+        # Ensure start is not before data start
+        if new_start < self.data_start_time:
+            new_start = self.data_start_time
+            
+        self.set_current_range(new_start, new_end)
+        
+    def select_all_data(self):
+        """Select all available data"""
+        if self.data_start_time is not None and self.data_end_time is not None:
+            self.set_current_range(self.data_start_time, self.data_end_time)
+            
+    def set_current_range(self, start_time, end_time):
+        """Set the current time range selection"""
+        self.current_start = start_time
+        self.current_end = end_time
+        
+        # Update sliders to match
+        if self.data_start_time is not None and self.data_end_time is not None:
+            total_range = self.data_end_time - self.data_start_time
+            if total_range > 0:
+                start_pos = int((start_time - self.data_start_time) / total_range * 1000)
+                end_pos = int((end_time - self.data_start_time) / total_range * 1000)
+                
+                self.start_slider.setValue(start_pos)
+                self.end_slider.setValue(end_pos)
+        
+        self._update_display()
+        self.timeRangeChanged.emit(start_time, end_time)
+        
+    def _on_slider_changed(self):
+        """Handle slider value changes"""
+        if self.data_start_time is None or self.data_end_time is None:
+            return
+            
+        total_range = self.data_end_time - self.data_start_time
+        
+        start_pos = self.start_slider.value() / 1000.0
+        end_pos = self.end_slider.value() / 1000.0
+        
+        # Ensure start <= end
+        if start_pos > end_pos:
+            if self.sender() == self.start_slider:
+                end_pos = start_pos
+                self.end_slider.setValue(int(start_pos * 1000))
+            else:
+                start_pos = end_pos
+                self.start_slider.setValue(int(end_pos * 1000))
+        
+        self.current_start = self.data_start_time + total_range * start_pos
+        self.current_end = self.data_start_time + total_range * end_pos
+        
+        self._update_display()
+        self.timeRangeChanged.emit(self.current_start, self.current_end)
+        
+    def _update_display(self):
+        """Update the time display labels"""
+        if self.current_start is None or self.current_end is None:
+            return
+            
+        try:
+            import matplotlib.dates as mdates
+            
+            start_str = mdates.num2date(self.current_start).strftime('%Y-%m-%d %H:%M')
+            end_str = mdates.num2date(self.current_end).strftime('%Y-%m-%d %H:%M')
+            
+            duration_hours = (self.current_end - self.current_start) * 24
+            
+            if duration_hours < 1:
+                duration_str = f"{duration_hours*60:.0f} min"
+            elif duration_hours < 24:
+                duration_str = f"{duration_hours:.1f} hours"
+            else:
+                duration_str = f"{duration_hours/24:.1f} days"
+                
+            self.start_time_label.setText(f"Start: {start_str}")
+            self.end_time_label.setText(f"End: {end_str}")
+            self.duration_label.setText(f"Duration: {duration_str}")
+            
+        except Exception as e:
+            print(f"Error updating time display: {e}")
+
+
 class EnhancedPlotWidget(QWidget):
     """Enhanced plotting widget with professional styling and LINAC data processing"""
     
@@ -1172,6 +1646,11 @@ class EnhancedPlotWidget(QWidget):
         # Add control panel for view options
         self._setup_control_panel()
         
+        # Add dynamic time slider
+        self.time_slider = DynamicTimeSlider()
+        self.time_slider.timeRangeChanged.connect(self._on_time_range_changed)
+        self.layout.addWidget(self.time_slider)
+        
         try:
             # Ensure matplotlib backend is properly configured
             backend = matplotlib.get_backend()
@@ -1191,12 +1670,15 @@ class EnhancedPlotWidget(QWidget):
             # Apply professional styling
             PlotUtils.setup_professional_style()
             
+            # Initialize interactive manager with enhanced features
+            ax = self.figure.add_subplot(111)
+            self.interactive_manager = InteractivePlotManager(self.figure, ax, self.canvas)
+            
             # Add statistics panel
             self._setup_statistics_panel()
             
             # Add a test plot to verify functionality
-            ax = self.figure.add_subplot(111)
-            ax.text(0.5, 0.5, 'Graph Ready', ha='center', va='center', 
+            ax.text(0.5, 0.5, 'Graph Ready - Enhanced Interactive Mode', ha='center', va='center', 
                    fontsize=12, color='#666', alpha=0.7)
             self.canvas.draw()
             
@@ -1205,6 +1687,18 @@ class EnhancedPlotWidget(QWidget):
             error_label = QLabel(f"Plotting initialization failed: {str(e)}\nCheck matplotlib backend configuration.")
             error_label.setStyleSheet("color: red; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7;")
             self.layout.addWidget(error_label)
+            
+    def _on_time_range_changed(self, start_time, end_time):
+        """Handle time range changes from the slider"""
+        if hasattr(self, 'figure') and self.figure:
+            # Apply time range to all axes
+            for ax in self.figure.get_axes():
+                ax.set_xlim([start_time, end_time])
+                # Update time range indicator if interactive manager exists
+                if hasattr(self, 'interactive_manager') and self.interactive_manager:
+                    self.interactive_manager._update_time_range_indicator(ax, start_time, end_time)
+            
+            self.canvas.draw_idle()
     
     def _setup_control_panel(self):
         """Setup control panel for view options"""

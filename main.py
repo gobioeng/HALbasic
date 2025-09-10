@@ -855,25 +855,9 @@ class HALogApp:
                     if hasattr(self.ui, 'btnRefreshFan'):
                         self.ui.btnRefreshFan.clicked.connect(lambda: self.refresh_trend_tab('fan_speed'))
 
-                    # TIME SCALE BUTTON ACTIONS - Water System
-                    if hasattr(self.ui, 'btnWaterTime1Day'):
-                        self.ui.btnWaterTime1Day.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1day'))
-                    if hasattr(self.ui, 'btnWaterTime1Week'):
-                        self.ui.btnWaterTime1Week.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1week'))
-                    if hasattr(self.ui, 'btnWaterTime1Month'):
-                        self.ui.btnWaterTime1Month.clicked.connect(lambda: self._apply_time_filter_and_refresh('flow', '1month'))
-                    if hasattr(self.ui, 'btnWaterTimeCustom'):
-                        self.ui.btnWaterTimeCustom.clicked.connect(lambda: self._show_custom_time_dialog('flow'))
-
-                    # TIME SCALE BUTTON ACTIONS - Voltage System  
-                    if hasattr(self.ui, 'btnVoltageTime1Day'):
-                        self.ui.btnVoltageTime1Day.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1day'))
-                    if hasattr(self.ui, 'btnVoltageTime1Week'):
-                        self.ui.btnVoltageTime1Week.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1week'))
-                    if hasattr(self.ui, 'btnVoltageTime1Month'):
-                        self.ui.btnVoltageTime1Month.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1month'))
-                    if hasattr(self.ui, 'btnVoltageTimeCustom'):
-                        self.ui.btnVoltageTimeCustom.clicked.connect(lambda: self._show_custom_time_dialog('voltage'))
+                    # Interactive time controls are now integrated into the plot widgets
+                    # No need for separate button connections - time controls are handled by
+                    # EnhancedPlotWidget's interactive features (mouse wheel, pan, right-click menu)
 
                     # NEW TREND DROPDOWN CHANGE EVENTS (auto-update on selection)
                     if hasattr(self.ui, 'comboWaterTopGraph'):
