@@ -764,18 +764,13 @@ class HALogApp:
                     if not hasattr(self.ui, "actionAbout"):
                         print("ERROR: actionAbout not found in UI!")
                         return
-                    if not hasattr(self.ui, "actionRefresh"):
-                        print("ERROR: actionRefresh not found in UI!")
-                        return
 
                     # MAIN MENU ACTIONS - FILE MENU
                     self.ui.actionOpen_Log_File.triggered.connect(self.import_log_file)
                     self.ui.actionExit.triggered.connect(self.close)
                     print("✓ File menu actions connected")
 
-                    # VIEW MENU ACTIONS
-                    self.ui.actionRefresh.triggered.connect(self.load_dashboard)
-                    print("✓ View menu actions connected")
+                    # VIEW MENU ACTIONS - refresh action removed per requirements
                     
                     # DASHBOARD CONTROLS - Add modern dashboard actions
                     if hasattr(self.ui, 'actionRefreshDashboard'):
@@ -1061,7 +1056,7 @@ class HALogApp:
                         # For COL parameters, categorize them as voltage by default
                         if param_str.upper().startswith('COL'):
                             voltage_params.append(param)
-                        elif any(keyword in param_lower for keyword in ['flow', 'pump', 'water', 'magnetron']):
+                        elif any(keyword in param_lower for keyword in ['flow', 'pump', 'water', 'magnetron', 'pressure']):
                             flow_params.append(param)
                         elif any(keyword in param_lower for keyword in ['volt', '_v_', '24v', '48v', '5v', 'bank', 'adc']):
                             voltage_params.append(param)
@@ -1125,6 +1120,8 @@ class HALogApp:
                     return "Flow Target"
                 elif 'citywaterflow' in param_lower:
                     return "Flow Chiller Water"
+                elif 'pumppressure' in param_lower or 'pump pressure' in param_lower:
+                    return "Pump Pressure"
                 elif 'remotetemp' in param_lower:
                     return "Temp Room"
                 elif 'humidity' in param_lower:
@@ -1215,7 +1212,7 @@ class HALogApp:
 
                     if not selected_bottom_param or selected_bottom_param == "Select parameter...":
                         if group_name == 'flow':
-                            selected_bottom_param = "Flow Chiller Water"
+                            selected_bottom_param = "Pump Pressure"  # Updated to use pump pressure as default
                         elif group_name == 'voltage':
                             selected_bottom_param = "MLC Bank B 24V"
                         elif group_name == 'temperature':
@@ -1331,6 +1328,7 @@ class HALogApp:
                             "Mag Flow": "magnetronFlow",
                             "Flow Target": "targetAndCirculatorFlow", 
                             "Flow Chiller Water": "cityWaterFlow",
+                            "Pump Pressure": "pumpPressure",
                             "Temp Room": "FanremoteTempStatistics",
                             "Room Humidity": "FanhumidityStatistics", 
                             "Temp Magnetron": "magnetronTemp",

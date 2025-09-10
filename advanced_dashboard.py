@@ -898,13 +898,21 @@ class AdvancedDashboard(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
         
-        # Dashboard controls - keep only refresh button
+        # Dashboard controls - removed refresh button for cleaner UI per requirements
         controls_layout = QHBoxLayout()
         controls_layout.addStretch()
         
-        refresh_btn = QPushButton("Refresh All")
-        refresh_btn.clicked.connect(self.refresh_all_widgets)
-        controls_layout.addWidget(refresh_btn)
+        # Status indicator for auto-refresh
+        status_label = QLabel("Auto-refresh enabled")
+        status_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-size: 9pt;
+                font-style: italic;
+                padding: 4px 8px;
+            }
+        """)
+        controls_layout.addWidget(status_label)
         
         layout.addLayout(controls_layout)
         

@@ -31,8 +31,20 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBo
 from PyQt5.QtCore import Qt, pyqtSignal
 from typing import Optional, Dict, List
 
-# Set matplotlib style for professional appearance
+# Set matplotlib style for professional monitoring appearance
 plt.style.use('default')
+
+# Professional color scheme for different parameters/machines
+PROFESSIONAL_COLORS = {
+    'orange': '#ff7f0e',    # Primary parameter color
+    'blue': '#1f77b4',      # Secondary parameter color
+    'purple': '#9467bd',    # Third parameter color  
+    'red': '#d62728',       # Fourth parameter color
+    'green': '#2ca02c',     # Alternative color
+    'brown': '#8c564b',     # Alternative color
+    'pink': '#e377c2',      # Alternative color
+    'gray': '#7f7f7f',      # Neutral color
+}
 
 
 class InteractivePlotManager:
@@ -212,8 +224,302 @@ class InteractivePlotManager:
 
 
 class PlotUtils:
-    """Enhanced plotting utilities for LINAC water system data"""
-
+    """Enhanced plotting utilities with professional monitoring style"""
+    
+    # Professional monitoring color scheme (distinct colors for multi-parameter display)
+    COLORS = [
+        '#ff7f0e',  # Orange - Primary parameter
+        '#1f77b4',  # Blue - Secondary parameter  
+        '#9467bd',  # Purple - Third parameter
+        '#d62728',  # Red - Fourth parameter
+        '#2ca02c',  # Green - Additional parameter
+        '#8c564b',  # Brown - Additional parameter
+        '#e377c2',  # Pink - Additional parameter
+        '#7f7f7f'   # Gray - Neutral/fallback
+    ]
+    
+    @staticmethod
+    def apply_professional_style(ax, title="", xlabel="Time", ylabel="Value"):
+        """Apply professional monitoring style to matplotlib axes"""
+        # Light gray background with subtle grid
+        ax.set_facecolor('#f8f9fa')
+        ax.grid(True, alpha=0.3, color='#dee2e6', linewidth=0.8)
+        ax.set_axisbelow(True)
+        
+        # Clean, professional styling
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#6c757d')
+        ax.spines['bottom'].set_color('#6c757d')
+        
+        # Professional text styling
+        if title:
+            ax.set_title(title, fontsize=11, fontweight='600', color='#212529', pad=15)
+        if xlabel:
+            ax.set_xlabel(xlabel, fontsize=9, color='#495057')
+        if ylabel:
+            ax.set_ylabel(ylabel, fontsize=9, color='#495057')
+            
+        # Modern tick styling
+        ax.tick_params(axis='both', which='major', labelsize=8, colors='#6c757d')
+        ax.tick_params(axis='both', which='minor', labelsize=7, colors='#adb5bd')
+        
+        return ax
+    
+    @staticmethod
+    def plot_smooth_line(ax, x_data, y_data, label="", color=None, alpha=0.8, linewidth=2.5):
+        """Plot a smooth continuous line without scatter points"""
+        if color is None:
+            color = PlotUtils.COLORS[0]
+            
+        # Plot smooth continuous line only (no markers/scatter points)
+        line = ax.plot(x_data, y_data, color=color, linewidth=linewidth, 
+                      alpha=alpha, label=label, linestyle='-', 
+                      marker=None, markersize=0)[0]
+        
+        # Add subtle drop shadow effect for depth
+        ax.plot(x_data, y_data, color=color, linewidth=linewidth+1, 
+               alpha=0.1, linestyle='-', zorder=0)
+               
+        return line
+    
+    @staticmethod
+    def format_time_axis(ax, data_span_hours=24):
+        """Format time axis with appropriate intervals based on data span"""
+        if data_span_hours <= 1:
+            # For 1 hour or less, show every 10 minutes
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+            ax.xaxis.set_major_locator(mdates.MinuteLocator(interval=10))
+        elif data_span_hours <= 24:
+            # For up to 24 hours, show every 2 hours
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        elif data_span_hours <= 168:  # 1 week
+            # For up to a week, show daily
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        else:
+            # For longer periods, show weekly
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+            
+        # Rotate labels for better readability
+        ax.figure.autofmt_xdate(rotation=45)
+        
+    @staticmethod
+    def add_hover_tooltip(ax, lines_data):
+        """Add interactive hover tooltips showing exact values and measurement counts"""
+        
+        def on_hover(event):
+            if event.inaxes == ax:
+                # Find closest data point
+                closest_line = None
+                closest_distance = float('inf')
+                closest_point = None
+                
+                for line_info in lines_data:
+                    line = line_info['line']
+                    x_data = line_info['x_data']
+                    y_data = line_info['y_data']
+                    measurements = line_info.get('measurements', len(y_data))
+                    
+                    # Convert mouse position to data coordinates
+                    try:
+                        for i, (x, y) in enumerate(zip(x_data, y_data)):
+                            # Calculate distance in screen coordinates
+                            x_screen, y_screen = ax.transData.transform((x, y))
+                            distance = np.sqrt((event.x - x_screen)**2 + (event.y - y_screen)**2)
+                            
+                            if distance < closest_distance and distance < 50:  # 50 pixel threshold
+                                closest_distance = distance
+                                closest_line = line_info
+                                closest_point = (x, y, measurements)
+                    except Exception:
+                        continue
+                
+                # Show tooltip for closest point
+                if closest_point and closest_line:
+                    x, y, measurements = closest_point
+                    param_name = closest_line.get('label', 'Parameter')
+                    unit = closest_line.get('unit', '')
+                    
+                    # Format tooltip text
+                    tooltip_text = f"{param_name}: {y:.2f} {unit}\n"
+                    tooltip_text += f"Time: {x.strftime('%Y-%m-%d %H:%M')}\n"
+                    tooltip_text += f"Based on {measurements} measurements"
+                    
+                    # Remove existing annotation
+                    for annotation in ax.texts:
+                        if hasattr(annotation, '_is_tooltip'):
+                            annotation.remove()
+                    
+                    # Add new annotation
+                    bbox_props = dict(boxstyle="round,pad=0.3", facecolor="white", 
+                                    edgecolor="#dee2e6", alpha=0.9)
+                    annotation = ax.annotate(tooltip_text, xy=(x, y), xytext=(10, 10),
+                                           textcoords='offset points', bbox=bbox_props,
+                                           fontsize=8, color='#212529')
+                    annotation._is_tooltip = True
+                    ax.figure.canvas.draw_idle()
+        
+        # Connect hover event
+        ax.figure.canvas.mpl_connect('motion_notify_event', on_hover)
+    
+    @staticmethod
+    def _plot_parameter_data_single(graph_widget, data, parameter_name="Parameter"):
+        """Plot single parameter data with modern professional styling"""
+        try:
+            if hasattr(graph_widget, 'figure'):
+                fig = graph_widget.figure
+            else:
+                # Assume it's a matplotlib axes
+                fig = graph_widget.get_figure() if hasattr(graph_widget, 'get_figure') else None
+                if fig is None:
+                    return
+                    
+            fig.clear()
+            ax = fig.add_subplot(111)
+            
+            if data.empty:
+                PlotUtils.apply_professional_style(ax, title=parameter_name)
+                ax.text(0.5, 0.5, 'No data available', transform=ax.transAxes,
+                       ha='center', va='center', fontsize=10, color='#6c757d')
+                fig.tight_layout()
+                if hasattr(graph_widget, 'draw'):
+                    graph_widget.draw()
+                return
+            
+            # Convert datetime strings to datetime objects
+            data['datetime'] = pd.to_datetime(data['datetime'])
+            data = data.sort_values('datetime')
+            
+            # Apply professional styling
+            unit = data.get('unit', [''])[0] if 'unit' in data.columns else ''
+            PlotUtils.apply_professional_style(ax, title=parameter_name, 
+                                             ylabel=f"Value ({unit})" if unit else "Value")
+            
+            # Plot smooth line using primary orange color
+            color = PlotUtils.COLORS[0]  # Orange for single parameter
+            PlotUtils.plot_smooth_line(ax, data['datetime'], data['avg'], 
+                                     label=parameter_name, color=color)
+            
+            # Format time axis
+            time_span = (data['datetime'].max() - data['datetime'].min()).total_seconds() / 3600
+            PlotUtils.format_time_axis(ax, time_span)
+            
+            # Add legend if multiple series
+            if len(data) > 1:
+                ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True,
+                         framealpha=0.9, facecolor='white', edgecolor='#dee2e6')
+            
+            # Prepare hover data
+            lines_data = [{
+                'line': ax.lines[0] if ax.lines else None,
+                'x_data': data['datetime'].values,
+                'y_data': data['avg'].values,
+                'measurements': len(data),
+                'label': parameter_name,
+                'unit': unit
+            }]
+            
+            # Add interactive hover tooltips
+            PlotUtils.add_hover_tooltip(ax, lines_data)
+            
+            fig.tight_layout()
+            if hasattr(graph_widget, 'draw'):
+                graph_widget.draw()
+                
+        except Exception as e:
+            print(f"Error plotting single parameter data: {e}")
+    
+    @staticmethod 
+    def _plot_parameter_data_multi_machine(graph_widget, machine_data_dict, parameter_name="Parameter", machine_colors=None):
+        """Plot multi-machine parameter data with synchronized axes and distinct colors"""
+        try:
+            if hasattr(graph_widget, 'figure'):
+                fig = graph_widget.figure
+            else:
+                # Assume it's a matplotlib axes
+                fig = graph_widget.get_figure() if hasattr(graph_widget, 'get_figure') else None
+                if fig is None:
+                    return
+                    
+            fig.clear()
+            ax = fig.add_subplot(111)
+            
+            if not machine_data_dict:
+                PlotUtils.apply_professional_style(ax, title=f"{parameter_name} - Multi-Machine")
+                ax.text(0.5, 0.5, 'No data available', transform=ax.transAxes,
+                       ha='center', va='center', fontsize=10, color='#6c757d')
+                fig.tight_layout()
+                if hasattr(graph_widget, 'draw'):
+                    graph_widget.draw()
+                return
+            
+            # Apply professional styling
+            PlotUtils.apply_professional_style(ax, title=f"{parameter_name} - Multi-Machine Comparison", 
+                                             ylabel="Value")
+            
+            lines_data = []
+            color_index = 0
+            
+            # Plot each machine's data with distinct colors
+            for machine_id, data in machine_data_dict.items():
+                if data.empty:
+                    continue
+                    
+                # Convert datetime and sort
+                data['datetime'] = pd.to_datetime(data['datetime'])
+                data = data.sort_values('datetime')
+                
+                # Get color for this machine
+                if machine_colors and machine_id in machine_colors:
+                    color = machine_colors[machine_id]
+                else:
+                    color = PlotUtils.COLORS[color_index % len(PlotUtils.COLORS)]
+                    color_index += 1
+                
+                # Plot smooth line for this machine
+                label = f"{machine_id}"
+                PlotUtils.plot_smooth_line(ax, data['datetime'], data['avg'], 
+                                         label=label, color=color)
+                
+                # Add to hover data
+                unit = data.get('unit', [''])[0] if 'unit' in data.columns else ''
+                lines_data.append({
+                    'line': ax.lines[-1] if ax.lines else None,
+                    'x_data': data['datetime'].values,
+                    'y_data': data['avg'].values,
+                    'measurements': len(data),
+                    'label': f"{machine_id} - {parameter_name}",
+                    'unit': unit
+                })
+            
+            # Format time axis based on data span
+            if lines_data:
+                all_times = []
+                for line_data in lines_data:
+                    all_times.extend(line_data['x_data'])
+                if all_times:
+                    time_span = (max(all_times) - min(all_times)).total_seconds() / 3600
+                    PlotUtils.format_time_axis(ax, time_span)
+            
+            # Add legend for multi-machine comparison
+            if len(machine_data_dict) > 1:
+                ax.legend(loc='upper right', frameon=True, fancybox=True, shadow=True,
+                         framealpha=0.9, facecolor='white', edgecolor='#dee2e6')
+            
+            # Add interactive hover tooltips
+            if lines_data:
+                PlotUtils.add_hover_tooltip(ax, lines_data)
+            
+            fig.tight_layout()
+            if hasattr(graph_widget, 'draw'):
+                graph_widget.draw()
+                
+        except Exception as e:
+            print(f"Error plotting multi-machine parameter data: {e}")
+            
     @staticmethod
     def setup_professional_style():
         """Setup professional plotting style with Calibri font"""
@@ -538,6 +844,138 @@ class PlotUtils:
         except Exception as e:
             print(f"Error in data interpolation: {e}")
             return data
+
+    @staticmethod
+    def decimate_data_for_performance(data: pd.DataFrame, max_points: int = 2000) -> pd.DataFrame:
+        """
+        Decimate data for large datasets while preserving key features
+        
+        Args:
+            data: DataFrame with datetime and parameter values
+            max_points: Maximum number of points to display for performance
+            
+        Returns:
+            Decimated DataFrame optimized for visualization
+        """
+        try:
+            if data.empty or len(data) <= max_points:
+                return data
+                
+            # Sort by datetime first
+            data = data.sort_values('datetime')
+            
+            # Calculate decimation factor
+            decimation_factor = len(data) // max_points
+            
+            # Use systematic sampling to preserve temporal distribution
+            # Take every nth point, but ensure we capture key features
+            indices = []
+            
+            # Always include first and last points
+            indices.append(0)
+            
+            # Add evenly spaced points
+            for i in range(decimation_factor, len(data) - decimation_factor, decimation_factor):
+                indices.append(i)
+                
+            # Always include last point
+            if len(data) - 1 not in indices:
+                indices.append(len(data) - 1)
+            
+            # Sort indices and select data
+            indices = sorted(set(indices))
+            decimated_data = data.iloc[indices].copy()
+            
+            print(f"📊 Data decimated from {len(data)} to {len(decimated_data)} points for performance")
+            return decimated_data
+            
+        except Exception as e:
+            print(f"Error in data decimation: {e}")
+            return data
+    
+    @staticmethod
+    def add_time_range_controls(parent_widget, callback_func):
+        """
+        Add interactive time range controls to a widget
+        
+        Args:
+            parent_widget: Parent Qt widget to add controls to
+            callback_func: Function to call when time range changes
+            
+        Returns:
+            Dictionary of control widgets
+        """
+        from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QComboBox, 
+                                   QDateEdit, QGroupBox)
+        from PyQt5.QtCore import QDate
+        
+        # Create controls group
+        controls_group = QGroupBox("Time Range Controls")
+        controls_layout = QHBoxLayout(controls_group)
+        
+        # Quick range buttons
+        range_buttons = {}
+        ranges = [
+            ("1 Day", 1),
+            ("1 Week", 7), 
+            ("1 Month", 30),
+            ("3 Months", 90)
+        ]
+        
+        for label, days in ranges:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, d=days: callback_func(f"last_{d}_days"))
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 6px 12px;
+                    margin: 2px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    background-color: #f8f9fa;
+                    color: #495057;
+                }
+                QPushButton:hover {
+                    background-color: #e9ecef;
+                    border-color: #adb5bd;
+                }
+                QPushButton:pressed {
+                    background-color: #dee2e6;
+                }
+            """)
+            controls_layout.addWidget(btn)
+            range_buttons[label] = btn
+            
+        # Custom range controls
+        controls_layout.addWidget(QLabel("Custom:"))
+        
+        from_date = QDateEdit()
+        from_date.setDate(QDate.currentDate().addDays(-7))
+        from_date.setCalendarPopup(True)
+        controls_layout.addWidget(QLabel("From:"))
+        controls_layout.addWidget(from_date)
+        
+        to_date = QDateEdit()
+        to_date.setDate(QDate.currentDate())
+        to_date.setCalendarPopup(True)
+        controls_layout.addWidget(QLabel("To:"))
+        controls_layout.addWidget(to_date)
+        
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(lambda: callback_func({
+            'from': from_date.date().toPyDate(),
+            'to': to_date.date().toPyDate()
+        }))
+        controls_layout.addWidget(apply_btn)
+        
+        controls_layout.addStretch()
+        
+        return {
+            'group': controls_group,
+            'buttons': range_buttons,
+            'from_date': from_date,
+            'to_date': to_date,
+            'apply_btn': apply_btn
+        }
 
     @staticmethod
     def smooth_data(data: pd.DataFrame, window_size: int = 5, method: str = 'rolling') -> pd.DataFrame:

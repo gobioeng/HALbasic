@@ -130,10 +130,13 @@ class UnifiedParser:
             "pumpPressure": {
                 "patterns": [
                     "pump pressure", "pumpPressure", "CoolingpumpPressureStatistics",
-                    "cooling pump pressure", "pump_pressure"
+                    "cooling pump pressure", "pump_pressure", "CoolingpumpPressure", 
+                    "Cooling pump Pressure Statistics", "pumpPressureStatistics",
+                    "water pump pressure", "waterPumpPressure", "pump_pressure_stats",
+                    "coolant pump pressure", "coolantPumpPressure", "pump pressure statistics"
                 ],
                 "unit": "PSI",
-                "description": "Cooling Pump Pressure",
+                "description": "Pump Pressure",
                 "expected_range": (10, 30),
                 "critical_range": (5, 40),
             },
