@@ -350,14 +350,8 @@ class Ui_MainWindow(object):
         self.actionExit.setStatusTip("Exit the application")
         self.menuFile.addAction(self.actionExit)
 
-        # View Menu
+        # View Menu - cleaned up per requirements (removed refresh action)
         self.menuView = self.menubar.addMenu("&View")
-        self.actionRefresh = QAction(MainWindow)
-        self.actionRefresh.setObjectName("actionRefresh")
-        self.actionRefresh.setText("&Refresh")
-        self.actionRefresh.setShortcut(QKeySequence("F5"))
-        self.actionRefresh.setStatusTip("Refresh all data")
-        self.menuView.addAction(self.actionRefresh)
 
         # Data Menu
         self.menuData = self.menubar.addMenu("&Data")
