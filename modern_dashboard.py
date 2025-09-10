@@ -208,8 +208,12 @@ class ModernDashboard(QWidget):
         if has_data:
             self._create_dashboard_with_data(layout, stats)
         else:
-            # No data available - show import prompt
+            # No data available - show import prompt with file status
             self._create_no_data_ui(layout)
+            
+            # Add file status widget instead of upload widget
+            file_status = self.create_file_status_widget()
+            layout.addWidget(file_status)
             
         layout.addStretch()
     
@@ -258,8 +262,8 @@ class ModernDashboard(QWidget):
         text_label.setStyleSheet("font-size: 14px; color: #666; margin: 10px;")
         text_label.setAlignment(Qt.AlignCenter)
         
-        import_btn = QPushButton("📥 Import Log Files")
-        import_btn.clicked.connect(self._trigger_import)
+        import_btn = QPushButton("📥 Open File Menu to Import")
+        import_btn.clicked.connect(self._show_file_menu_hint)
         import_btn.setStyleSheet("padding: 12px 24px; background: #1976D2; color: white; border: none; border-radius: 6px; font-weight: 500;")
         
         no_data_layout.addWidget(icon_label)
@@ -268,6 +272,19 @@ class ModernDashboard(QWidget):
         no_data_layout.setContentsMargins(40, 40, 40, 40)
         
         layout.addWidget(no_data_frame)
+    
+    def _show_file_menu_hint(self):
+        """Show hint about using File menu instead of duplicate upload widget"""
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, 
+                "File Import",
+                "Use File > Open Log File from the menu bar to import LINAC log files.\n\n"
+                "This ensures proper validation and processing of your data."
+            )
+        except Exception as e:
+            print(f"Error showing file menu hint: {e}")
     
     def _trigger_import(self):
         """Trigger file import from parent application"""
@@ -283,6 +300,67 @@ class ModernDashboard(QWidget):
                 print("Could not find parent with import_log_file method")
         except Exception as e:
             print(f"Error triggering import: {e}")
+    
+    def create_file_status_widget(self):
+        """Create file status widget showing last imported file instead of upload widget"""
+        status_frame = QFrame()
+        status_frame.setStyleSheet("""
+            QFrame {
+                background: #e3f2fd;
+                border: 1px solid #2196f3;
+                border-radius: 6px;
+                padding: 12px;
+                margin: 5px 0;
+            }
+        """)
+        
+        layout = QVBoxLayout(status_frame)
+        
+        # File status header
+        header = QLabel("📁 File Status")
+        header.setStyleSheet("font-weight: 600; color: #1976D2; font-size: 14px; margin-bottom: 8px;")
+        layout.addWidget(header)
+        
+        # Last file info
+        try:
+            if hasattr(self.db, 'get_latest_file_info'):
+                file_info = self.db.get_latest_file_info()
+                if file_info:
+                    filename = file_info.get('filename', 'Unknown')
+                    import_time = file_info.get('import_time', 'Unknown')
+                    record_count = file_info.get('record_count', 0)
+                    
+                    file_label = QLabel(f"Last file: {filename}")
+                    file_label.setStyleSheet("font-weight: 500; color: #1C1B1F;")
+                    layout.addWidget(file_label)
+                    
+                    time_label = QLabel(f"Loaded: {import_time}")
+                    time_label.setStyleSheet("color: #666; font-size: 12px;")
+                    layout.addWidget(time_label)
+                    
+                    records_label = QLabel(f"Records: {record_count:,}")
+                    records_label.setStyleSheet("color: #4CAF50; font-weight: 500;")
+                    layout.addWidget(records_label)
+                else:
+                    no_file_label = QLabel("No files imported yet")
+                    no_file_label.setStyleSheet("color: #666; font-style: italic;")
+                    layout.addWidget(no_file_label)
+                    
+                    hint_label = QLabel("Use File > Open Log File to import data")
+                    hint_label.setStyleSheet("color: #1976D2; font-size: 11px;")
+                    layout.addWidget(hint_label)
+            else:
+                no_info_label = QLabel("File status not available")
+                no_info_label.setStyleSheet("color: #FF9800; font-style: italic;")
+                layout.addWidget(no_info_label)
+                
+        except Exception as e:
+            error_label = QLabel("Error loading file status")
+            error_label.setStyleSheet("color: #F44336; font-style: italic;")
+            layout.addWidget(error_label)
+            print(f"Error creating file status widget: {e}")
+        
+        return status_frame
     
     def create_trend_chart(self, parameter=None):
         """Create real-time trend chart with machine separation"""

@@ -24,8 +24,9 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QRadioButton,
     QButtonGroup,
+    QDoubleSpinBox,  # Added for scaling inputs
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer  # Added QTimer import
 from PyQt5.QtGui import QKeySequence, QFont
 
 # Import enhanced plotting widgets for trend graphs
@@ -428,505 +429,454 @@ class Ui_MainWindow(object):
         """)
         layout.addWidget(info_label)
     def setup_trends_tab(self):
+        """Setup simplified trends tab with single clean graph interface"""
         self.tabTrends = QWidget()
         self.tabWidget.addTab(self.tabTrends, "📈 Trends")
         layout = QVBoxLayout(self.tabTrends)
         layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
 
-        # Create sub-tabs for different parameter groups
-        self.trendSubTabs = QTabWidget()
-        self.trendSubTabs.setTabPosition(QTabWidget.North)
-        layout.addWidget(self.trendSubTabs)
-
-        # Water System tab
-        self.setup_water_system_tab()
+        # SIMPLIFIED: Single graph with essential controls only
+        # Controls section
+        controls_group = QGroupBox("Parameter and Time Controls")
+        controls_layout = QVBoxLayout(controls_group)
+        controls_layout.setSpacing(12)
         
-        # Voltages tab
-        self.setup_voltages_tab()
+        # Top controls row: Parameter selection and scaling
+        top_controls = QHBoxLayout()
+        top_controls.setSpacing(16)
         
-        # Temperatures tab  
-        self.setup_temperatures_tab()
+        # Parameter dropdown
+        top_controls.addWidget(QLabel("Parameter:"))
+        self.parameterDropdown = QComboBox()
+        self.parameterDropdown.setMinimumWidth(200)
+        self.parameterDropdown.addItems([
+            "Magnetron Flow", "Target Flow", "Pump Pressure", "Water Temperature",
+            "Room Temperature", "Magnetron Temperature", "Room Humidity",
+            "MLC Bank A 24V", "MLC Bank B 24V", "COL 48V", "Fan Speed 1", "Fan Speed 2"
+        ])
+        top_controls.addWidget(self.parameterDropdown)
         
-        # Humidity tab
-        self.setup_humidity_tab()
+        top_controls.addStretch()
         
-        # Fan Speeds tab (NEW)
-        self.setup_fan_speeds_tab()
-
-    def setup_water_system_tab(self):
-        self.tabWaterSystem = QWidget()
-        self.trendSubTabs.addTab(self.tabWaterSystem, "🌊 Water System")
-        layout = QVBoxLayout(self.tabWaterSystem)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # Scale controls
+        self.scaleAutoCheckbox = QCheckBox("Auto Scale")
+        self.scaleAutoCheckbox.setChecked(True)
+        self.scaleAutoCheckbox.stateChanged.connect(self.on_scale_mode_changed)
+        top_controls.addWidget(self.scaleAutoCheckbox)
         
-    def setup_water_system_tab(self):
-        self.tabWaterSystem = QWidget()
-        self.trendSubTabs.addTab(self.tabWaterSystem, "🌊 Water System")
-        layout = QVBoxLayout(self.tabWaterSystem)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # Manual scale inputs (initially hidden)
+        scale_label = QLabel("Range:")
+        self.scaleMinInput = QDoubleSpinBox()
+        self.scaleMinInput.setRange(-9999.0, 9999.0)
+        self.scaleMinInput.setEnabled(False)
+        self.scaleMaxInput = QDoubleSpinBox()
+        self.scaleMaxInput.setRange(-9999.0, 9999.0) 
+        self.scaleMaxInput.setEnabled(False)
         
-        # Controls group with time scale selection
-        controls_group = QGroupBox("Water System Controls")
-        controls_main_layout = QVBoxLayout(controls_group)
+        top_controls.addWidget(scale_label)
+        top_controls.addWidget(self.scaleMinInput)
+        top_controls.addWidget(QLabel("to"))
+        top_controls.addWidget(self.scaleMaxInput)
         
-        # Time scale controls integrated into plot widgets with dynamic sliders
-        time_controls_layout = QHBoxLayout()
-        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
-        time_info_label.setStyleSheet("""
-            QLabel {
-                padding: 8px 12px;
-                background: #E3F2FD;
-                color: #1565C0;
-                border: 1px solid #2196F3;
+        controls_layout.addLayout(top_controls)
+        
+        # Bottom controls row: Time window and export
+        bottom_controls = QHBoxLayout()
+        bottom_controls.setSpacing(16)
+        
+        bottom_controls.addWidget(QLabel("Time Window:"))
+        
+        # Time window buttons as specified
+        self.btn1Day = QPushButton("1 Day")
+        self.btn1Day.setCheckable(True)
+        self.btn1Day.setChecked(True)  # Default selection
+        self.btn1Day.clicked.connect(lambda: self.set_time_window("1day"))
+        
+        self.btn1Week = QPushButton("1 Week") 
+        self.btn1Week.setCheckable(True)
+        self.btn1Week.clicked.connect(lambda: self.set_time_window("1week"))
+        
+        self.btn1Month = QPushButton("1 Month")
+        self.btn1Month.setCheckable(True)
+        self.btn1Month.clicked.connect(lambda: self.set_time_window("1month"))
+        
+        # Group the time buttons for mutual exclusivity
+        from PyQt5.QtWidgets import QButtonGroup
+        self.timeButtonGroup = QButtonGroup()
+        self.timeButtonGroup.addButton(self.btn1Day)
+        self.timeButtonGroup.addButton(self.btn1Week)
+        self.timeButtonGroup.addButton(self.btn1Month)
+        
+        # Style time buttons
+        time_button_style = """
+            QPushButton {
+                padding: 6px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: white;
+                font-weight: 500;
+                min-width: 60px;
+            }
+            QPushButton:checked {
+                background: #1976D2;
+                color: white;
+                border-color: #1976D2;
+            }
+            QPushButton:hover:!checked {
+                background: #f5f5f5;
+                border-color: #1976D2;
+            }
+        """
+        self.btn1Day.setStyleSheet(time_button_style)
+        self.btn1Week.setStyleSheet(time_button_style) 
+        self.btn1Month.setStyleSheet(time_button_style)
+        
+        bottom_controls.addWidget(self.btn1Day)
+        bottom_controls.addWidget(self.btn1Week)
+        bottom_controls.addWidget(self.btn1Month)
+        
+        bottom_controls.addStretch()
+        
+        # Export button
+        self.btnExportTrend = QPushButton("📊 Export")
+        self.btnExportTrend.clicked.connect(self.export_trend_data)
+        self.btnExportTrend.setStyleSheet("""
+            QPushButton {
+                padding: 6px 16px;
+                background: #4CAF50;
+                color: white;
+                border: none;
                 border-radius: 4px;
                 font-weight: 500;
-                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background: #45a049;
             }
         """)
-        time_controls_layout.addWidget(time_info_label)
+        bottom_controls.addWidget(self.btnExportTrend)
         
-        time_controls_layout.addStretch()
-        controls_main_layout.addLayout(time_controls_layout)
-        
-        # Parameter selection controls row
-        param_controls_layout = QHBoxLayout()
-        param_controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        param_controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboWaterTopGraph = QComboBox()
-        self.comboWaterTopGraph.setMinimumWidth(160)
-        self.comboWaterTopGraph.addItems([
-            "Mag Flow",  # Remove "Select parameter..." and make first item default
-            "Flow Target", 
-            "Flow Chiller Water",
-            "Pump Pressure"  # Updated to match unified parser
-        ])
-        # Set default selection to first parameter
-        self.comboWaterTopGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboWaterTopGraph)
-        
-        # Bottom graph selector
-        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboWaterBottomGraph = QComboBox()
-        self.comboWaterBottomGraph.setMinimumWidth(160)
-        self.comboWaterBottomGraph.addItems([
-            "Pump Pressure",  # Updated to focus on pump pressure
-            "Mag Flow",
-            "Flow Target",
-            "Flow Chiller Water"
-        ])
-        # Set default selection to pump pressure
-        self.comboWaterBottomGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboWaterBottomGraph)
-        
-        self.btnRefreshWater = QPushButton("🔄 Update Graphs")
-        self.btnRefreshWater.setObjectName("primaryButton")
-        param_controls_layout.addWidget(self.btnRefreshWater)
-        param_controls_layout.addStretch()
-        
-        controls_main_layout.addLayout(param_controls_layout)
+        controls_layout.addLayout(bottom_controls)
         layout.addWidget(controls_group)
         
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
+        # SIMPLIFIED: Single clean graph area
+        graph_group = QGroupBox("Trend Visualization")
+        graph_layout = QVBoxLayout(graph_group)
         
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for graph widgets
-        if PLOTTING_AVAILABLE:
-            self.waterGraphTop = EnhancedPlotWidget()
-            self.waterGraphTop.setMinimumHeight(200)
-            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphTop)
-            
-            self.waterGraphBottom = EnhancedPlotWidget()
-            self.waterGraphBottom.setMinimumHeight(200)
-            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.waterGraphTop = QFrame()
-            self.waterGraphTop.setFrameStyle(QFrame.Box)
-            self.waterGraphTop.setObjectName("plotFrame")
-            self.waterGraphTop.setMinimumHeight(200)
-            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphTop)
-            
-            self.waterGraphBottom = QFrame()
-            self.waterGraphBottom.setFrameStyle(QFrame.Box)
-            self.waterGraphBottom.setObjectName("plotFrame")
-            self.waterGraphBottom.setMinimumHeight(200)
-            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphBottom)
-        
-        layout.addWidget(graphs_widget)
-
-    def setup_voltages_tab(self):
-        self.tabVoltages = QWidget()
-        self.trendSubTabs.addTab(self.tabVoltages, "⚡ Voltages")
-        layout = QVBoxLayout(self.tabVoltages)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-    def setup_voltages_tab(self):
-        self.tabVoltages = QWidget()
-        self.trendSubTabs.addTab(self.tabVoltages, "⚡ Voltages")
-        layout = QVBoxLayout(self.tabVoltages)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Controls group with time scale selection
-        controls_group = QGroupBox("Voltage Controls")
-        controls_main_layout = QVBoxLayout(controls_group)
-        
-        # Time scale controls integrated into plot widgets with dynamic sliders
-        time_controls_layout = QHBoxLayout()
-        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
-        time_info_label.setStyleSheet("""
+        # Interactive usage hint with specific shortcuts
+        usage_hint = QLabel("💡 Interactive Features: Mouse wheel zoom • Drag to pan • Double-click fit all • Keys: h(1hr) d(1day) w(week) m(month) r(reset) f(fit) +/- arrows")
+        usage_hint.setStyleSheet("""
             QLabel {
-                padding: 8px 12px;
-                background: #E3F2FD;
-                color: #1565C0;
-                border: 1px solid #2196F3;
+                padding: 8px;
+                background: #f0f8ff;
+                color: #1976D2;
+                border: 1px solid #bbdefb;
                 border-radius: 4px;
-                font-weight: 500;
-                font-size: 9pt;
+                font-size: 11px;
+                font-style: italic;
             }
         """)
-        time_controls_layout.addWidget(time_info_label)
+        graph_layout.addWidget(usage_hint)
         
-        time_controls_layout.addStretch()
-        controls_main_layout.addLayout(time_controls_layout)
-        
-        # Parameter selection controls row
-        param_controls_layout = QHBoxLayout()
-        param_controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        param_controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboVoltageTopGraph = QComboBox()
-        self.comboVoltageTopGraph.setMinimumWidth(160)
-        self.comboVoltageTopGraph.addItems([
-            "MLC Bank A 24V",  # Remove "Select parameter..." and make first item default
-            "MLC Bank B 24V",
-            "COL 48V",
-            "MLC Bank A 48V",
-            "MLC Bank B 48V",
-            "MLC Bank A 5V",
-            "MLC Bank B 5V",
-            "MLC DISTAL 10V",
-            "MLC PROXIMAL 10V",
-            "Motor PWR 48V",
-            "Motor PWR -48V"
-        ])
-        # Set default selection to first parameter
-        self.comboVoltageTopGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboVoltageTopGraph)
-        
-        # Bottom graph selector
-        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboVoltageBottomGraph = QComboBox()
-        self.comboVoltageBottomGraph.setMinimumWidth(160)
-        self.comboVoltageBottomGraph.addItems([
-            "MLC Bank B 24V",  # Remove "Select parameter..." and set different default
-            "MLC Bank A 24V",
-            "COL 48V",
-            "MLC Bank A 48V", 
-            "MLC Bank B 48V",
-            "MLC Bank A 5V",
-            "MLC Bank B 5V",
-            "MLC DISTAL 10V",
-            "MLC PROXIMAL 10V",
-            "Motor PWR 48V",
-            "Motor PWR -48V"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboVoltageBottomGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboVoltageBottomGraph)
-        
-        self.btnRefreshVoltage = QPushButton("🔄 Update Graphs")
-        self.btnRefreshVoltage.setObjectName("primaryButton")
-        param_controls_layout.addWidget(self.btnRefreshVoltage)
-        param_controls_layout.addStretch()
-        
-        controls_main_layout.addLayout(param_controls_layout)
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for voltage graph widgets
-        if PLOTTING_AVAILABLE:
-            self.voltageGraphTop = EnhancedPlotWidget()
-            self.voltageGraphTop.setMinimumHeight(200)
-            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphTop)
+        # Single graph widget with interactive features
+        try:
+            from plot_utils import EnhancedPlotWidget
+            self.trendGraph = EnhancedPlotWidget()
+            self.trendGraph.setMinimumHeight(400)
+            self.trendGraph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             
-            self.voltageGraphBottom = EnhancedPlotWidget()
-            self.voltageGraphBottom.setMinimumHeight(200)
-            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.voltageGraphTop = QFrame()
-            self.voltageGraphTop.setFrameStyle(QFrame.Box)
-            self.voltageGraphTop.setObjectName("plotFrame")
-            self.voltageGraphTop.setMinimumHeight(200)
-            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphTop)
+            # ENHANCED: Connect time window buttons to existing interactive features
+            self.btn1Day.clicked.connect(lambda: self._set_enhanced_time_window("1day"))
+            self.btn1Week.clicked.connect(lambda: self._set_enhanced_time_window("1week"))
+            self.btn1Month.clicked.connect(lambda: self._set_enhanced_time_window("1month"))
             
-            self.voltageGraphBottom = QFrame()
-            self.voltageGraphBottom.setFrameStyle(QFrame.Box)
-            self.voltageGraphBottom.setObjectName("plotFrame")
-            self.voltageGraphBottom.setMinimumHeight(200)
-            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphBottom)
+            # Connect scale controls to enhanced plot widget
+            self.scaleAutoCheckbox.stateChanged.connect(self._update_enhanced_scaling)
+            self.scaleMinInput.valueChanged.connect(self._update_enhanced_scaling)
+            self.scaleMaxInput.valueChanged.connect(self._update_enhanced_scaling)
+            
+            graph_layout.addWidget(self.trendGraph)
+            
+        except ImportError:
+            # Fallback to simple frame if enhanced plotting not available
+            self.trendGraph = QFrame()
+            self.trendGraph.setFrameStyle(QFrame.Box)
+            self.trendGraph.setObjectName("plotFrame")
+            self.trendGraph.setMinimumHeight(400)
+            self.trendGraph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            
+            fallback_layout = QVBoxLayout(self.trendGraph)
+            fallback_label = QLabel("📊 Enhanced plotting not available\nBasic trend display would appear here")
+            fallback_label.setAlignment(Qt.AlignCenter)
+            fallback_label.setStyleSheet("color: #666; font-size: 14px;")
+            fallback_layout.addWidget(fallback_label)
+            
+            graph_layout.addWidget(self.trendGraph)
         
-        layout.addWidget(graphs_widget)
+        layout.addWidget(graph_group)
+        
+        # Connect parameter change to update graph
+        self.parameterDropdown.currentTextChanged.connect(self.update_simplified_trend)
+        
+        # Initialize with default parameter
+        QTimer.singleShot(100, self.update_simplified_trend)
 
-    def setup_temperatures_tab(self):
-        self.tabTemperatures = QWidget()
-        self.trendSubTabs.addTab(self.tabTemperatures, "🌡️ Temperatures")
-        layout = QVBoxLayout(self.tabTemperatures)
-        layout.setContentsMargins(16, 16, 16, 16)
+    def _set_enhanced_time_window(self, window):
+        """Set time window using enhanced plot widget's interactive features"""
+        print(f"Setting enhanced time window to: {window}")
         
-        # Controls
-        controls_group = QGroupBox("Temperature Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboTempTopGraph = QComboBox()
-        self.comboTempTopGraph.setMinimumWidth(160)
-        self.comboTempTopGraph.addItems([
-            "Temp Room",  # Remove "Select parameter..." and make first item default
-            "Temp PDU",
-            "Temp COL Board",
-            "Temp Magnetron",
-            "Temp Water Tank",
-            "Temp MLC Bank A",
-            "Temp MLC Bank B"
-        ])
-        # Set default selection to first parameter
-        self.comboTempTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboTempTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboTempBottomGraph = QComboBox()
-        self.comboTempBottomGraph.setMinimumWidth(160)
-        self.comboTempBottomGraph.addItems([
-            "Temp PDU",  # Remove "Select parameter..." and set different default from top
-            "Temp Room", 
-            "Temp COL Board",
-            "Temp Magnetron",
-            "Temp Water Tank",
-            "Temp MLC Bank A",
-            "Temp MLC Bank B"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboTempBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboTempBottomGraph)
-        
-        self.btnRefreshTemp = QPushButton("Update Graphs")
-        self.btnRefreshTemp.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshTemp)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for temperature graph widgets
-        if PLOTTING_AVAILABLE:
-            self.tempGraphTop = EnhancedPlotWidget()
-            self.tempGraphTop.setMinimumHeight(200)
-            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphTop)
+        try:
+            if hasattr(self, 'trendGraph') and hasattr(self.trendGraph, 'time_slider'):
+                # Use the DynamicTimeSlider's quick buttons
+                if window == "1day":
+                    # Trigger 1D button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1D" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1D"].click()
+                elif window == "1week":
+                    # Trigger 1W button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1W" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1W"].click()
+                elif window == "1month":
+                    # Trigger 1M button on the time slider
+                    if hasattr(self.trendGraph.time_slider, 'quick_buttons'):
+                        if "1M" in self.trendGraph.time_slider.quick_buttons:
+                            self.trendGraph.time_slider.quick_buttons["1M"].click()
             
-            self.tempGraphBottom = EnhancedPlotWidget()
-            self.tempGraphBottom.setMinimumHeight(200)
-            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.tempGraphTop = QFrame()
-            self.tempGraphTop.setFrameStyle(QFrame.Box)
-            self.tempGraphTop.setObjectName("plotFrame")
-            self.tempGraphTop.setMinimumHeight(200)
-            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphTop)
+            # Also use keyboard shortcuts for time navigation
+            elif hasattr(self, 'trendGraph') and hasattr(self.trendGraph, 'interactive_manager'):
+                manager = self.trendGraph.interactive_manager
+                if manager and hasattr(manager, '_zoom_to_time_range_smooth'):
+                    if window == "1day":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24)
+                    elif window == "1week":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24*7)
+                    elif window == "1month":
+                        manager._zoom_to_time_range_smooth(manager.ax[0], hours=24*30)
+                        
+        except Exception as e:
+            print(f"Error setting enhanced time window: {e}")
+            # Fallback to original method
+            self.set_time_window(window)
+    
+    def _update_enhanced_scaling(self):
+        """Update scaling using enhanced plot widget features"""
+        try:
+            if not hasattr(self, 'trendGraph') or not hasattr(self.trendGraph, 'figure'):
+                return
+                
+            is_auto = self.scaleAutoCheckbox.isChecked()
             
-            self.tempGraphBottom = QFrame()
-            self.tempGraphBottom.setFrameStyle(QFrame.Box)
-            self.tempGraphBottom.setObjectName("plotFrame")
-            self.tempGraphBottom.setMinimumHeight(200)
-            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphBottom)
+            for ax in self.trendGraph.figure.get_axes():
+                if is_auto:
+                    # Auto scale - let matplotlib handle it
+                    ax.autoscale(enable=True, axis='y', tight=False)
+                    ax.margins(y=0.1)  # Add 10% margin
+                else:
+                    # Manual scale - use spinbox values
+                    min_val = self.scaleMinInput.value()
+                    max_val = self.scaleMaxInput.value()
+                    if min_val < max_val:  # Validate range
+                        ax.set_ylim(min_val, max_val)
+                        ax.autoscale(enable=False, axis='y')
+            
+            # Refresh the canvas
+            if hasattr(self.trendGraph, 'canvas'):
+                self.trendGraph.canvas.draw()
+                
+        except Exception as e:
+            print(f"Error updating enhanced scaling: {e}")
+    
+    def on_scale_mode_changed(self, checked):
+        """Handle auto/manual scale mode change"""
+        is_manual = not checked
+        self.scaleMinInput.setEnabled(is_manual)
+        self.scaleMaxInput.setEnabled(is_manual)
         
-        layout.addWidget(graphs_widget)
+        if is_manual and hasattr(self, 'trendGraph'):
+            # Set current range as default for manual mode
+            try:
+                if hasattr(self.trendGraph, 'get_y_range'):
+                    min_val, max_val = self.trendGraph.get_y_range()
+                    self.scaleMinInput.setValue(min_val)
+                    self.scaleMaxInput.setValue(max_val)
+            except Exception as e:
+                print(f"Error getting current range: {e}")
+        
+        # Apply scale change immediately
+        self.apply_scale_settings()
+    
+    def set_time_window(self, window):
+        """Set time window and update graph"""
+        print(f"Setting time window to: {window}")
+        
+        # Update button states - done automatically by QButtonGroup
+        
+        # Apply time filter and refresh graph
+        try:
+            if hasattr(self, 'trendGraph') and hasattr(self.trendGraph, 'set_time_window'):
+                self.trendGraph.set_time_window(window)
+            else:
+                # Fallback: update through main app
+                self.apply_time_filter_to_trend(window)
+        except Exception as e:
+            print(f"Error setting time window: {e}")
+    
+    def apply_scale_settings(self):
+        """Apply current scale settings to graph"""
+        try:
+            if hasattr(self, 'trendGraph'):
+                if self.scaleAutoCheckbox.isChecked():
+                    # Auto scale
+                    if hasattr(self.trendGraph, 'set_auto_scale'):
+                        self.trendGraph.set_auto_scale(True)
+                else:
+                    # Manual scale
+                    min_val = self.scaleMinInput.value()
+                    max_val = self.scaleMaxInput.value()
+                    if hasattr(self.trendGraph, 'set_y_range'):
+                        self.trendGraph.set_y_range(min_val, max_val)
+        except Exception as e:
+            print(f"Error applying scale settings: {e}")
+    
+    def apply_time_filter_to_trend(self, time_window):
+        """Apply time filter to trend data and refresh display"""
+        try:
+            # Get current parameter 
+            selected_param = self.parameterDropdown.currentText()
+            if not selected_param:
+                return
+                
+            # This would filter data by time window and refresh the graph
+            # Implementation depends on parent app's data filtering methods
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, '_apply_time_filter_and_refresh'):
+                    parent._apply_time_filter_and_refresh('simplified', time_window)
+                    break
+                parent = parent.parent()
+            else:
+                print("Could not find parent with time filter method")
+                
+        except Exception as e:
+            print(f"Error applying time filter to trend: {e}")
+    
+    def update_simplified_trend(self):
+        """Update the simplified single trend graph using enhanced plotting features"""
+        try:
+            selected_param = self.parameterDropdown.currentText()
+            if not selected_param:
+                return
+                
+            print(f"Updating simplified trend for parameter: {selected_param}")
+            
+            # Find parent app and get parameter data
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, '_get_parameter_data_by_description'):
+                    param_data = parent._get_parameter_data_by_description(selected_param)
+                    
+                    # Plot on the single graph using enhanced features
+                    if hasattr(self, 'trendGraph') and not param_data.empty:
+                        try:
+                            # Use enhanced plot widget's plotting capabilities
+                            if hasattr(self.trendGraph, 'plot_parameter_trends'):
+                                self.trendGraph.plot_parameter_trends(param_data, selected_param)
+                            elif hasattr(self.trendGraph, 'figure'):
+                                # Direct matplotlib plotting with enhanced features
+                                self.trendGraph.figure.clear()
+                                ax = self.trendGraph.figure.add_subplot(111)
+                                
+                                # Plot the trend data
+                                ax.plot(pd.to_datetime(param_data['datetime']), 
+                                       param_data['avg'], 
+                                       linewidth=2, alpha=0.8, color='#1976D2',
+                                       label=selected_param)
+                                       
+                                ax.set_title(f"{selected_param} - Trend Analysis", fontweight='bold', fontsize=14)
+                                ax.set_xlabel("Time", fontsize=12)
+                                ax.set_ylabel(f"{selected_param}", fontsize=12)
+                                ax.grid(True, alpha=0.3)
+                                ax.legend()
+                                
+                                # Apply professional styling
+                                from plot_utils import PlotUtils
+                                PlotUtils.setup_professional_style()
+                                
+                                # Update interactive manager if it exists
+                                if hasattr(self.trendGraph, 'interactive_manager') and self.trendGraph.interactive_manager:
+                                    self.trendGraph.interactive_manager.ax = [ax]
+                                    self.trendGraph.interactive_manager._store_initial_view()
+                                
+                                # Refresh canvas
+                                if hasattr(self.trendGraph, 'canvas'):
+                                    self.trendGraph.canvas.draw()
+                                    
+                                # Apply current scale settings
+                                self._update_enhanced_scaling()
+                                
+                            else:
+                                print("Enhanced plotting methods not available")
+                        except Exception as plot_error:
+                            print(f"Error plotting trend: {plot_error}")
+                            import traceback
+                            traceback.print_exc()
+                    break
+                parent = parent.parent()
+            else:
+                print("Could not find parent with parameter data method")
+                
+        except Exception as e:
+            print(f"Error updating simplified trend: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def export_trend_data(self):
+        """Export current trend data to file"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog, QMessageBox
+            
+            selected_param = self.parameterDropdown.currentText()
+            if not selected_param:
+                QMessageBox.warning(self, "Export Error", "Please select a parameter first.")
+                return
+            
+            # Get file path for export
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                f"Export {selected_param} Trend Data",
+                f"{selected_param}_trend_data.csv",
+                "CSV Files (*.csv);;All Files (*)"
+            )
+            
+            if file_path:
+                # Get parameter data and export
+                parent = self.parent()
+                while parent:
+                    if hasattr(parent, '_get_parameter_data_by_description'):
+                        param_data = parent._get_parameter_data_by_description(selected_param)
+                        if not param_data.empty:
+                            param_data.to_csv(file_path, index=False)
+                            QMessageBox.information(
+                                self, "Export Successful", 
+                                f"Trend data exported successfully to:\n{file_path}"
+                            )
+                        else:
+                            QMessageBox.warning(self, "Export Error", "No data available for export.")
+                        break
+                    parent = parent.parent()
+                else:
+                    QMessageBox.warning(self, "Export Error", "Could not access trend data.")
+                    
+        except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Export Error", f"Error exporting trend data: {str(e)}")
+            print(f"Error exporting trend data: {e}")
 
-    def setup_humidity_tab(self):
-        self.tabHumidity = QWidget()
-        self.trendSubTabs.addTab(self.tabHumidity, "💧 Humidity")
-        layout = QVBoxLayout(self.tabHumidity)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Controls
-        controls_group = QGroupBox("Humidity Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboHumidityTopGraph = QComboBox()
-        self.comboHumidityTopGraph.setMinimumWidth(160)
-        self.comboHumidityTopGraph.addItems([
-            "Room Humidity",  # Remove "Select parameter..." and make first item default
-            "Temp Room"  # Per requirements: include room temp in humidity tab
-        ])
-        # Set default selection to first parameter
-        self.comboHumidityTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboHumidityTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboHumidityBottomGraph = QComboBox()
-        self.comboHumidityBottomGraph.setMinimumWidth(160)
-        self.comboHumidityBottomGraph.addItems([
-            "Temp Room",  # Remove "Select parameter..." and set different default
-            "Room Humidity"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboHumidityBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboHumidityBottomGraph)
-        
-        self.btnRefreshHumidity = QPushButton("Update Graphs")
-        self.btnRefreshHumidity.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshHumidity)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for humidity graph widgets
-        if PLOTTING_AVAILABLE:
-            self.humidityGraphTop = EnhancedPlotWidget()
-            self.humidityGraphTop.setMinimumHeight(200)
-            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphTop)
-            
-            self.humidityGraphBottom = EnhancedPlotWidget()
-            self.humidityGraphBottom.setMinimumHeight(200)
-            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.humidityGraphTop = QFrame()
-            self.humidityGraphTop.setFrameStyle(QFrame.Box)
-            self.humidityGraphTop.setObjectName("plotFrame")
-            self.humidityGraphTop.setMinimumHeight(200)
-            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphTop)
-            
-            self.humidityGraphBottom = QFrame()
-            self.humidityGraphBottom.setFrameStyle(QFrame.Box)
-            self.humidityGraphBottom.setObjectName("plotFrame")
-            self.humidityGraphBottom.setMinimumHeight(200)
-            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphBottom)
-        
-        layout.addWidget(graphs_widget)
-
-    def setup_fan_speeds_tab(self):
-        self.tabFanSpeeds = QWidget()
-        self.trendSubTabs.addTab(self.tabFanSpeeds, "🌀 Fan Speeds")
-        layout = QVBoxLayout(self.tabFanSpeeds)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Controls
-        controls_group = QGroupBox("Fan Speed Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboFanTopGraph = QComboBox()
-        self.comboFanTopGraph.setMinimumWidth(160)
-        self.comboFanTopGraph.addItems([
-            "Speed FAN 1",  # Remove "Select parameter..." and make first item default
-            "Speed FAN 2",
-            "Speed FAN 3",
-            "Speed FAN 4"
-        ])
-        # Set default selection to first parameter
-        self.comboFanTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboFanTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboFanBottomGraph = QComboBox()
-        self.comboFanBottomGraph.setMinimumWidth(160)
-        self.comboFanBottomGraph.addItems([
-            "Speed FAN 2",  # Remove "Select parameter..." and set different default
-            "Speed FAN 1",
-            "Speed FAN 3",
-            "Speed FAN 4"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboFanBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboFanBottomGraph)
-        
-        self.btnRefreshFan = QPushButton("Update Graphs")
-        self.btnRefreshFan.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshFan)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for fan speed graph widgets
-        if PLOTTING_AVAILABLE:
-            self.fanGraphTop = EnhancedPlotWidget()
-            self.fanGraphTop.setMinimumHeight(200)
-            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphTop)
-            
-            self.fanGraphBottom = EnhancedPlotWidget()
-            self.fanGraphBottom.setMinimumHeight(200)
-            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.fanGraphTop = QFrame()
-            self.fanGraphTop.setFrameStyle(QFrame.Box)
-            self.fanGraphTop.setObjectName("plotFrame")
-            self.fanGraphTop.setMinimumHeight(200)
-            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphTop)
-            
-            self.fanGraphBottom = QFrame()
-            self.fanGraphBottom.setFrameStyle(QFrame.Box)
-            self.fanGraphBottom.setObjectName("plotFrame")
-            self.fanGraphBottom.setMinimumHeight(200)
-            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphBottom)
-        
-        layout.addWidget(graphs_widget)
-
+    # NOTE: Old complex trend tabs (water, voltage, temp, humidity, fan) removed 
+    # and replaced with simplified single graph interface above
+    
     def setup_analysis_tab(self):
         self.tabAnalysis = QWidget()
         self.tabWidget.addTab(self.tabAnalysis, "🔬 Analysis")

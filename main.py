@@ -402,16 +402,16 @@ class HALogApp:
                                     break
                             
                             if dashboard_tab_index >= 0:
-                                # Clear existing layout
+                                # FIXED: Safe layout clearing with null checks
                                 old_layout = self.ui.dashboardTab.layout()
                                 if old_layout:
-                                    while old_layout.count():
+                                    while old_layout.count() > 0:
                                         child = old_layout.takeAt(0)
-                                        if child.widget():
+                                        if child and child.widget():
                                             child.widget().deleteLater()
                                     old_layout.deleteLater()
                                 
-                                # Add unified modern dashboard
+                                # Add unified modern dashboard with safe layout creation
                                 from PyQt5.QtWidgets import QVBoxLayout
                                 new_layout = QVBoxLayout(self.ui.dashboardTab)
                                 new_layout.setContentsMargins(0, 0, 0, 0)
@@ -503,6 +503,71 @@ class HALogApp:
             def safe_get_attribute(self, attr_name: str, default_value=None):
                 """Safe attribute access method to prevent AttributeError"""
                 return getattr(self, attr_name, default_value)
+
+            def _create_fallback_dashboard(self):
+                """Create simple fallback dashboard when ModernDashboard fails to load"""
+                try:
+                    from PyQt5.QtWidgets import QVBoxLayout, QLabel, QFrame
+                    from PyQt5.QtCore import Qt
+                    
+                    dashboard_tab = self.ui.dashboardTab
+                    
+                    # Ensure we have a layout
+                    if dashboard_tab.layout() is None:
+                        layout = QVBoxLayout(dashboard_tab)
+                    else:
+                        layout = dashboard_tab.layout()
+                    
+                    # Create simple fallback UI
+                    fallback_frame = QFrame()
+                    fallback_frame.setStyleSheet("""
+                        QFrame {
+                            background-color: #f8f9fa;
+                            border: 1px solid #dee2e6;
+                            border-radius: 8px;
+                            margin: 10px;
+                            padding: 20px;
+                        }
+                    """)
+                    fallback_layout = QVBoxLayout(fallback_frame)
+                    
+                    # Title
+                    title = QLabel("🔧 HALog Dashboard")
+                    title.setAlignment(Qt.AlignCenter)
+                    title.setStyleSheet("font-size: 18px; font-weight: 600; color: #1976D2; margin: 10px;")
+                    fallback_layout.addWidget(title)
+                    
+                    # Status message
+                    status_msg = QLabel("Dashboard is running in safe mode.\nUse File > Open Log File to import data.")
+                    status_msg.setAlignment(Qt.AlignCenter)
+                    status_msg.setStyleSheet("font-size: 14px; color: #666; margin: 20px; line-height: 1.5;")
+                    fallback_layout.addWidget(status_msg)
+                    
+                    # Database status
+                    try:
+                        record_count = self.db.get_record_count() if hasattr(self.db, 'get_record_count') else 0
+                        db_status = QLabel(f"Database Status: {record_count:,} records available")
+                        db_status.setAlignment(Qt.AlignCenter)
+                        db_status.setStyleSheet("font-size: 12px; color: #4CAF50; margin: 10px;")
+                        fallback_layout.addWidget(db_status)
+                    except Exception:
+                        db_status = QLabel("Database Status: Ready for data import")
+                        db_status.setAlignment(Qt.AlignCenter)
+                        db_status.setStyleSheet("font-size: 12px; color: #FF9800; margin: 10px;")
+                        fallback_layout.addWidget(db_status)
+                    
+                    fallback_layout.addStretch()
+                    layout.addWidget(fallback_frame)
+                    
+                except Exception as e:
+                    print(f"Error creating fallback dashboard: {e}")
+                    # Last resort - just add a simple label
+                    try:
+                        simple_label = QLabel("Dashboard: Ready for data import")
+                        simple_label.setAlignment(Qt.AlignCenter)
+                        dashboard_tab.layout().addWidget(simple_label)
+                    except Exception:
+                        pass
 
             def execute_with_retry(self, operation, *args, max_retries=3, delay=1, **kwargs):
                 """Execute operation with retry logic for database resilience"""
@@ -2024,25 +2089,50 @@ Source: {result.get('source', 'unknown')} database
 
                     print("🚀 Loading modern dashboard...")
                     
-                    # Replace dashboard placeholder with actual ModernDashboard widget
-                    if hasattr(self.ui, 'dashboardTab'):
-                        # Clear existing layout
-                        for i in reversed(range(self.ui.dashboardTab.layout().count())):
-                            child = self.ui.dashboardTab.layout().itemAt(i)
-                            if child.widget():
-                                child.widget().deleteLater()
-                        
-                        # Create modern dashboard instance
-                        from modern_dashboard import ModernDashboard
-                        
-                        # Initialize modern dashboard with database and machine manager
-                        machine_manager = getattr(self, 'machine_manager', None)
-                        self.modern_dashboard = ModernDashboard(machine_manager, self.db)
-                        
-                        # Add to dashboard tab
-                        self.ui.dashboardTab.layout().addWidget(self.modern_dashboard)
-                        
-                        print("✅ Modern dashboard loaded successfully")
+                    # Replace dashboard placeholder with actual ModernDashboard widget with safe loading
+                    try:
+                        if hasattr(self.ui, 'dashboardTab'):
+                            dashboard_tab = self.ui.dashboardTab
+                            
+                            # FIXED: Check if layout exists and create if None
+                            if dashboard_tab.layout() is None:
+                                print("🔧 Creating new QVBoxLayout for dashboard tab")
+                                from PyQt5.QtWidgets import QVBoxLayout
+                                new_layout = QVBoxLayout(dashboard_tab)
+                                new_layout.setContentsMargins(0, 0, 0, 0)
+                            else:
+                                # Clear existing layout safely
+                                layout = dashboard_tab.layout()
+                                for i in reversed(range(layout.count())):
+                                    child = layout.itemAt(i)
+                                    if child and child.widget():
+                                        child.widget().deleteLater()
+                            
+                            # Create modern dashboard instance
+                            from modern_dashboard import ModernDashboard
+                            
+                            # Initialize modern dashboard with database and machine manager
+                            machine_manager = getattr(self, 'machine_manager', None)
+                            self.modern_dashboard = ModernDashboard(machine_manager, self.db)
+                            
+                            # Add to dashboard tab safely
+                            dashboard_tab.layout().addWidget(self.modern_dashboard)
+                            
+                            print("✅ Modern dashboard loaded successfully")
+                        else:
+                            print("⚠️ Dashboard tab not found, skipping dashboard initialization")
+                            
+                    except Exception as dashboard_error:
+                        print(f"❌ Error loading modern dashboard: {dashboard_error}")
+                        # FIXED: Implement fallback dashboard if modern dashboard fails
+                        try:
+                            if hasattr(self.ui, 'dashboardTab'):
+                                self._create_fallback_dashboard()
+                                print("✅ Fallback dashboard loaded successfully")
+                        except Exception as fallback_error:
+                            print(f"❌ Fallback dashboard also failed: {fallback_error}")
+                            import traceback
+                            traceback.print_exc()
                     
                     # Load summary data for other components
                     self._load_summary_data_for_ui()
