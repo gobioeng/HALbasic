@@ -716,13 +716,67 @@ class Ui_MainWindow(object):
         layout = QVBoxLayout(self.tabVoltages)
         layout.setContentsMargins(16, 16, 16, 16)
         
-        # Controls
-        controls_group = QGroupBox("Voltage Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
+    def setup_voltages_tab(self):
+        self.tabVoltages = QWidget()
+        self.trendSubTabs.addTab(self.tabVoltages, "⚡ Voltages")
+        layout = QVBoxLayout(self.tabVoltages)
+        layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Controls group with time scale selection
+        controls_group = QGroupBox("Voltage Controls")
+        controls_main_layout = QVBoxLayout(controls_group)
+        
+        # Time scale controls row
+        time_controls_layout = QHBoxLayout()
+        time_controls_layout.addWidget(QLabel("Time Range:"))
+        
+        # Time scale buttons
+        self.btnVoltageTime1Day = QPushButton("1 Day")
+        self.btnVoltageTime1Week = QPushButton("1 Week") 
+        self.btnVoltageTime1Month = QPushButton("1 Month")
+        self.btnVoltageTimeCustom = QPushButton("Custom Range")
+        
+        # Style time scale buttons
+        voltage_time_buttons = [self.btnVoltageTime1Day, self.btnVoltageTime1Week, 
+                               self.btnVoltageTime1Month, self.btnVoltageTimeCustom]
+        for btn in voltage_time_buttons:
+            btn.setCheckable(True)
+            btn.setMinimumWidth(80)
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 6px 12px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    border-radius: 4px;
+                }
+                QPushButton:checked {
+                    background: #1976D2;
+                    color: white;
+                    border-color: #1976D2;
+                }
+                QPushButton:hover:!checked {
+                    background: #f5f5f5;
+                }
+            """)
+            time_controls_layout.addWidget(btn)
+        
+        # Set default selection
+        self.btnVoltageTime1Day.setChecked(True)
+        
+        # Create button group for exclusive selection
+        self.voltageTimeButtonGroup = QButtonGroup()
+        for btn in voltage_time_buttons:
+            self.voltageTimeButtonGroup.addButton(btn)
+        
+        time_controls_layout.addStretch()
+        controls_main_layout.addLayout(time_controls_layout)
+        
+        # Parameter selection controls row
+        param_controls_layout = QHBoxLayout()
+        param_controls_layout.setSpacing(12)
         
         # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
+        param_controls_layout.addWidget(QLabel("Top Graph:"))
         self.comboVoltageTopGraph = QComboBox()
         self.comboVoltageTopGraph.setMinimumWidth(160)
         self.comboVoltageTopGraph.addItems([
@@ -740,10 +794,10 @@ class Ui_MainWindow(object):
         ])
         # Set default selection to first parameter
         self.comboVoltageTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboVoltageTopGraph)
+        param_controls_layout.addWidget(self.comboVoltageTopGraph)
         
         # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
+        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
         self.comboVoltageBottomGraph = QComboBox()
         self.comboVoltageBottomGraph.setMinimumWidth(160)
         self.comboVoltageBottomGraph.addItems([
@@ -761,13 +815,14 @@ class Ui_MainWindow(object):
         ])
         # Set default selection to first parameter (different from top graph)
         self.comboVoltageBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboVoltageBottomGraph)
+        param_controls_layout.addWidget(self.comboVoltageBottomGraph)
         
-        self.btnRefreshVoltage = QPushButton("Update Graphs")
+        self.btnRefreshVoltage = QPushButton("🔄 Update Graphs")
         self.btnRefreshVoltage.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshVoltage)
-        controls_layout.addStretch()
+        param_controls_layout.addWidget(self.btnRefreshVoltage)
+        param_controls_layout.addStretch()
         
+        controls_main_layout.addLayout(param_controls_layout)
         layout.addWidget(controls_group)
         
         # Two graphs layout (top and bottom)

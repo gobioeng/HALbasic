@@ -865,6 +865,16 @@ class HALogApp:
                     if hasattr(self.ui, 'btnWaterTimeCustom'):
                         self.ui.btnWaterTimeCustom.clicked.connect(lambda: self._show_custom_time_dialog('flow'))
 
+                    # TIME SCALE BUTTON ACTIONS - Voltage System  
+                    if hasattr(self.ui, 'btnVoltageTime1Day'):
+                        self.ui.btnVoltageTime1Day.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1day'))
+                    if hasattr(self.ui, 'btnVoltageTime1Week'):
+                        self.ui.btnVoltageTime1Week.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1week'))
+                    if hasattr(self.ui, 'btnVoltageTime1Month'):
+                        self.ui.btnVoltageTime1Month.clicked.connect(lambda: self._apply_time_filter_and_refresh('voltage', '1month'))
+                    if hasattr(self.ui, 'btnVoltageTimeCustom'):
+                        self.ui.btnVoltageTimeCustom.clicked.connect(lambda: self._show_custom_time_dialog('voltage'))
+
                     # NEW TREND DROPDOWN CHANGE EVENTS (auto-update on selection)
                     if hasattr(self.ui, 'comboWaterTopGraph'):
                         self.ui.comboWaterTopGraph.currentIndexChanged.connect(lambda: self.refresh_trend_tab('flow'))
