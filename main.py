@@ -384,14 +384,16 @@ class HALogApp:
                             # Fallback to normal loading
                             self.load_dashboard()
                     
-                    # Initialize Advanced Dashboard System
+                    # Initialize Unified Modern Dashboard System
                     try:
-                        print("🎛️ Initializing Advanced Dashboard System...")
-                        from advanced_dashboard import AdvancedDashboard
-                        self.advanced_dashboard = AdvancedDashboard(database_manager=self.db, parent=self)
+                        print("🎛️ Initializing Unified Modern Dashboard System...")
+                        from modern_dashboard import ModernDashboard
                         
-                        # If there's a dashboard tab in the UI, replace it with advanced dashboard
+                        # Find dashboard tab in the UI
+                        dashboard_tab = None
                         if hasattr(self.ui, 'tabWidget') and hasattr(self.ui, 'dashboardTab'):
+                            dashboard_tab = self.ui.dashboardTab
+                            
                             # Find dashboard tab index
                             dashboard_tab_index = -1
                             for i in range(self.ui.tabWidget.count()):
@@ -400,28 +402,32 @@ class HALogApp:
                                     break
                             
                             if dashboard_tab_index >= 0:
-                                # Replace the dashboard tab content
+                                # Clear existing layout
                                 old_layout = self.ui.dashboardTab.layout()
                                 if old_layout:
-                                    # Clear existing layout
                                     while old_layout.count():
                                         child = old_layout.takeAt(0)
                                         if child.widget():
                                             child.widget().deleteLater()
                                     old_layout.deleteLater()
                                 
-                                # Add advanced dashboard
+                                # Add unified modern dashboard
                                 from PyQt5.QtWidgets import QVBoxLayout
                                 new_layout = QVBoxLayout(self.ui.dashboardTab)
                                 new_layout.setContentsMargins(0, 0, 0, 0)
-                                new_layout.addWidget(self.advanced_dashboard)
                                 
-                                print("✓ Advanced Dashboard integrated into Dashboard tab")
+                                # Create the modern dashboard with all features
+                                self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, dashboard_tab)
+                                new_layout.addWidget(self.modern_dashboard)
+                                
+                                print("✓ Unified Modern Dashboard integrated into Dashboard tab")
                         else:
-                            print("⚠️ Dashboard tab not found - Advanced Dashboard created but not integrated")
+                            # Create fallback modern dashboard
+                            self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, self)
+                            print("✓ Unified Modern Dashboard created (standalone mode)")
                             
                     except Exception as dashboard_error:
-                        print(f"Warning: Could not initialize Advanced Dashboard: {dashboard_error}")
+                        print(f"Warning: Could not initialize Unified Modern Dashboard: {dashboard_error}")
                         # Continue with standard dashboard loading
                     
                     self._dashboard_loaded = True
@@ -2217,8 +2223,8 @@ Source: {result.get('source', 'unknown')} database
                     # Add multi-machine status indicators
                     self._update_multi_machine_status()
                     
-                    # Load modern dashboard with widgets
-                    self._load_modern_dashboard()
+                    # Load modern dashboard is already handled in unified initialization above
+                    # self._load_modern_dashboard()  # Removed duplicate
 
                     # Update UI components
                     self.update_trend_combos()
@@ -2306,47 +2312,6 @@ Source: {result.get('source', 'unknown')} database
                 except Exception as e:
                     print(f"Error updating multi-machine status: {e}")
                     
-            def _load_modern_dashboard(self):
-                """Load modern dashboard with widgets"""
-                try:
-                    from modern_dashboard import ModernDashboard
-                    
-                    # Find dashboard tab in the UI
-                    dashboard_tab = None
-                    if hasattr(self.ui, 'tabWidget') and hasattr(self.ui, 'dashboardTab'):
-                        dashboard_tab = self.ui.dashboardTab
-                    elif hasattr(self.ui, 'tabWidget'):
-                        # Try to find the first tab as dashboard
-                        if self.ui.tabWidget.count() > 0:
-                            dashboard_tab = self.ui.tabWidget.widget(0)
-                    
-                    if dashboard_tab:
-                        # Remove old dashboard content
-                        if dashboard_tab.layout():
-                            QWidget().setLayout(dashboard_tab.layout())  # Clear old layout
-                        
-                        # Create modern dashboard
-                        self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, dashboard_tab)
-                        
-                        # Set new layout
-                        new_layout = QVBoxLayout(dashboard_tab)
-                        new_layout.setContentsMargins(0, 0, 0, 0)
-                        new_layout.addWidget(self.modern_dashboard)
-                        
-                        print("✓ Modern dashboard loaded with real-time widgets")
-                    else:
-                        # Fallback: create modern dashboard widget without integration
-                        self.modern_dashboard = ModernDashboard(self.machine_manager, self.db, self)
-                        print("✓ Modern dashboard created (not integrated - no dashboard tab found)")
-                        
-                except Exception as e:
-                    print(f"Error loading modern dashboard: {e}")
-                    # Fallback to basic dashboard loading if available
-                    try:
-                        self._load_basic_dashboard()
-                    except:
-                        pass
-                        
             def _load_basic_dashboard(self):
                 """Fallback basic dashboard loading"""
                 print("Loading basic dashboard fallback...")
