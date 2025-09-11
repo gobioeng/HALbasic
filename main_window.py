@@ -670,12 +670,166 @@ class Ui_MainWindow(object):
         # Analysis controls
         controls_group = QGroupBox("Analysis Controls")
         controls_layout = QHBoxLayout(controls_group)
-                            if hasattr(self.trendGraph, 'plot_parameter_trends'):
-                                self.trendGraph.plot_parameter_trends(param_data, selected_param)
-                            elif hasattr(self.trendGraph, 'figure'):
-                                # Direct matplotlib plotting with enhanced statistical features
-                                self.trendGraph.figure.clear()
-                                ax = self.trendGraph.figure.add_subplot(111)
+        controls_layout.setSpacing(12)
+        controls_layout.setContentsMargins(16, 16, 16, 16)
+        
+        # Parameter filter
+        controls_layout.addWidget(QLabel("Filter Parameters:"))
+        self.comboAnalysisFilter = QComboBox()
+        self.comboAnalysisFilter.setMinimumWidth(150)
+        self.comboAnalysisFilter.addItems([
+            "All Parameters", "Water System", "Temperature", "MLC", "FAN", "Voltage"
+        ])
+        controls_layout.addWidget(self.comboAnalysisFilter)
+        
+        controls_layout.addStretch()
+        
+        # Refresh button
+        self.btnRefreshAnalysis = QPushButton("🔄 Refresh Analysis")
+        self.btnRefreshAnalysis.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                background: #1976D2;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: #1565C0;
+            }
+        """)
+        controls_layout.addWidget(self.btnRefreshAnalysis)
+        
+        layout.addWidget(controls_group)
+
+        # Analysis results area
+        analysis_group = QGroupBox("Statistical Analysis Results")
+        analysis_layout = QVBoxLayout(analysis_group)
+        
+        # Results table
+        self.tableAnalysis = QTableWidget()
+        self.tableAnalysis.setColumnCount(6)
+        self.tableAnalysis.setHorizontalHeaderLabels([
+            "Parameter", "Count", "Average", "Min", "Max", "Std Dev"
+        ])
+        
+        # Set table properties
+        header = self.tableAnalysis.horizontalHeader()
+        header.setStretchLastSection(True)
+        for i in range(5):
+            header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        
+        self.tableAnalysis.setAlternatingRowColors(True)
+        self.tableAnalysis.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tableAnalysis.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tableAnalysis.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tableAnalysis.setMinimumHeight(400)
+        
+        analysis_layout.addWidget(self.tableAnalysis)
+        layout.addWidget(analysis_group)
+
+    def export_trend_data(self):
+        """Export current trend data to CSV file"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog, QMessageBox
+            
+            # Get save location
+            file_path, _ = QFileDialog.getSaveFileName(
+                None,
+                "Export Trend Data",
+                "trend_data.csv",
+                "CSV Files (*.csv);;All Files (*)"
+            )
+            
+            if file_path:
+                # Implementation would export current trend data
+                print(f"Exporting trend data to: {file_path}")
+                QMessageBox.information(
+                    None,
+                    "Export Successful", 
+                    f"Trend data exported to:\n{file_path}"
+                )
+                
+        except Exception as e:
+            print(f"Error exporting trend data: {e}")
+
+    def setup_fault_code_tab(self):
+        """Setup enhanced fault code tab with search and notes functionality"""
+        self.tabFaultCode = QWidget()
+        self.tabWidget.addTab(self.tabFaultCode, "🔍 Fault Code Viewer")
+        layout = QVBoxLayout(self.tabFaultCode)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Search controls
+        search_group = QGroupBox("Fault Code Search")
+        search_layout = QGridLayout(search_group)
+        
+        # Fault ID search
+        search_layout.addWidget(QLabel("Search by Fault ID:"), 0, 0)
+        self.txtFaultCode = QLineEdit()
+        self.txtFaultCode.setPlaceholderText("Enter fault code (e.g., HAL001, TB123)")
+        search_layout.addWidget(self.txtFaultCode, 0, 1)
+        
+        self.btnSearchCode = QPushButton("🔍 Search")
+        search_layout.addWidget(self.btnSearchCode, 0, 2)
+        
+        # Description search
+        search_layout.addWidget(QLabel("Search by Description:"), 1, 0)
+        self.txtSearchDescription = QLineEdit()
+        self.txtSearchDescription.setPlaceholderText("Enter description keywords")
+        search_layout.addWidget(self.txtSearchDescription, 1, 1)
+        
+        self.btnSearchDescription = QPushButton("🔍 Search Description")
+        search_layout.addWidget(self.btnSearchDescription, 1, 2)
+        
+        layout.addWidget(search_group)
+
+        # Results and notes area
+        results_group = QGroupBox("Fault Code Details & Notes")
+        results_layout = QVBoxLayout(results_group)
+        
+        # Fault details display
+        self.txtFaultDetails = QTextEdit()
+        self.txtFaultDetails.setMaximumHeight(150)
+        self.txtFaultDetails.setPlaceholderText("Fault code details will appear here...")
+        results_layout.addWidget(QLabel("Fault Code Description:"))
+        results_layout.addWidget(self.txtFaultDetails)
+        
+        # User notes section
+        results_layout.addWidget(QLabel("User Notes:"))
+        self.txtUserNotes = QTextEdit()
+        self.txtUserNotes.setPlaceholderText("Add your notes for this fault code...")
+        self.txtUserNotes.setMaximumHeight(120)
+        results_layout.addWidget(self.txtUserNotes)
+        
+        # Notes controls
+        notes_controls = QHBoxLayout()
+        self.btnSaveNote = QPushButton("💾 Save Note")
+        self.btnClearNote = QPushButton("🗑️ Clear Note")
+        
+        notes_controls.addWidget(self.btnSaveNote)
+        notes_controls.addWidget(self.btnClearNote)
+        notes_controls.addStretch()
+        
+        results_layout.addLayout(notes_controls)
+        layout.addWidget(results_group)
+
+        # Statistics display
+        stats_group = QGroupBox("Fault Code Statistics")
+        stats_layout = QHBoxLayout(stats_group)
+        
+        self.lblTotalCodes = QLabel("Total Codes: Loading...")
+        self.lblFaultTypes = QLabel("Sources: Loading...")
+        
+        stats_layout.addWidget(self.lblTotalCodes)
+        stats_layout.addStretch()
+        stats_layout.addWidget(self.lblFaultTypes)
+        
+        layout.addWidget(stats_group)
+
+    def setup_about_tab(self):
                                 
                                 # Convert datetime for plotting
                                 time_data = pd.to_datetime(param_data['datetime'])

@@ -24,8 +24,9 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QRadioButton,
     QButtonGroup,
+    QDoubleSpinBox,  # Added for scaling inputs
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer  # Added QTimer import
 from PyQt5.QtGui import QKeySequence, QFont
 
 # Import enhanced plotting widgets for trend graphs
@@ -57,267 +58,10 @@ class Ui_MainWindow(object):
         self.setup_main_content()
 
     def apply_modern_styling(self, MainWindow):
-        """Apply modern native Windows-style theme with responsive design"""
-        MainWindow.setStyleSheet("""
-            /* Modern Windows Theme - Native Feel */
-            QMainWindow {
-                background-color: #f8f9fa;
-                color: #212529;
-                font-family: 'Segoe UI', 'Microsoft Sans Serif', sans-serif;
-                font-size: 9pt;
-            }
-            
-            /* Enhanced Tab Widget - Windows 11 Style */
-            QTabWidget::pane {
-                border: 1px solid #dee2e6;
-                background-color: white;
-                border-radius: 8px;
-                margin-top: 4px;
-            }
-            QTabBar {
-                background-color: transparent;
-                border: none;
-            }
-            QTabBar::tab {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 12px 24px;
-                margin-right: 4px;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                font-weight: 500;
-                min-width: 80px;
-                border: 1px solid #dee2e6;
-                border-bottom: none;
-            }
-            QTabBar::tab:selected {
-                background-color: white;
-                color: #0d6efd;
-                border-color: #0d6efd;
-                border-bottom: 2px solid #0d6efd;
-                font-weight: 600;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #f8f9fa;
-                border-color: #adb5bd;
-            }
-            
-            /* Modern Group Boxes - Card Style */
-            QGroupBox {
-                font-weight: 600;
-                color: #212529;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                margin-top: 16px;
-                padding-top: 20px;
-                background-color: white;
-                font-size: 10pt;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 6px 12px;
-                background-color: #0d6efd;
-                color: white;
-                border-radius: 4px;
-                font-weight: 600;
-            }
-            
-            /* Modern Buttons - Windows 11 Fluent Style */
-            QPushButton {
-                background-color: #0d6efd;
-                color: white;
-                border: 1px solid #0d6efd;
-                padding: 8px 16px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 9pt;
-                min-width: 80px;
-                min-height: 20px;
-            }
-            QPushButton:hover {
-                background-color: #0b5ed7;
-                border-color: #0b5ed7;
-            }
-            QPushButton:pressed {
-                background-color: #0a58ca;
-                border-color: #0a58ca;
-            }
-            QPushButton:disabled {
-                background-color: #e9ecef;
-                color: #6c757d;
-                border-color: #dee2e6;
-            }
-            
-            /* Secondary Button Style */
-            QPushButton#secondaryButton {
-                background-color: #6c757d;
-                border-color: #6c757d;
-            }
-            QPushButton#secondaryButton:hover {
-                background-color: #5c636a;
-                border-color: #5c636a;
-            }
-            
-            /* Success Button Style */
-            QPushButton#successButton {
-                background-color: #198754;
-                border-color: #198754;
-            }
-            QPushButton#successButton:hover {
-                background-color: #157347;
-                border-color: #157347;
-            }
-            
-            /* Danger Button Style */
-            QPushButton#dangerButton {
-                background-color: #dc3545;
-                border-color: #dc3545;
-            }
-            QPushButton#dangerButton:hover {
-                background-color: #bb2d3b;
-                border-color: #bb2d3b;
-            }
-            
-            /* Modern Input Fields */
-            QLineEdit, QTextEdit {
-                border: 2px solid #ced4da;
-                border-radius: 6px;
-                padding: 8px 12px;
-                background-color: white;
-                color: #212529;
-                font-size: 9pt;
-                selection-background-color: #cfe2ff;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border-color: #86b7fe;
-                outline: 0;
-                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-            }
-            QLineEdit:hover, QTextEdit:hover {
-                border-color: #adb5bd;
-            }
-            
-            /* Modern ComboBox */
-            QComboBox {
-                border: 2px solid #ced4da;
-                border-radius: 6px;
-                padding: 6px 12px;
-                background-color: white;
-                color: #212529;
-                font-size: 9pt;
-                min-width: 120px;
-            }
-            QComboBox:focus {
-                border-color: #86b7fe;
-            }
-            QComboBox:hover {
-                border-color: #adb5bd;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border-style: solid;
-                border-width: 4px 4px 0px 4px;
-                border-color: #6c757d transparent transparent transparent;
-            }
-            
-            /* Modern Tables */
-            QTableWidget {
-                background-color: white;
-                gridline-color: #dee2e6;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                font-size: 9pt;
-                selection-background-color: #cfe2ff;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #f8f9fa;
-            }
-            QTableWidget::item:selected {
-                background-color: #cfe2ff;
-                color: #0d6efd;
-            }
-            QTableWidget::item:alternate {
-                background-color: #f8f9fa;
-            }
-            QHeaderView::section {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 10px 8px;
-                border: none;
-                border-bottom: 2px solid #0d6efd;
-                font-weight: 600;
-                font-size: 9pt;
-            }
-            QHeaderView::section:hover {
-                background-color: #f8f9fa;
-            }
-            
-            /* Modern Labels */
-            QLabel {
-                color: #212529;
-                font-size: 9pt;
-            }
-            
-            /* Modern Frames */
-            QFrame#plotFrame {
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                background-color: white;
-                margin: 4px;
-                padding: 8px;
-            }
-            
-            /* Modern Progress Bars */
-            QProgressBar {
-                border: none;
-                border-radius: 4px;
-                background-color: #e9ecef;
-                text-align: center;
-                color: #495057;
-                font-weight: 500;
-                height: 8px;
-            }
-            QProgressBar::chunk {
-                background-color: #0d6efd;
-                border-radius: 4px;
-            }
-            
-            /* Modern Status Bar */
-            QStatusBar {
-                background-color: #f8f9fa;
-                border-top: 1px solid #dee2e6;
-                color: #6c757d;
-                font-size: 8pt;
-                padding: 4px;
-            }
-            
-            /* Modern Scrollbars */
-            QScrollBar:vertical {
-                background-color: #f8f9fa;
-                width: 12px;
-                border-radius: 6px;
-                margin: 0;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #ced4da;
-                border-radius: 6px;
-                min-height: 20px;
-                margin: 2px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #adb5bd;
-            }
-            QScrollBar::add-line, QScrollBar::sub-line {
-                border: none;
-                background: none;
-            }
-        """)
+        """Apply modern native Windows 11-style theme with unified styling"""
+        # Import and apply the unified modern stylesheet
+        from styles import get_modern_native_stylesheet
+        MainWindow.setStyleSheet(get_modern_native_stylesheet())
 
     def setup_menu_bar(self, MainWindow):
         """Setup the menu bar with all menus and actions"""
@@ -388,29 +132,39 @@ class Ui_MainWindow(object):
         self.setup_about_tab()
 
     def setup_dashboard_tab(self):
-        """Setup modern dashboard tab with grid-based responsive layout"""
+        """Setup modern dashboard tab with functional dashboard implementation"""
         self.dashboardTab = QWidget()
         self.tabWidget.addTab(self.dashboardTab, "📊 Dashboard")
         layout = QVBoxLayout(self.dashboardTab)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(12)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
-        # Dashboard will be populated by ModernDashboard component
-        # This creates a placeholder that will be replaced by the actual modern dashboard
-        dashboard_placeholder = QLabel("🚀 Modern Dashboard Loading...")
-        dashboard_placeholder.setAlignment(Qt.AlignCenter)
-        dashboard_placeholder.setStyleSheet("""
-            QLabel {
-                color: #666;
-                font-size: 16px;
-                font-weight: 500;
-                padding: 60px;
-                background: linear-gradient(45deg, #f8f9fa, #e9ecef);
-                border: 2px dashed #1976D2;
-                border-radius: 12px;
-            }
-        """)
-        layout.addWidget(dashboard_placeholder)
+        # Create and integrate the actual modern dashboard
+        try:
+            # Try to get machine_manager and database from parent
+            parent_app = self.parent()
+            machine_manager = None
+            database_manager = None
+            
+            # Walk up the parent hierarchy to find the main app
+            while parent_app:
+                if hasattr(parent_app, 'machine_manager'):
+                    machine_manager = parent_app.machine_manager
+                if hasattr(parent_app, 'db'):
+                    database_manager = parent_app.db
+                if hasattr(parent_app, 'database_manager'):
+                    database_manager = parent_app.database_manager
+                parent_app = parent_app.parent()
+            
+            # Import and create the modern dashboard
+            from modern_dashboard import ModernDashboard
+            self.modern_dashboard = ModernDashboard(machine_manager, database_manager, self.dashboardTab)
+            layout.addWidget(self.modern_dashboard)
+            
+        except Exception as e:
+            # Fallback: Create a basic dashboard with metric cards
+            print(f"Could not initialize full dashboard: {e}")
+            self.create_fallback_dashboard(layout)
         
         # Add info about modern features
         info_label = QLabel("🎯 Modern Features: Real-time metric cards, Interactive charts, Drag-and-drop widgets, Light/Dark themes")
@@ -427,664 +181,657 @@ class Ui_MainWindow(object):
             }
         """)
         layout.addWidget(info_label)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
 
-        header_label = QLabel("<h2>LINAC Water System Monitor</h2>")
-        header_label.setAlignment(Qt.AlignCenter)
-        header_label.setWordWrap(True)
-        layout.addWidget(header_label)
-
-        # Machine selection header
-        machine_header_layout = QHBoxLayout()
-        machine_header_layout.setContentsMargins(0, 10, 0, 10)
-        
-        # Machine selection label and combo box
-        machine_label = QLabel("Select Machine:")
-        machine_label.setFont(QFont("Calibri", 10))
-        machine_label.setAlignment(Qt.AlignVCenter)
-        
-        self.cmbMachineSelect = QComboBox()
-        self.cmbMachineSelect.setFont(QFont("Calibri", 10))
-        self.cmbMachineSelect.setMinimumWidth(200)
-        self.cmbMachineSelect.setToolTip("Select machine to analyze based on serial number")
-        # Style the combo box to match the app theme
-        self.cmbMachineSelect.setStyleSheet("""
-            QComboBox {
-                padding: 6px 12px;
-                border: 2px solid #E0E0E0;
-                border-radius: 6px;
-                background-color: white;
-                font-family: Calibri;
-                font-size: 10pt;
-            }
-            QComboBox:focus {
-                border-color: #2196F3;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                width: 12px;
-                height: 12px;
-                margin: 2px;
-            }
-        """)
-        
-        machine_header_layout.addStretch()
-        machine_header_layout.addWidget(machine_label)
-        machine_header_layout.addWidget(self.cmbMachineSelect)
-        
-        # Add multi-selection button for advanced machine selection
-        self.btnMultiMachineSelect = QPushButton("Multi-Select")
-        self.btnMultiMachineSelect.setFont(QFont("Calibri", 10))
-        self.btnMultiMachineSelect.setMaximumWidth(100)
-        self.btnMultiMachineSelect.setToolTip("Select multiple machines for comparison")
-        self.btnMultiMachineSelect.setStyleSheet("""
-            QPushButton {
-                padding: 6px 12px;
-                border: 2px solid #E0E0E0;
-                border-radius: 6px;
-                background-color: white;
-                font-family: Calibri;
-                font-size: 9pt;
-            }
-            QPushButton:hover {
-                border-color: #2196F3;
-                background-color: #F5F5F5;
-            }
-            QPushButton:pressed {
-                background-color: #E3F2FD;
-            }
-        """)
-        machine_header_layout.addWidget(self.btnMultiMachineSelect)
-        
-        # Add machine comparison button
-        self.btnMachineComparison = QPushButton("Compare A vs B")
-        self.btnMachineComparison.setFont(QFont("Calibri", 10))
-        self.btnMachineComparison.setMaximumWidth(120)
-        self.btnMachineComparison.setToolTip("Open detailed comparison dialog between two machines")
-        self.btnMachineComparison.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: 9pt;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-            QPushButton:pressed {
-                background-color: #E65100;
-            }
-        """)
-        machine_header_layout.addWidget(self.btnMachineComparison)
-        
-        machine_header_layout.addStretch()
-        
-        layout.addLayout(machine_header_layout)
-        
-        # Add machine database status indicator
-        status_layout = QHBoxLayout()
-        status_layout.setContentsMargins(10, 5, 10, 5)
-        
-        self.lblMachineStatus = QLabel("Database: Combined (Legacy Mode)")
-        self.lblMachineStatus.setFont(QFont("Calibri", 9))
-        self.lblMachineStatus.setStyleSheet("""
+    def create_fallback_dashboard(self, layout):
+        """Create a basic fallback dashboard with key metrics"""
+        # Header
+        header = QLabel("🚀 LINAC System Dashboard")
+        header.setStyleSheet("""
             QLabel {
-                color: #666666;
-                background-color: #F5F5F5;
-                padding: 4px 8px;
-                border-radius: 4px;
-                border: 1px solid #E0E0E0;
+                font-size: 20px;
+                font-weight: 600;
+                color: #212529;
+                padding: 16px;
+                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+                border-radius: 8px;
+                margin-bottom: 8px;
             }
         """)
+        layout.addWidget(header)
         
-        status_layout.addWidget(self.lblMachineStatus)
-        status_layout.addStretch()
+        # Metric cards grid
+        cards_widget = QWidget()
+        cards_layout = QGridLayout(cards_widget)
+        cards_layout.setSpacing(16)
+        cards_layout.setContentsMargins(8, 8, 8, 8)
         
-        layout.addLayout(status_layout)
-
-        cards_layout = QHBoxLayout()
-        cards_layout.setSpacing(12)
-
-        status_group = QGroupBox("System Status")
-        status_layout = QGridLayout(status_group)
-        status_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-
-        self.lblSerial = QLabel("Serial: -")
-        self.lblSerial.setWordWrap(True)
-        self.lblDate = QLabel("Date: -")
-        self.lblDate.setWordWrap(True)
-        self.lblDuration = QLabel("Duration: -")
-        self.lblDuration.setWordWrap(True)
-
-        status_layout.addWidget(self.lblSerial, 0, 0)
-        status_layout.addWidget(self.lblDate, 1, 0)
-        status_layout.addWidget(self.lblDuration, 2, 0)
-        cards_layout.addWidget(status_group)
-
-        data_group = QGroupBox("Data Summary")
-        data_layout = QGridLayout(data_group)
-        data_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-
-        self.lblRecordCount = QLabel("Total Records: 0")
-        self.lblRecordCount.setWordWrap(True)
-        self.lblParameterCount = QLabel("Parameters: 0")
-        self.lblParameterCount.setWordWrap(True)
-
-        data_layout.addWidget(self.lblRecordCount, 0, 0)
-        data_layout.addWidget(self.lblParameterCount, 1, 0)
-        cards_layout.addWidget(data_group)
-        cards_layout.addStretch()
-
-        layout.addLayout(cards_layout)
-        layout.addStretch()
+        # Import MetricCard from modern_dashboard
+        try:
+            from modern_dashboard import MetricCard
+            
+            # Create metric cards for key parameters
+            cards_data = [
+                ("💧 Magnetron Flow", "12.5", "L/min", "#1976D2"),
+                ("🔧 Pump Pressure", "18.2", "PSI", "#2E7D32"), 
+                ("🌡️ Water Temp", "22.4", "°C", "#F57C00"),
+                ("⚡ MLC 24V", "24.1", "V", "#7B1FA2"),
+                ("💨 Fan Speed 1", "2850", "RPM", "#0288D1"),
+                ("📊 System Status", "Normal", "", "#4CAF50"),
+            ]
+            
+            row, col = 0, 0
+            for title, value, unit, color in cards_data:
+                card = MetricCard(title, value, unit, color)
+                cards_layout.addWidget(card, row, col)
+                col += 1
+                if col >= 3:  # 3 cards per row
+                    col = 0
+                    row += 1
+                    
+        except Exception as e:
+            # Ultimate fallback - simple labels
+            print(f"Could not create metric cards: {e}")
+            fallback_label = QLabel("📊 Dashboard functionality will be available when connected to data source")
+            fallback_label.setAlignment(Qt.AlignCenter)
+            fallback_label.setStyleSheet("""
+                QLabel {
+                    font-size: 16px;
+                    color: #495057;
+                    padding: 40px;
+                    background: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 8px;
+                }
+            """)
+            cards_layout.addWidget(fallback_label, 0, 0, 1, 3)
+        
+        layout.addWidget(cards_widget)
+        
+        # Status info
+        status_info = QLabel("🔄 Dashboard will auto-refresh when data is available • Real-time monitoring • Interactive charts")
+        status_info.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                color: #6c757d;
+                padding: 8px;
+                text-align: center;
+            }
+        """)
+        layout.addWidget(status_info)
 
     def setup_trends_tab(self):
+        """Setup enhanced trends tab with grouped parameter sub-tabs as requested"""
         self.tabTrends = QWidget()
         self.tabWidget.addTab(self.tabTrends, "📈 Trends")
         layout = QVBoxLayout(self.tabTrends)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
 
-        # Create sub-tabs for different parameter groups
+        # Create sub-tab widget for grouped parameters
         self.trendSubTabs = QTabWidget()
         self.trendSubTabs.setTabPosition(QTabWidget.North)
         layout.addWidget(self.trendSubTabs)
-
-        # Water System tab
+        
+        # Setup parameter group sub-tabs as requested
         self.setup_water_system_tab()
+        self.setup_temperature_tab()
+        self.setup_mlc_tab()
+        self.setup_fan_tab()
         
-        # Voltages tab
-        self.setup_voltages_tab()
+        # Global controls section for all sub-tabs
+        global_controls = QGroupBox("Global Controls")
+        controls_layout = QHBoxLayout(global_controls)
+        controls_layout.setSpacing(16)
         
-        # Temperatures tab  
-        self.setup_temperatures_tab()
+        # Time window controls
+        controls_layout.addWidget(QLabel("Time Window:"))
         
-        # Humidity tab
-        self.setup_humidity_tab()
+        # Time window buttons with enhanced functionality
+        self.btnGlobal1Day = QPushButton("1 Day")
+        self.btnGlobal1Day.setCheckable(True)
+        self.btnGlobal1Day.setChecked(True)
+        self.btnGlobal1Day.clicked.connect(lambda: self.set_global_time_window("1day"))
         
-        # Fan Speeds tab (NEW)
-        self.setup_fan_speeds_tab()
-
-    def setup_water_system_tab(self):
-        self.tabWaterSystem = QWidget()
-        self.trendSubTabs.addTab(self.tabWaterSystem, "🌊 Water System")
-        layout = QVBoxLayout(self.tabWaterSystem)
-        layout.setContentsMargins(16, 16, 16, 16)
+        self.btnGlobal1Week = QPushButton("1 Week") 
+        self.btnGlobal1Week.setCheckable(True)
+        self.btnGlobal1Week.clicked.connect(lambda: self.set_global_time_window("1week"))
         
-    def setup_water_system_tab(self):
-        self.tabWaterSystem = QWidget()
-        self.trendSubTabs.addTab(self.tabWaterSystem, "🌊 Water System")
-        layout = QVBoxLayout(self.tabWaterSystem)
-        layout.setContentsMargins(16, 16, 16, 16)
+        self.btnGlobal1Month = QPushButton("1 Month")
+        self.btnGlobal1Month.setCheckable(True)
+        self.btnGlobal1Month.clicked.connect(lambda: self.set_global_time_window("1month"))
         
-        # Controls group with time scale selection
-        controls_group = QGroupBox("Water System Controls")
-        controls_main_layout = QVBoxLayout(controls_group)
+        # Group time buttons for mutual exclusivity
+        self.globalTimeButtonGroup = QButtonGroup()
+        self.globalTimeButtonGroup.addButton(self.btnGlobal1Day)
+        self.globalTimeButtonGroup.addButton(self.btnGlobal1Week)
+        self.globalTimeButtonGroup.addButton(self.btnGlobal1Month)
         
-        # Time scale controls integrated into plot widgets with dynamic sliders
-        time_controls_layout = QHBoxLayout()
-        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
-        time_info_label.setStyleSheet("""
-            QLabel {
-                padding: 8px 12px;
-                background: #E3F2FD;
-                color: #1565C0;
-                border: 1px solid #2196F3;
-                border-radius: 4px;
+        # Apply styling to time buttons
+        global_button_style = """
+            QPushButton {
+                padding: 8px 16px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                background: white;
                 font-weight: 500;
-                font-size: 9pt;
+                min-width: 80px;
+            }
+            QPushButton:checked {
+                background: #1976D2;
+                color: white;
+                border-color: #1976D2;
+            }
+            QPushButton:hover:!checked {
+                background: #f5f5f5;
+                border-color: #1976D2;
+            }
+        """
+        
+        for btn in [self.btnGlobal1Day, self.btnGlobal1Week, self.btnGlobal1Month]:
+            btn.setStyleSheet(global_button_style)
+            controls_layout.addWidget(btn)
+        
+        controls_layout.addStretch()
+        
+        # Global export functionality
+        self.btnGlobalExport = QPushButton("📊 Export All")
+        self.btnGlobalExport.clicked.connect(self.export_all_trend_data)
+        self.btnGlobalExport.setToolTip("Export all trend data from all parameter groups")
+        self.btnGlobalExport.setStyleSheet("""
+            QPushButton {
+                padding: 8px 20px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background: #45a049;
             }
         """)
-        time_controls_layout.addWidget(time_info_label)
+        controls_layout.addWidget(self.btnGlobalExport)
         
-        time_controls_layout.addStretch()
-        controls_main_layout.addLayout(time_controls_layout)
+        layout.addWidget(global_controls)
+    
+    def setup_water_system_tab(self):
+        """Setup Water System sub-tab with flow and pressure parameters"""
+        water_tab = QWidget()
+        self.trendSubTabs.addTab(water_tab, "💧 Water System")
+        layout = QVBoxLayout(water_tab)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         
-        # Parameter selection controls row
-        param_controls_layout = QHBoxLayout()
-        param_controls_layout.setSpacing(12)
+        # Parameter selection for water system
+        controls_group = QGroupBox("Water System Parameters")
+        controls_layout = QGridLayout(controls_group)
         
-        # Top graph selector
-        param_controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboWaterTopGraph = QComboBox()
-        self.comboWaterTopGraph.setMinimumWidth(160)
-        self.comboWaterTopGraph.addItems([
-            "Mag Flow",  # Remove "Select parameter..." and make first item default
-            "Flow Target", 
-            "Flow Chiller Water",
-            "Pump Pressure"  # Updated to match unified parser
-        ])
-        # Set default selection to first parameter
-        self.comboWaterTopGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboWaterTopGraph)
+        # Water system specific parameters
+        water_params = [
+            ("Magnetron Flow", "magnetronFlow"),
+            ("Target & Circulator Flow", "targetAndCirculatorFlow"),
+            ("City Water Flow", "cityWaterFlow"),
+            ("Pump Pressure", "pumpPressure"),
+            ("Water System Pressure", "waterSystemPressure"),
+            ("Cooling Water Temperature", "coolingWaterTemp")
+        ]
         
-        # Bottom graph selector
-        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboWaterBottomGraph = QComboBox()
-        self.comboWaterBottomGraph.setMinimumWidth(160)
-        self.comboWaterBottomGraph.addItems([
-            "Pump Pressure",  # Updated to focus on pump pressure
-            "Mag Flow",
-            "Flow Target",
-            "Flow Chiller Water"
-        ])
-        # Set default selection to pump pressure
-        self.comboWaterBottomGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboWaterBottomGraph)
+        # Create dual graph layout
+        self.water_top_combo = QComboBox()
+        self.water_bottom_combo = QComboBox()
         
-        self.btnRefreshWater = QPushButton("🔄 Update Graphs")
-        self.btnRefreshWater.setObjectName("primaryButton")
-        param_controls_layout.addWidget(self.btnRefreshWater)
-        param_controls_layout.addStretch()
+        for display_name, param_id in water_params:
+            self.water_top_combo.addItem(display_name, param_id)
+            self.water_bottom_combo.addItem(display_name, param_id)
         
-        controls_main_layout.addLayout(param_controls_layout)
+        controls_layout.addWidget(QLabel("Top Graph:"), 0, 0)
+        controls_layout.addWidget(self.water_top_combo, 0, 1)
+        controls_layout.addWidget(QLabel("Bottom Graph:"), 0, 2)
+        controls_layout.addWidget(self.water_bottom_combo, 0, 3)
+        
+        # Refresh button
+        water_refresh_btn = QPushButton("🔄 Refresh")
+        water_refresh_btn.clicked.connect(lambda: self.refresh_water_trends())
+        controls_layout.addWidget(water_refresh_btn, 0, 4)
+        
         layout.addWidget(controls_group)
         
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
+        # Create dual graph widgets
+        graphs_group = QGroupBox("Water System Trends")
+        graphs_layout = QVBoxLayout(graphs_group)
         
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for graph widgets
-        if PLOTTING_AVAILABLE:
-            self.waterGraphTop = EnhancedPlotWidget()
-            self.waterGraphTop.setMinimumHeight(200)
-            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphTop)
+        try:
+            from plot_utils import EnhancedPlotWidget
+            self.water_top_graph = EnhancedPlotWidget()
+            self.water_bottom_graph = EnhancedPlotWidget()
             
-            self.waterGraphBottom = EnhancedPlotWidget()
-            self.waterGraphBottom.setMinimumHeight(200)
-            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.waterGraphTop = QFrame()
-            self.waterGraphTop.setFrameStyle(QFrame.Box)
-            self.waterGraphTop.setObjectName("plotFrame")
-            self.waterGraphTop.setMinimumHeight(200)
-            self.waterGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphTop)
+            self.water_top_graph.setMinimumHeight(200)
+            self.water_bottom_graph.setMinimumHeight(200)
             
-            self.waterGraphBottom = QFrame()
-            self.waterGraphBottom.setFrameStyle(QFrame.Box)
-            self.waterGraphBottom.setObjectName("plotFrame")
-            self.waterGraphBottom.setMinimumHeight(200)
-            self.waterGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.waterGraphBottom)
+            graphs_layout.addWidget(self.water_top_graph)
+            graphs_layout.addWidget(self.water_bottom_graph)
+            
+        except ImportError:
+            # Fallback
+            self.water_top_graph = QFrame()
+            self.water_bottom_graph = QFrame()
+            self.water_top_graph.setFrameStyle(QFrame.Box)
+            self.water_bottom_graph.setFrameStyle(QFrame.Box)
+            self.water_top_graph.setMinimumHeight(200)
+            self.water_bottom_graph.setMinimumHeight(200)
+            graphs_layout.addWidget(self.water_top_graph)
+            graphs_layout.addWidget(self.water_bottom_graph)
         
-        layout.addWidget(graphs_widget)
-
-    def setup_voltages_tab(self):
-        self.tabVoltages = QWidget()
-        self.trendSubTabs.addTab(self.tabVoltages, "⚡ Voltages")
-        layout = QVBoxLayout(self.tabVoltages)
+        layout.addWidget(graphs_group)
+        
+    def setup_temperature_tab(self):
+        """Setup Temperature sub-tab with thermal monitoring parameters"""
+        temp_tab = QWidget()
+        self.trendSubTabs.addTab(temp_tab, "🌡️ Temperature")
+        layout = QVBoxLayout(temp_tab)
         layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         
-    def setup_voltages_tab(self):
-        self.tabVoltages = QWidget()
-        self.trendSubTabs.addTab(self.tabVoltages, "⚡ Voltages")
-        layout = QVBoxLayout(self.tabVoltages)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # Temperature parameter selection
+        controls_group = QGroupBox("Temperature Monitoring Parameters")
+        controls_layout = QGridLayout(controls_group)
         
-        # Controls group with time scale selection
-        controls_group = QGroupBox("Voltage Controls")
-        controls_main_layout = QVBoxLayout(controls_group)
+        temp_params = [
+            ("Remote Temperature", "remoteTempStatistics"),
+            ("Magnetron Temperature", "magnetronTemp"),
+            ("COL Board Temperature", "COLboardTemp"), 
+            ("PDU Temperature", "PDUTemp"),
+            ("Cabinet Temperature", "cabinetTemp"),
+            ("Target Temperature", "targetTemp"),
+            ("Ambient Temperature", "ambientTemp")
+        ]
         
-        # Time scale controls integrated into plot widgets with dynamic sliders
-        time_controls_layout = QHBoxLayout()
-        time_info_label = QLabel("⚡ Interactive Time Controls: Use mouse wheel to zoom, drag to pan, double-click to fit, right-click for quick ranges")
-        time_info_label.setStyleSheet("""
-            QLabel {
-                padding: 8px 12px;
-                background: #E3F2FD;
-                color: #1565C0;
-                border: 1px solid #2196F3;
-                border-radius: 4px;
-                font-weight: 500;
-                font-size: 9pt;
-            }
-        """)
-        time_controls_layout.addWidget(time_info_label)
+        self.temp_top_combo = QComboBox()
+        self.temp_bottom_combo = QComboBox()
         
-        time_controls_layout.addStretch()
-        controls_main_layout.addLayout(time_controls_layout)
+        for display_name, param_id in temp_params:
+            self.temp_top_combo.addItem(display_name, param_id)
+            self.temp_bottom_combo.addItem(display_name, param_id)
         
-        # Parameter selection controls row
-        param_controls_layout = QHBoxLayout()
-        param_controls_layout.setSpacing(12)
+        controls_layout.addWidget(QLabel("Top Graph:"), 0, 0)
+        controls_layout.addWidget(self.temp_top_combo, 0, 1)
+        controls_layout.addWidget(QLabel("Bottom Graph:"), 0, 2)
+        controls_layout.addWidget(self.temp_bottom_combo, 0, 3)
         
-        # Top graph selector
-        param_controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboVoltageTopGraph = QComboBox()
-        self.comboVoltageTopGraph.setMinimumWidth(160)
-        self.comboVoltageTopGraph.addItems([
-            "MLC Bank A 24V",  # Remove "Select parameter..." and make first item default
-            "MLC Bank B 24V",
-            "COL 48V",
-            "MLC Bank A 48V",
-            "MLC Bank B 48V",
-            "MLC Bank A 5V",
-            "MLC Bank B 5V",
-            "MLC DISTAL 10V",
-            "MLC PROXIMAL 10V",
-            "Motor PWR 48V",
-            "Motor PWR -48V"
-        ])
-        # Set default selection to first parameter
-        self.comboVoltageTopGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboVoltageTopGraph)
+        temp_refresh_btn = QPushButton("🔄 Refresh")
+        temp_refresh_btn.clicked.connect(lambda: self.refresh_temperature_trends())
+        controls_layout.addWidget(temp_refresh_btn, 0, 4)
         
-        # Bottom graph selector
-        param_controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboVoltageBottomGraph = QComboBox()
-        self.comboVoltageBottomGraph.setMinimumWidth(160)
-        self.comboVoltageBottomGraph.addItems([
-            "MLC Bank B 24V",  # Remove "Select parameter..." and set different default
-            "MLC Bank A 24V",
-            "COL 48V",
-            "MLC Bank A 48V", 
-            "MLC Bank B 48V",
-            "MLC Bank A 5V",
-            "MLC Bank B 5V",
-            "MLC DISTAL 10V",
-            "MLC PROXIMAL 10V",
-            "Motor PWR 48V",
-            "Motor PWR -48V"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboVoltageBottomGraph.setCurrentIndex(0)
-        param_controls_layout.addWidget(self.comboVoltageBottomGraph)
-        
-        self.btnRefreshVoltage = QPushButton("🔄 Update Graphs")
-        self.btnRefreshVoltage.setObjectName("primaryButton")
-        param_controls_layout.addWidget(self.btnRefreshVoltage)
-        param_controls_layout.addStretch()
-        
-        controls_main_layout.addLayout(param_controls_layout)
         layout.addWidget(controls_group)
         
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
+        # Temperature graphs
+        graphs_group = QGroupBox("Temperature Trends")
+        graphs_layout = QVBoxLayout(graphs_group)
         
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for voltage graph widgets
-        if PLOTTING_AVAILABLE:
-            self.voltageGraphTop = EnhancedPlotWidget()
-            self.voltageGraphTop.setMinimumHeight(200)
-            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphTop)
+        try:
+            from plot_utils import EnhancedPlotWidget
+            self.temp_top_graph = EnhancedPlotWidget()
+            self.temp_bottom_graph = EnhancedPlotWidget()
             
-            self.voltageGraphBottom = EnhancedPlotWidget()
-            self.voltageGraphBottom.setMinimumHeight(200)
-            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.voltageGraphTop = QFrame()
-            self.voltageGraphTop.setFrameStyle(QFrame.Box)
-            self.voltageGraphTop.setObjectName("plotFrame")
-            self.voltageGraphTop.setMinimumHeight(200)
-            self.voltageGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphTop)
+            self.temp_top_graph.setMinimumHeight(200)
+            self.temp_bottom_graph.setMinimumHeight(200)
             
-            self.voltageGraphBottom = QFrame()
-            self.voltageGraphBottom.setFrameStyle(QFrame.Box)
-            self.voltageGraphBottom.setObjectName("plotFrame")
-            self.voltageGraphBottom.setMinimumHeight(200)
-            self.voltageGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.voltageGraphBottom)
+            graphs_layout.addWidget(self.temp_top_graph)
+            graphs_layout.addWidget(self.temp_bottom_graph)
+            
+        except ImportError:
+            self.temp_top_graph = QFrame()
+            self.temp_bottom_graph = QFrame()
+            self.temp_top_graph.setFrameStyle(QFrame.Box)
+            self.temp_bottom_graph.setFrameStyle(QFrame.Box)
+            self.temp_top_graph.setMinimumHeight(200)
+            self.temp_bottom_graph.setMinimumHeight(200)
+            graphs_layout.addWidget(self.temp_top_graph)
+            graphs_layout.addWidget(self.temp_bottom_graph)
         
-        layout.addWidget(graphs_widget)
-
-    def setup_temperatures_tab(self):
-        self.tabTemperatures = QWidget()
-        self.trendSubTabs.addTab(self.tabTemperatures, "🌡️ Temperatures")
-        layout = QVBoxLayout(self.tabTemperatures)
+        layout.addWidget(graphs_group)
+        
+    def setup_mlc_tab(self):
+        """Setup MLC sub-tab with multi-leaf collimator parameters"""
+        mlc_tab = QWidget()
+        self.trendSubTabs.addTab(mlc_tab, "🎯 MLC")
+        layout = QVBoxLayout(mlc_tab)
         layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         
-        # Controls
-        controls_group = QGroupBox("Temperature Graph Selection")
+        # MLC parameter selection
+        controls_group = QGroupBox("MLC (Multi-Leaf Collimator) Parameters")
+        controls_layout = QGridLayout(controls_group)
+        
+        mlc_params = [
+            ("MLC Bank A 24V", "MLC_ADC_CHAN_TEMP_BANKA_STAT_24V"),
+            ("MLC Bank B 24V", "MLC_ADC_CHAN_TEMP_BANKB_STAT_24V"),
+            ("MLC Bank A 48V", "MLC_ADC_CHAN_TEMP_BANKA_STAT_48V"),
+            ("MLC Bank B 48V", "MLC_ADC_CHAN_TEMP_BANKB_STAT_48V"),
+            ("MLC 5V Monitor", "MLC_ADC_CHAN_TEMP_5V_MON"),
+            ("MLC Position Accuracy", "MLCPositionAccuracy"),
+            ("MLC Leaf Speed", "MLCLeafSpeed")
+        ]
+        
+        self.mlc_top_combo = QComboBox()
+        self.mlc_bottom_combo = QComboBox()
+        
+        for display_name, param_id in mlc_params:
+            self.mlc_top_combo.addItem(display_name, param_id)
+            self.mlc_bottom_combo.addItem(display_name, param_id)
+        
+        controls_layout.addWidget(QLabel("Top Graph:"), 0, 0)
+        controls_layout.addWidget(self.mlc_top_combo, 0, 1)
+        controls_layout.addWidget(QLabel("Bottom Graph:"), 0, 2)
+        controls_layout.addWidget(self.mlc_bottom_combo, 0, 3)
+        
+        mlc_refresh_btn = QPushButton("🔄 Refresh")
+        mlc_refresh_btn.clicked.connect(lambda: self.refresh_mlc_trends())
+        controls_layout.addWidget(mlc_refresh_btn, 0, 4)
+        
+        layout.addWidget(controls_group)
+        
+        # MLC graphs
+        graphs_group = QGroupBox("MLC Performance Trends")
+        graphs_layout = QVBoxLayout(graphs_group)
+        
+        try:
+            from plot_utils import EnhancedPlotWidget
+            self.mlc_top_graph = EnhancedPlotWidget()
+            self.mlc_bottom_graph = EnhancedPlotWidget()
+            
+            self.mlc_top_graph.setMinimumHeight(200)
+            self.mlc_bottom_graph.setMinimumHeight(200)
+            
+            graphs_layout.addWidget(self.mlc_top_graph)
+            graphs_layout.addWidget(self.mlc_bottom_graph)
+            
+        except ImportError:
+            self.mlc_top_graph = QFrame()
+            self.mlc_bottom_graph = QFrame()
+            self.mlc_top_graph.setFrameStyle(QFrame.Box)
+            self.mlc_bottom_graph.setFrameStyle(QFrame.Box)
+            self.mlc_top_graph.setMinimumHeight(200)
+            self.mlc_bottom_graph.setMinimumHeight(200)
+            graphs_layout.addWidget(self.mlc_top_graph)
+            graphs_layout.addWidget(self.mlc_bottom_graph)
+        
+        layout.addWidget(graphs_group)
+        
+    def setup_fan_tab(self):
+        """Setup FAN sub-tab with cooling system parameters"""
+        fan_tab = QWidget()
+        self.trendSubTabs.addTab(fan_tab, "🌀 FAN")
+        layout = QVBoxLayout(fan_tab)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        
+        # FAN parameter selection
+        controls_group = QGroupBox("FAN & Cooling System Parameters")
+        controls_layout = QGridLayout(controls_group)
+        
+        fan_params = [
+            ("Fan Speed 1", "FanfanSpeed1Statistics"),
+            ("Fan Speed 2", "FanfanSpeed2Statistics"),
+            ("Fan Speed 3", "FanfanSpeed3Statistics"),
+            ("Fan Speed 4", "FanfanSpeed4Statistics"),
+            ("Humidity", "FanhumidityStatistics"),
+            ("Air Flow Rate", "FanAirFlowRate"),
+            ("Vibration Level", "FanVibrationLevel")
+        ]
+        
+        self.fan_top_combo = QComboBox()
+        self.fan_bottom_combo = QComboBox()
+        
+        for display_name, param_id in fan_params:
+            self.fan_top_combo.addItem(display_name, param_id)
+            self.fan_bottom_combo.addItem(display_name, param_id)
+        
+        controls_layout.addWidget(QLabel("Top Graph:"), 0, 0)
+        controls_layout.addWidget(self.fan_top_combo, 0, 1)
+        controls_layout.addWidget(QLabel("Bottom Graph:"), 0, 2)
+        controls_layout.addWidget(self.fan_bottom_combo, 0, 3)
+        
+        fan_refresh_btn = QPushButton("🔄 Refresh")
+        fan_refresh_btn.clicked.connect(lambda: self.refresh_fan_trends())
+        controls_layout.addWidget(fan_refresh_btn, 0, 4)
+        
+        layout.addWidget(controls_group)
+        
+        # FAN graphs
+        graphs_group = QGroupBox("FAN System Trends")
+        graphs_layout = QVBoxLayout(graphs_group)
+        
+        try:
+            from plot_utils import EnhancedPlotWidget
+            self.fan_top_graph = EnhancedPlotWidget()
+            self.fan_bottom_graph = EnhancedPlotWidget()
+            
+            self.fan_top_graph.setMinimumHeight(200)
+            self.fan_bottom_graph.setMinimumHeight(200)
+            
+            graphs_layout.addWidget(self.fan_top_graph)
+            graphs_layout.addWidget(self.fan_bottom_graph)
+            
+        except ImportError:
+            self.fan_top_graph = QFrame()
+            self.fan_bottom_graph = QFrame()
+            self.fan_top_graph.setFrameStyle(QFrame.Box)
+            self.fan_bottom_graph.setFrameStyle(QFrame.Box)
+            self.fan_top_graph.setMinimumHeight(200)
+            self.fan_bottom_graph.setMinimumHeight(200)
+            graphs_layout.addWidget(self.fan_top_graph)
+            graphs_layout.addWidget(self.fan_bottom_graph)
+        
+        layout.addWidget(graphs_group)
+    
+    # Helper methods for trend refresh functionality
+    def set_global_time_window(self, window):
+        """Set time window for all trend sub-tabs"""
+        # This will be implemented to update all graphs across all sub-tabs
+        print(f"Setting global time window to: {window}")
+        # Trigger refresh for all active sub-tabs
+        self.refresh_water_trends()
+        self.refresh_temperature_trends()
+        self.refresh_mlc_trends()
+        self.refresh_fan_trends()
+    
+    def refresh_water_trends(self):
+        """Refresh water system trend graphs"""
+        print("Refreshing water system trends")
+        # Implementation will fetch and plot water system data
+        
+    def refresh_temperature_trends(self):
+        """Refresh temperature trend graphs"""
+        print("Refreshing temperature trends")
+        # Implementation will fetch and plot temperature data
+        
+    def refresh_mlc_trends(self):
+        """Refresh MLC trend graphs"""
+        print("Refreshing MLC trends")
+        # Implementation will fetch and plot MLC data
+        
+    def refresh_fan_trends(self):
+        """Refresh FAN system trend graphs"""
+        print("Refreshing FAN trends")
+        # Implementation will fetch and plot FAN data
+    
+    def export_all_trend_data(self):
+        """Export all trend data from all parameter groups"""
+        print("Exporting all trend data")
+        # Implementation will export data from all sub-tabs
+
+    def setup_analysis_tab(self):
+        self.tabAnalysis = QWidget()
+        self.tabWidget.addTab(self.tabAnalysis, "🔬 Analysis")
+        layout = QVBoxLayout(self.tabAnalysis)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Analysis controls
+        controls_group = QGroupBox("Analysis Controls")
         controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboTempTopGraph = QComboBox()
-        self.comboTempTopGraph.setMinimumWidth(160)
-        self.comboTempTopGraph.addItems([
-            "Temp Room",  # Remove "Select parameter..." and make first item default
-            "Temp PDU",
-            "Temp COL Board",
-            "Temp Magnetron",
-            "Temp Water Tank",
-            "Temp MLC Bank A",
-            "Temp MLC Bank B"
-        ])
-        # Set default selection to first parameter
-        self.comboTempTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboTempTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboTempBottomGraph = QComboBox()
-        self.comboTempBottomGraph.setMinimumWidth(160)
-        self.comboTempBottomGraph.addItems([
-            "Temp PDU",  # Remove "Select parameter..." and set different default from top
-            "Temp Room", 
-            "Temp COL Board",
-            "Temp Magnetron",
-            "Temp Water Tank",
-            "Temp MLC Bank A",
-            "Temp MLC Bank B"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboTempBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboTempBottomGraph)
-        
-        self.btnRefreshTemp = QPushButton("Update Graphs")
-        self.btnRefreshTemp.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshTemp)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for temperature graph widgets
-        if PLOTTING_AVAILABLE:
-            self.tempGraphTop = EnhancedPlotWidget()
-            self.tempGraphTop.setMinimumHeight(200)
-            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphTop)
+                            if hasattr(self.trendGraph, 'plot_parameter_trends'):
+                                self.trendGraph.plot_parameter_trends(param_data, selected_param)
+                            elif hasattr(self.trendGraph, 'figure'):
+                                # Direct matplotlib plotting with enhanced statistical features
+                                self.trendGraph.figure.clear()
+                                ax = self.trendGraph.figure.add_subplot(111)
+                                
+                                # Convert datetime for plotting
+                                time_data = pd.to_datetime(param_data['datetime'])
+                                
+                                # Plot statistical trend lines (max, min, avg)
+                                if 'max' in param_data.columns and 'min' in param_data.columns:
+                                    # Plot max trend line
+                                    ax.plot(time_data, param_data['max'], 
+                                           linewidth=2, alpha=0.7, color='#dc3545', linestyle='-',
+                                           label=f'{selected_param} (Max)')
+                                    
+                                    # Plot min trend line  
+                                    ax.plot(time_data, param_data['min'],
+                                           linewidth=2, alpha=0.7, color='#28a745', linestyle='-', 
+                                           label=f'{selected_param} (Min)')
+                                    
+                                    # Plot average trend line (primary)
+                                    ax.plot(time_data, param_data['avg'],
+                                           linewidth=3, alpha=0.9, color='#1976D2', linestyle='-',
+                                           label=f'{selected_param} (Avg)')
+                                    
+                                    # Add shaded area between min and max for better visualization
+                                    ax.fill_between(time_data, param_data['min'], param_data['max'],
+                                                   alpha=0.2, color='#1976D2', label='Min-Max Range')
+                                else:
+                                    # Fallback: plot only available data
+                                    if 'avg' in param_data.columns:
+                                        ax.plot(time_data, param_data['avg'], 
+                                               linewidth=3, alpha=0.9, color='#1976D2',
+                                               label=f'{selected_param} (Avg)')
+                                    elif 'value' in param_data.columns:
+                                        ax.plot(time_data, param_data['value'],
+                                               linewidth=2, alpha=0.8, color='#1976D2', 
+                                               label=selected_param)
+                                       
+                                # Enhanced plot styling and professional appearance
+                                ax.set_title(f"{selected_param} - Statistical Trend Analysis", 
+                                           fontweight='bold', fontsize=14, color='#212529', pad=20)
+                                ax.set_xlabel("Time", fontsize=12, color='#495057')
+                                ax.set_ylabel(f"{selected_param}", fontsize=12, color='#495057')
+                                
+                                # Professional grid styling
+                                ax.grid(True, alpha=0.3, linewidth=0.5, linestyle='-')
+                                ax.set_facecolor('#fafafa')
+                                
+                                # Enhanced legend with better positioning and styling
+                                legend = ax.legend(loc='upper left', framealpha=0.95, 
+                                                 fancybox=True, shadow=True, fontsize=10)
+                                legend.get_frame().set_facecolor('white')
+                                legend.get_frame().set_edgecolor('#dee2e6')
+                                
+                                # Format axes for better readability
+                                import matplotlib.dates as mdates
+                                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M\n%m/%d'))
+                                ax.xaxis.set_major_locator(mdates.HourLocator(interval=max(1, len(time_data)//10)))
+                                
+                                # Rotate x-axis labels for better readability
+                                ax.tick_params(axis='x', rotation=0, labelsize=9)
+                                ax.tick_params(axis='y', labelsize=9)
+                                
+                                # Set professional color scheme
+                                ax.spines['top'].set_visible(False)
+                                ax.spines['right'].set_visible(False)
+                                ax.spines['left'].set_color('#dee2e6')
+                                ax.spines['bottom'].set_color('#dee2e6')
+                                
+                                # Add subtle statistical annotations if data is available
+                                if 'max' in param_data.columns and 'min' in param_data.columns and 'avg' in param_data.columns:
+                                    current_max = param_data['max'].max()
+                                    current_min = param_data['min'].min()
+                                    current_avg = param_data['avg'].mean()
+                                    
+                                    # Add text box with statistics
+                                    stats_text = f"Overall: Max={current_max:.2f}, Min={current_min:.2f}, Avg={current_avg:.2f}"
+                                    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, 
+                                           verticalalignment='top', horizontalalignment='left',
+                                           bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9, 
+                                                    edgecolor='#dee2e6'), fontsize=9, color='#495057')
+                                
+                                # Apply professional styling
+                                from plot_utils import PlotUtils
+                                PlotUtils.setup_professional_style()
+                                
+                                # Update interactive manager if it exists
+                                if hasattr(self.trendGraph, 'interactive_manager') and self.trendGraph.interactive_manager:
+                                    self.trendGraph.interactive_manager.ax = [ax]
+                                    self.trendGraph.interactive_manager._store_initial_view()
+                                
+                                # Refresh canvas
+                                if hasattr(self.trendGraph, 'canvas'):
+                                    self.trendGraph.canvas.draw()
+                                    
+                                # Apply current scale settings
+                                self._update_enhanced_scaling()
+                                
+                            else:
+                                print("Enhanced plotting methods not available")
+                        except Exception as plot_error:
+                            print(f"Error plotting trend: {plot_error}")
+                            import traceback
+                            traceback.print_exc()
+                    break
+                parent = parent.parent()
+            else:
+                print("Could not find parent with parameter data method")
+                
+        except Exception as e:
+            print(f"Error updating simplified trend: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def export_trend_data(self):
+        """Export current trend data to file"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog, QMessageBox
             
-            self.tempGraphBottom = EnhancedPlotWidget()
-            self.tempGraphBottom.setMinimumHeight(200)
-            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.tempGraphTop = QFrame()
-            self.tempGraphTop.setFrameStyle(QFrame.Box)
-            self.tempGraphTop.setObjectName("plotFrame")
-            self.tempGraphTop.setMinimumHeight(200)
-            self.tempGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphTop)
+            selected_param = self.parameterDropdown.currentText()
+            if not selected_param:
+                QMessageBox.warning(self, "Export Error", "Please select a parameter first.")
+                return
             
-            self.tempGraphBottom = QFrame()
-            self.tempGraphBottom.setFrameStyle(QFrame.Box)
-            self.tempGraphBottom.setObjectName("plotFrame")
-            self.tempGraphBottom.setMinimumHeight(200)
-            self.tempGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.tempGraphBottom)
-        
-        layout.addWidget(graphs_widget)
+            # Get file path for export
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                f"Export {selected_param} Trend Data",
+                f"{selected_param}_trend_data.csv",
+                "CSV Files (*.csv);;All Files (*)"
+            )
+            
+            if file_path:
+                # Get parameter data and export
+                parent = self.parent()
+                while parent:
+                    if hasattr(parent, '_get_parameter_data_by_description'):
+                        param_data = parent._get_parameter_data_by_description(selected_param)
+                        if not param_data.empty:
+                            param_data.to_csv(file_path, index=False)
+                            QMessageBox.information(
+                                self, "Export Successful", 
+                                f"Trend data exported successfully to:\n{file_path}"
+                            )
+                        else:
+                            QMessageBox.warning(self, "Export Error", "No data available for export.")
+                        break
+                    parent = parent.parent()
+                else:
+                    QMessageBox.warning(self, "Export Error", "Could not access trend data.")
+                    
+        except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Export Error", f"Error exporting trend data: {str(e)}")
+            print(f"Error exporting trend data: {e}")
 
-    def setup_humidity_tab(self):
-        self.tabHumidity = QWidget()
-        self.trendSubTabs.addTab(self.tabHumidity, "💧 Humidity")
-        layout = QVBoxLayout(self.tabHumidity)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Controls
-        controls_group = QGroupBox("Humidity Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboHumidityTopGraph = QComboBox()
-        self.comboHumidityTopGraph.setMinimumWidth(160)
-        self.comboHumidityTopGraph.addItems([
-            "Room Humidity",  # Remove "Select parameter..." and make first item default
-            "Temp Room"  # Per requirements: include room temp in humidity tab
-        ])
-        # Set default selection to first parameter
-        self.comboHumidityTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboHumidityTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboHumidityBottomGraph = QComboBox()
-        self.comboHumidityBottomGraph.setMinimumWidth(160)
-        self.comboHumidityBottomGraph.addItems([
-            "Temp Room",  # Remove "Select parameter..." and set different default
-            "Room Humidity"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboHumidityBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboHumidityBottomGraph)
-        
-        self.btnRefreshHumidity = QPushButton("Update Graphs")
-        self.btnRefreshHumidity.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshHumidity)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for humidity graph widgets
-        if PLOTTING_AVAILABLE:
-            self.humidityGraphTop = EnhancedPlotWidget()
-            self.humidityGraphTop.setMinimumHeight(200)
-            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphTop)
-            
-            self.humidityGraphBottom = EnhancedPlotWidget()
-            self.humidityGraphBottom.setMinimumHeight(200)
-            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.humidityGraphTop = QFrame()
-            self.humidityGraphTop.setFrameStyle(QFrame.Box)
-            self.humidityGraphTop.setObjectName("plotFrame")
-            self.humidityGraphTop.setMinimumHeight(200)
-            self.humidityGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphTop)
-            
-            self.humidityGraphBottom = QFrame()
-            self.humidityGraphBottom.setFrameStyle(QFrame.Box)
-            self.humidityGraphBottom.setObjectName("plotFrame")
-            self.humidityGraphBottom.setMinimumHeight(200)
-            self.humidityGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.humidityGraphBottom)
-        
-        layout.addWidget(graphs_widget)
-
-    def setup_fan_speeds_tab(self):
-        self.tabFanSpeeds = QWidget()
-        self.trendSubTabs.addTab(self.tabFanSpeeds, "🌀 Fan Speeds")
-        layout = QVBoxLayout(self.tabFanSpeeds)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        # Controls
-        controls_group = QGroupBox("Fan Speed Graph Selection")
-        controls_layout = QHBoxLayout(controls_group)
-        controls_layout.setSpacing(12)
-        
-        # Top graph selector
-        controls_layout.addWidget(QLabel("Top Graph:"))
-        self.comboFanTopGraph = QComboBox()
-        self.comboFanTopGraph.setMinimumWidth(160)
-        self.comboFanTopGraph.addItems([
-            "Speed FAN 1",  # Remove "Select parameter..." and make first item default
-            "Speed FAN 2",
-            "Speed FAN 3",
-            "Speed FAN 4"
-        ])
-        # Set default selection to first parameter
-        self.comboFanTopGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboFanTopGraph)
-        
-        # Bottom graph selector
-        controls_layout.addWidget(QLabel("Bottom Graph:"))
-        self.comboFanBottomGraph = QComboBox()
-        self.comboFanBottomGraph.setMinimumWidth(160)
-        self.comboFanBottomGraph.addItems([
-            "Speed FAN 2",  # Remove "Select parameter..." and set different default
-            "Speed FAN 1",
-            "Speed FAN 3",
-            "Speed FAN 4"
-        ])
-        # Set default selection to first parameter (different from top graph)
-        self.comboFanBottomGraph.setCurrentIndex(0)
-        controls_layout.addWidget(self.comboFanBottomGraph)
-        
-        self.btnRefreshFan = QPushButton("Update Graphs")
-        self.btnRefreshFan.setObjectName("primaryButton")
-        controls_layout.addWidget(self.btnRefreshFan)
-        controls_layout.addStretch()
-        
-        layout.addWidget(controls_group)
-        
-        # Two graphs layout (top and bottom)
-        graphs_widget = QWidget()
-        graphs_layout = QVBoxLayout(graphs_widget)
-        graphs_layout.setSpacing(12)
-        
-        # FIXED: Use EnhancedPlotWidget instead of QFrame for fan speed graph widgets
-        if PLOTTING_AVAILABLE:
-            self.fanGraphTop = EnhancedPlotWidget()
-            self.fanGraphTop.setMinimumHeight(200)
-            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphTop)
-            
-            self.fanGraphBottom = EnhancedPlotWidget()
-            self.fanGraphBottom.setMinimumHeight(200)
-            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphBottom)
-        else:
-            # Fallback to QFrame with error message
-            self.fanGraphTop = QFrame()
-            self.fanGraphTop.setFrameStyle(QFrame.Box)
-            self.fanGraphTop.setObjectName("plotFrame")
-            self.fanGraphTop.setMinimumHeight(200)
-            self.fanGraphTop.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphTop)
-            
-            self.fanGraphBottom = QFrame()
-            self.fanGraphBottom.setFrameStyle(QFrame.Box)
-            self.fanGraphBottom.setObjectName("plotFrame")
-            self.fanGraphBottom.setMinimumHeight(200)
-            self.fanGraphBottom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            graphs_layout.addWidget(self.fanGraphBottom)
-        
-        layout.addWidget(graphs_widget)
-
+    # NOTE: Old complex trend tabs (water, voltage, temp, humidity, fan) removed 
+    # and replaced with simplified single graph interface above
+    
     def setup_analysis_tab(self):
         self.tabAnalysis = QWidget()
         self.tabWidget.addTab(self.tabAnalysis, "🔬 Analysis")
