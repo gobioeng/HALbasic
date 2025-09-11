@@ -1,0 +1,70 @@
+# HALog Sensor Data Log - Enhanced Parameter List
+# Updated: 2025-01-17
+# Contains comprehensive LINAC monitoring parameters organized by system
+
+# Water System Parameters
+magnetronFlow::max=15.2,min=14.8,avg=15.0,count=100
+targetAndCirculatorFlow::max=12.5,min=11.8,avg=12.1,count=100
+cityWaterFlow::max=8.3,min=7.9,avg=8.1,count=100
+pumpPressure::max=45.2,min=44.1,avg=44.6,count=100
+waterSystemPressure::max=42.1,min=41.5,avg=41.8,count=100
+coolingWaterTemp::max=23.5,min=22.1,avg=22.8,count=100
+
+# Temperature System Parameters  
+remoteTempStatistics::max=24.5,min=23.1,avg=23.8,count=100
+magnetronTemp::max=65.2,min=63.8,avg=64.5,count=100
+COLboardTemp::max=42.3,min=40.9,avg=41.6,count=100
+PDUTemp::max=38.7,min=37.2,avg=37.9,count=100
+cabinetTemp::max=35.4,min=34.1,avg=34.7,count=100
+targetTemp::max=28.9,min=27.5,avg=28.2,count=100
+
+# MLC (Multi-Leaf Collimator) Parameters
+MLC_ADC_CHAN_TEMP_BANKA_STAT_24V::max=24.1,min=23.9,avg=24.0,count=100
+MLC_ADC_CHAN_TEMP_BANKB_STAT_24V::max=24.2,min=23.8,avg=24.0,count=100
+MLC_ADC_CHAN_TEMP_BANKA_STAT_48V::max=48.3,min=47.7,avg=48.0,count=100
+MLC_ADC_CHAN_TEMP_BANKB_STAT_48V::max=48.4,min=47.6,avg=48.0,count=100
+MLC_ADC_CHAN_TEMP_5V_MON::max=5.1,min=4.9,avg=5.0,count=100
+MLCPositionAccuracy::max=0.1,min=0.0,avg=0.05,count=100
+MLCLeafSpeed::max=2.5,min=1.8,avg=2.1,count=100
+
+# FAN System Parameters
+FanfanSpeed1Statistics::max=1250,min=1200,avg=1225,count=100
+FanfanSpeed2Statistics::max=1180,min=1150,avg=1165,count=100  
+FanfanSpeed3Statistics::max=1320,min=1280,avg=1300,count=100
+FanfanSpeed4Statistics::max=1290,min=1260,avg=1275,count=100
+FanhumidityStatistics::max=45.2,min=42.8,avg=44.0,count=100
+FanAirFlowRate::max=850,min=820,avg=835,count=100
+FanVibrationLevel::max=2.1,min=1.8,avg=1.95,count=100
+
+# Voltage/Electrical Parameters
+COL_ADC_CHAN_TEMP_24V_MON::max=24.1,min=23.9,avg=24.0,count=100
+COL_ADC_CHAN_TEMP_48V_MON::max=48.2,min=47.8,avg=48.0,count=100
+highVoltageReadback::max=25000,min=24800,avg=24900,count=100
+beamCurrent::max=200.5,min=195.2,avg=197.8,count=100
+klystronVoltage::max=28500,min=28200,avg=28350,count=100
+magnetronCurrent::max=45.2,min=44.1,avg=44.6,count=100
+
+# Beam Parameters
+beamEnergy::max=6.1,min=5.9,avg=6.0,count=100
+doseRate::max=600,min=580,avg=590,count=100
+gantryAngle::max=360,min=0,avg=180,count=100
+collimatorAngle::max=180,min=0,avg=90,count=100
+fieldSize::max=40.0,min=1.0,avg=20.5,count=100
+
+# Machine Status Parameters
+beamOnTime::max=3600,min=0,avg=1800,count=100
+highVoltageOnTime::max=3600,min=0,avg=1800,count=100
+magnetronFilamentOnTime::max=7200,min=0,avg=3600,count=100
+beamArcCount::max=1000,min=0,avg=500,count=100
+treatmentCount::max=50,min=0,avg=25,count=100
+
+# Safety Interlock Parameters
+doorInterlock::max=1,min=0,avg=0.95,count=100
+radiationInterlock::max=1,min=0,avg=0.98,count=100
+emergencyStop::max=1,min=0,avg=0.99,count=100
+safetySystemStatus::max=1,min=0,avg=0.97,count=100
+
+# Environmental Parameters
+roomPressure::max=1013.2,min=1012.8,avg=1013.0,count=100
+roomHumidity::max=45.5,min=42.0,avg=43.7,count=100
+ambientTemp::max=22.5,min=21.8,avg=22.1,count=100
