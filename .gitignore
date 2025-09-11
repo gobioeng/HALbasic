@@ -44,3 +44,20 @@ env/
 *demo*.png
 *demo*.pdf
 *test_output*
+
+# Development and cleanup files
+*_backup.py
+*_temp.py
+demo_*.py
+*_demo.py
+test_*.py
+!test_app.py
+*_test.py
+verify_*.py
+migrate_*.py
+*verification*.py
+ui_layout_*.py
+*enhancement*.md
+*implementation*.md
+*summary*.md
+!IMPLEMENTATION_COMPLETE.md
