@@ -209,14 +209,20 @@ class Ui_MainWindow(object):
         try:
             from modern_dashboard import MetricCard
             
-            # Create metric cards for key parameters
+            # Create enhanced metric cards for key machine parameters as requested
             cards_data = [
-                ("💧 Magnetron Flow", "12.5", "L/min", "#1976D2"),
-                ("🔧 Pump Pressure", "18.2", "PSI", "#2E7D32"), 
-                ("🌡️ Water Temp", "22.4", "°C", "#F57C00"),
-                ("⚡ MLC 24V", "24.1", "V", "#7B1FA2"),
-                ("💨 Fan Speed 1", "2850", "RPM", "#0288D1"),
-                ("📊 System Status", "Normal", "", "#4CAF50"),
+                ("🏷️ Serial Number", "LNX-2024-001", "", "#1976D2"),
+                ("🎯 Beam Arc Count", "1,247", "arcs", "#2E7D32"), 
+                ("⏱️ Beam On Time", "3,658", "seconds", "#F57C00"),
+                ("⚡ High Voltage On Time", "3,542", "seconds", "#7B1FA2"),
+                ("🔆 Magnetron Filament On Time", "7,234", "seconds", "#0288D1"),
+                ("💧 Magnetron Flow", "12.5", "L/min", "#00BCD4"),
+                ("🔧 Pump Pressure", "18.2", "PSI", "#4CAF50"), 
+                ("🌡️ Water Temperature", "22.4", "°C", "#FF9800"),
+                ("📊 System Status", "Normal", "", "#8BC34A"),
+                ("🛡️ Safety Interlocks", "OK", "", "#4CAF50"),
+                ("💨 Fan Speed Avg", "2,850", "RPM", "#9C27B0"),
+                ("📈 Treatment Count", "42", "sessions", "#FF5722"),
             ]
             
             row, col = 0, 0
@@ -224,7 +230,7 @@ class Ui_MainWindow(object):
                 card = MetricCard(title, value, unit, color)
                 cards_layout.addWidget(card, row, col)
                 col += 1
-                if col >= 3:  # 3 cards per row
+                if col >= 4:  # 4 cards per row for better layout
                     col = 0
                     row += 1
                     
